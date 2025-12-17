@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 from utils.decorators import login_required
 from models.proxy import Proxy
-from app import db
+from database import db
 from utils.validators import validate_proxy
 from utils.proxy_helper import test_proxy_connection, rotate_mobile_proxy
 

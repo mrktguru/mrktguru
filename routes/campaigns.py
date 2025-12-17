@@ -3,7 +3,7 @@ from utils.decorators import login_required
 from models.campaign import InviteCampaign, CampaignAccount, SourceUser
 from models.channel import Channel
 from models.account import Account
-from app import db
+from database import db
 from workers.invite_worker import run_invite_campaign
 
 campaigns_bp = Blueprint('campaigns', __name__)
@@ -106,6 +106,8 @@ def start(campaign_id):
     db.session.commit()
     
     # Start worker
+    from workers.invite_worker import run_invite_campaign
+    run_invite_campaign.delay(campaign_id)
     run_invite_campaign.delay(campaign_id)
     
     flash('Campaign started', 'success')
@@ -157,3 +159,132 @@ def import_users(campaign_id):
     
     flash('Parsing users in background...', 'info')
     return redirect(url_for('campaigns.detail', campaign_id=campaign_id))
+
+
+@campaigns_bp.route("/<int:campaign_id>/parse-source", methods=["GET", "POST"])
+@login_required
+def parse_source(campaign_id):
+    """Parse users from source channel"""
+    campaign = InviteCampaign.query.get_or_404(campaign_id)
+    
+    if request.method == "POST":
+        source_channel = request.form.get("source_channel")
+        limit = int(request.form.get("limit", 1000))
+        
+        # Filters
+        exclude_bots = request.form.get("exclude_bots") == "on"
+        exclude_admins = request.form.get("exclude_admins") == "on"
+        min_score = int(request.form.get("min_score", 0))
+        
+        if not source_channel:
+            flash("Source channel is required", "error")
+            return redirect(url_for("campaigns.parse_source", campaign_id=campaign_id))
+        
+        # Mock parsing (в реальности использовать Telethon)
+        # Здесь добавить реальную логику парсинга через parser_worker
+        
+        flash(f"Parsing started from @{source_channel}. This will take a few minutes.", "info")
+        return redirect(url_for("campaigns.detail", campaign_id=campaign_id))
+    
+    return render_template("campaigns/parse_source.html", campaign=campaign)
+
+
+@campaigns_bp.route("/<int:campaign_id>/logs")
+@login_required
+def logs(campaign_id):
+    """View campaign logs"""
+    from models.campaign import InviteLog
+    
+    campaign = InviteCampaign.query.get_or_404(campaign_id)
+    
+    # Pagination
+    page = request.args.get("page", 1, type=int)
+    per_page = 50
+    
+    logs_query = InviteLog.query.filter_by(campaign_id=campaign_id).order_by(InviteLog.timestamp.desc())
+    logs_paginated = logs_query.paginate(page=page, per_page=per_page, error_out=False)
+    
+    return render_template("campaigns/logs.html", campaign=campaign, logs=logs_paginated)
+
+
+@campaigns_bp.route("/<int:campaign_id>/export", methods=["POST"])
+@login_required
+def export(campaign_id):
+    """Export campaign results to CSV"""
+    campaign = InviteCampaign.query.get_or_404(campaign_id)
+    
+    from models.campaign import SourceUser
+    import csv
+    from io import StringIO
+    from flask import make_response
+    
+    targets = SourceUser.query.filter_by(campaign_id=campaign_id).all()
+    
+    si = StringIO()
+    writer = csv.writer(si)
+    writer.writerow(["Username", "First Name", "Last Name", "Status", "Invited At", "Priority Score", "Source"])
+    
+    for target in targets:
+        writer.writerow([
+            target.username or "",
+            target.first_name or "",
+            target.last_name or "",
+            target.status,
+            target.invited_at.strftime("%Y-%m-%d %H:%M:%S") if target.invited_at else "",
+            target.priority_score,
+            target.source
+        ])
+    
+    output = make_response(si.getvalue())
+    output.headers["Content-Disposition"] = f"attachment; filename=invite_campaign_{campaign_id}_export.csv"
+    output.headers["Content-type"] = "text/csv"
+    
+    return output
+
+
+@campaigns_bp.route("/<int:campaign_id>/stats")
+@login_required
+def stats(campaign_id):
+    """Detailed campaign statistics"""
+    from models.campaign import InviteLog
+    from sqlalchemy import func
+    
+    campaign = InviteCampaign.query.get_or_404(campaign_id)
+    
+    # Overall stats
+    total_sent = campaign.invited_count + campaign.failed_count
+    success_rate = (campaign.invited_count / total_sent * 100) if total_sent > 0 else 0
+    
+    # Stats by status
+    status_stats = db.session.query(
+        InviteLog.status,
+        func.count(InviteLog.id).label("count")
+    ).filter(
+        InviteLog.campaign_id == campaign_id
+    ).group_by(InviteLog.status).all()
+    
+    # Stats by account
+    account_stats = db.session.query(
+        Account.phone,
+        func.count(InviteLog.id).label("total"),
+        func.sum(db.case((InviteLog.status == "success", 1), else_=0)).label("success")
+    ).join(InviteLog, InviteLog.account_id == Account.id).filter(
+        InviteLog.campaign_id == campaign_id
+    ).group_by(Account.phone).all()
+    
+    # Hourly distribution
+    hourly_stats = db.session.query(
+        func.date_trunc("hour", InviteLog.timestamp).label("hour"),
+        func.count(InviteLog.id).label("count")
+    ).filter(
+        InviteLog.campaign_id == campaign_id
+    ).group_by("hour").order_by("hour").all()
+    
+    return render_template(
+        "campaigns/stats.html",
+        campaign=campaign,
+        success_rate=success_rate,
+        status_stats=status_stats,
+        account_stats=account_stats,
+        hourly_stats=hourly_stats
+    )

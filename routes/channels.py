@@ -2,7 +2,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash
 from utils.decorators import login_required
 from models.channel import Channel
 from models.account import Account
-from app import db
+from database import db
 
 channels_bp = Blueprint('channels', __name__)
 

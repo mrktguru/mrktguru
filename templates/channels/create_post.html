@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block title %}Create Post - {{ channel.title }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>Create Post</h1>
+    <a href="{{ url_for(\"channels.posts\", channel_id=channel.id) }}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Back
+    </a>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-body">
+                <form method="POST" action="{{ url_for(\"channels.create_post\", channel_id=channel.id) }}" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label for="account_id" class="form-label">Post From Account *</label>
+                        <select class="form-select" id="account_id" name="account_id" required>
+                            <option value="">Select account...</option>
+                            {% for account in accounts %}
+                                <option value="{{ account.id }}">{{ account.phone }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="text_content" class="form-label">Text Content *</label>
+                        <textarea class="form-control" id="text_content" name="text_content" rows="6" required></textarea>
+                        <small class="text-muted">Supports Markdown and HTML formatting</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="media_file" class="form-label">Media File (Optional)</label>
+                        <input type="file" class="form-control" id="media_file" name="media_file">
+                        <small class="text-muted">Supports images, videos, documents</small>
+                    </div>
+                    
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="pin" name="pin">
+                        <label class="form-check-label" for="pin">
+                            Pin this post
+                        </label>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-send"></i> Create Post
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="alert alert-info">
+            <h5><i class="bi bi-info-circle"></i> Tips</h5>
+            <ul>
+                <li>Text content is required</li>
+                <li>Media files are optional</li>
+                <li>Pinned posts appear at the top of the channel</li>
+                <li>Make sure the account has admin rights in the channel</li>
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}

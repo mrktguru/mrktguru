@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block title %}Parse Source - {{ campaign.name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>Parse Source Channel</h1>
+    <a href="{{ url_for(\"campaigns.detail\", campaign_id=campaign.id) }}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Back
+    </a>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-body">
+                <form method="POST" action="{{ url_for(\"campaigns.parse_source\", campaign_id=campaign.id) }}">
+                    <div class="mb-3">
+                        <label for="source_channel" class="form-label">Source Channel *</label>
+                        <input type="text" class="form-control" id="source_channel" name="source_channel" 
+                               placeholder="@channelname or channel link" required>
+                        <small class="text-muted">Enter channel username or link to parse members from</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="limit" class="form-label">Max Users to Parse</label>
+                        <input type="number" class="form-control" id="limit" name="limit" value="1000" min="10" max="10000">
+                    </div>
+                    
+                    <hr>
+                    <h5>Filters</h5>
+                    
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="exclude_bots" name="exclude_bots" checked>
+                        <label class="form-check-label" for="exclude_bots">
+                            Exclude Bots
+                        </label>
+                    </div>
+                    
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="exclude_admins" name="exclude_admins">
+                        <label class="form-check-label" for="exclude_admins">
+                            Exclude Admins
+                        </label>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="min_score" class="form-label">Minimum Priority Score</label>
+                        <input type="range" class="form-range" id="min_score" name="min_score" min="0" max="100" value="0">
+                        <small class="text-muted">0 = all users, higher = better quality</small>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-search"></i> Start Parsing
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="alert alert-info">
+            <h5><i class="bi bi-info-circle"></i> How it works</h5>
+            <ul>
+                <li>Enter channel username or link</li>
+                <li>Set filters to get quality users</li>
+                <li>Parsing will add users to campaign targets</li>
+                <li>Higher priority score = better quality</li>
+                <li>Campaign will invite users based on priority</li>
+            </ul>
+        </div>
+        
+        <div class="alert alert-warning">
+            <h5><i class="bi bi-exclamation-triangle"></i> Note</h5>
+            <p>Make sure the account used has access to the source channel.</p>
+        </div>
+    </div>
+</div>
+{% endblock %}

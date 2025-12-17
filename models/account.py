@@ -1,5 +1,5 @@
 from datetime import datetime
-from app import db
+from database import db
 
 
 class Account(db.Model):
@@ -19,6 +19,14 @@ class Account(db.Model):
     invites_sent_today = db.Column(db.Integer, default=0)
     cooldown_until = db.Column(db.DateTime)
     notes = db.Column(db.Text)
+    
+    # Telegram user info
+    telegram_id = db.Column(db.Integer)
+    first_name = db.Column(db.String(255))
+    last_name = db.Column(db.String(255))
+    username = db.Column(db.String(255))
+    bio = db.Column(db.Text)
+    photo_url = db.Column(db.String(500))
     
     # Relationships
     proxy = db.relationship('Proxy', backref=db.backref('accounts', lazy='dynamic'))
@@ -56,6 +64,7 @@ class AccountSubscription(db.Model):
     subscribed_at = db.Column(db.DateTime, default=datetime.utcnow)
     is_active = db.Column(db.Boolean, default=True)
     subscription_source = db.Column(db.String(20), default='manual')  # manual/auto/template
+    status = db.Column(db.String(20), default="pending")  # pending/active/failed
     notes = db.Column(db.Text)
     
     def __repr__(self):

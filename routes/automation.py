@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 from utils.decorators import login_required
 from models.automation import ScheduledTask, AutoAction
-from app import db
+from database import db
 from datetime import datetime
 
 automation_bp = Blueprint('automation', __name__)

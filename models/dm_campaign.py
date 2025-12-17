@@ -1,5 +1,5 @@
 from datetime import datetime, time
-from app import db
+from database import db
 
 
 class DMCampaign(db.Model):

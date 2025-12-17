@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block title %}Add Target - {{ campaign.name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>Add Target Manually</h1>
+    <a href="{{ url_for(\"dm_campaigns.detail\", campaign_id=campaign.id) }}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Back to Campaign
+    </a>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <form method="POST" action="{{ url_for(\"dm_campaigns.add_target\", campaign_id=campaign.id) }}">
+                    <div class="mb-3">
+                        <label for="username" class="form-label">Username *</label>
+                        <input type="text" class="form-control" id="username" name="username" 
+                               placeholder="@username or username" required>
+                        <small class="text-muted">Enter Telegram username (with or without @)</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="first_name" class="form-label">First Name</label>
+                        <input type="text" class="form-control" id="first_name" name="first_name">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="last_name" class="form-label">Last Name</label>
+                        <input type="text" class="form-control" id="last_name" name="last_name">
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-plus-circle"></i> Add Target
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="alert alert-info">
+            <h5><i class="bi bi-info-circle"></i> Tips</h5>
+            <ul>
+                <li>Username is required, first/last names are optional</li>
+                <li>The target will be added with status "new"</li>
+                <li>Message will be sent when campaign is running</li>
+                <li>Variables like {{first_name}} will be replaced in the message</li>
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}

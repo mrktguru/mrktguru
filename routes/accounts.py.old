@@ -109,78 +109,48 @@ def detail(account_id):
 @login_required
 def verify(account_id):
     """Verify account session and fetch user info"""
-    from utils.telethon_helper import get_telethon_client
-    import asyncio
+    from utils.telethon_helper import verify_session, connect_client
     
     account = Account.query.get_or_404(account_id)
     
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    
-    async def verify_and_fetch():
-        client = None
-        try:
-            client = get_telethon_client(account_id)
-            await client.connect()
-            
-            # Get user info
-            me = await client.get_me()
-            account.telegram_id = me.id if hasattr(me, "id") else None
-            account.first_name = getattr(me, "first_name", None) or "User"
-            account.last_name = getattr(me, "last_name", None)
-            account.username = getattr(me, "username", None)
-            
-            # Try to download profile photo
-            try:
-                if hasattr(me, "photo") and me.photo:
-                    photo_path = f"uploads/photos/{account.phone}_profile.jpg"
-                    os.makedirs("uploads/photos", exist_ok=True)
-                    await client.download_profile_photo(me, file=photo_path)
-                    account.photo_url = photo_path
-            except Exception as photo_err:
-                if hasattr(me, "photo") and me.photo:
-                    account.photo_url = "photo_available"
-            
+    try:
+        result = asyncio.run(verify_session(account_id))
+        
+        if result["success"]:
             account.status = "active"
             account.health_score = 100
             
-            return True, account.first_name, account.username or "no username"
+            # Save Telegram user info
+            user = result["user"]
+            account.telegram_id = user.id if hasattr(user, "id") else None
+            account.first_name = getattr(user, "first_name", None) or "User"
+            account.last_name = getattr(user, "last_name", None)
+            account.username = getattr(user, "username", None)
             
-        except Exception as e:
-            account.status = "error"
-            account.health_score = 0
-            return False, None, str(e)
+            # Try to get full user info with bio
+            try:
+                client = asyncio.run(connect_client(account_id))
+                full_user = asyncio.run(client.get_entity(user))
+                if hasattr(full_user, "about"):
+                    account.bio = full_user.about
+            except:
+                pass
             
-        finally:
-            if client and client.is_connected():
-                await client.disconnect()
-                # Give time for cleanup
-                await asyncio.sleep(0.1)
-    
-    try:
-        success, first_name, info = loop.run_until_complete(verify_and_fetch())
-        db.session.commit()
-        
-        if success:
-            flash(f"Session verified! User: {first_name} (@{info})", "success")
+            db.session.commit()
+            
+            username = account.username or "no username"
+            flash(f"Session verified! User: {account.first_name} (@{username})", "success")
         else:
-            flash(f"Verification failed: {info}", "error")
-            
+            account.status = "invalid"
+            account.health_score = 0
+            error_msg = result.get("error", "Unknown error")
+            flash(f"Verification failed: {error_msg}", "error")
+            db.session.commit()
+        
     except Exception as e:
         account.status = "error"
         db.session.commit()
         flash(f"Error: {str(e)}", "error")
-    finally:
-        # Wait for all pending tasks before closing loop
-        pending = asyncio.all_tasks(loop)
-        for task in pending:
-            task.cancel()
-        # Run loop briefly to cancel tasks
-        try:
-            loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
-        except:
-            pass
-        loop.close()
     
     return redirect(url_for("accounts.detail", account_id=account_id))
 
@@ -223,12 +193,10 @@ def assign_proxy(account_id):
 
 @accounts_bp.route("/<int:account_id>/add-subscription", methods=["POST"])
 @login_required
-@login_required
 def add_subscription(account_id):
     """Add channel subscription - actually joins the channel/group"""
-    from utils.telethon_helper import get_telethon_client
+    from utils.telethon_helper import connect_client
     from telethon.tl.functions.channels import JoinChannelRequest
-    import asyncio
     
     account = Account.query.get_or_404(account_id)
     channel_input = request.form.get("channel_username", "").strip()
@@ -238,7 +206,8 @@ def add_subscription(account_id):
         flash("Channel username is required", "error")
         return redirect(url_for("accounts.detail", account_id=account_id))
     
-    # Extract username from various formats
+    # Extract username from various formats:
+    # @username, username, t.me/username, https://t.me/username
     channel_username = channel_input.lstrip("@")
     if "t.me/" in channel_username:
         channel_username = channel_username.split("t.me/")[-1].split("/")[0].split("?")[0]
@@ -253,65 +222,32 @@ def add_subscription(account_id):
         flash(f"Already subscribed to @{channel_username}", "warning")
         return redirect(url_for("accounts.detail", account_id=account_id))
     
-    # Create new event loop
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    
-    async def join_channel():
-        client = None
-        try:
-            client = get_telethon_client(account_id)
-            await client.connect()
-            
-            # Get channel entity
-            entity = await client.get_entity(channel_username)
-            
-            # Try to join
-            try:
-                await client(JoinChannelRequest(entity))
-                return "active", f"Successfully joined @{channel_username}"
-            except Exception as join_err:
-                # Check if already member
-                try:
-                    me = await client.get_me()
-                    participants = await client.get_participants(entity, limit=100)
-                    if any(p.id == me.id for p in participants):
-                        return "active", f"Already a member of @{channel_username}"
-                    else:
-                        return "failed", f"Could not join: {str(join_err)}"
-                except Exception as check_err:
-                    return "failed", f"Could not verify membership: {str(check_err)}"
-                    
-        except Exception as e:
-            return "failed", f"Error: {str(e)}"
-            
-        finally:
-            if client and client.is_connected():
-                await client.disconnect()
-                # Give time for cleanup
-                await asyncio.sleep(0.1)
-    
+    # Try to join via Telethon
+    subscription_status = "failed"
     try:
-        subscription_status, message = loop.run_until_complete(join_channel())
+        client = asyncio.run(connect_client(account_id))
+        entity = asyncio.run(client.get_entity(channel_username))
         
-        if subscription_status == "active":
-            flash(message, "success")
-        else:
-            flash(message, "warning")
-            
-    except Exception as e:
-        subscription_status = "failed"
-        flash(f"Error: {str(e)}", "error")
-    finally:
-        # Cancel all pending tasks
-        pending = asyncio.all_tasks(loop)
-        for task in pending:
-            task.cancel()
+        # Try to join
         try:
-            loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
-        except:
-            pass
-        loop.close()
+            asyncio.run(client(JoinChannelRequest(entity)))
+            subscription_status = "active"
+            flash(f"Successfully joined @{channel_username}", "success")
+        except Exception as join_err:
+            # Check if already member
+            try:
+                me = asyncio.run(client.get_me())
+                participants = asyncio.run(client.get_participants(entity, limit=100))
+                if any(p.id == me.id for p in participants):
+                    subscription_status = "active"
+                    flash(f"Already a member of @{channel_username}", "success")
+                else:
+                    flash(f"Could not join: {str(join_err)}", "warning")
+            except:
+                flash(f"Could not verify membership in @{channel_username}", "warning")
+                
+    except Exception as e:
+        flash(f"Error: {str(e)}", "error")
     
     # Save subscription
     subscription = AccountSubscription(

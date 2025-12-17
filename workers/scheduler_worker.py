@@ -1,5 +1,5 @@
 from celery_app import celery
-from app import db
+from database import db
 from models.automation import ScheduledTask, AutoAction
 from datetime import datetime
 import logging

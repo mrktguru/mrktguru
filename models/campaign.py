@@ -1,5 +1,5 @@
 from datetime import datetime, time
-from app import db
+from database import db
 
 
 class InviteCampaign(db.Model):
@@ -104,3 +104,5 @@ class InviteLog(db.Model):
     
     def __repr__(self):
         return f'<InviteLog {self.id} {self.status}>'
+
+

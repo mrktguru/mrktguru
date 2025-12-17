@@ -101,7 +101,7 @@
     <div class="col-md-3">
         <div class="card text-center">
             <div class="card-body">
-                {% set replies = campaign.targets.filter(campaign.targets.c.replied_at != None).count() %}
+                {% set replies = stats.replied %}
                 <h3 class="text-info">{{ replies }}</h3>
                 <small class="text-muted">Replies Received</small>
             </div>
@@ -309,6 +309,9 @@
                 <h5 class="mb-0">Import Targets</h5>
             </div>
             <div class="card-body">
+                <a href="{{ url_for("dm_campaigns.add_target", campaign_id=campaign.id) }}" class="btn btn-success mb-3">
+                    <i class="bi bi-plus-circle"></i> Add Target Manually
+                </a>
                 <form method="POST" action="{{ url_for('dm_campaigns.import_targets', campaign_id=campaign.id) }}" 
                       enctype="multipart/form-data">
                     <div class="mb-3">
@@ -338,25 +341,25 @@
                     <li class="list-group-item d-flex justify-content-between align-items-center">
                         New (Pending)
                         <span class="badge bg-secondary rounded-pill">
-                            {{ campaign.targets.filter_by(status='new').count() }}
+                            {{ stats.new }}
                         </span>
                     </li>
                     <li class="list-group-item d-flex justify-content-between align-items-center">
                         Sent
                         <span class="badge bg-success rounded-pill">
-                            {{ campaign.targets.filter_by(status='sent').count() }}
+                            {{ stats.sent }}
                         </span>
                     </li>
                     <li class="list-group-item d-flex justify-content-between align-items-center">
                         Error
                         <span class="badge bg-danger rounded-pill">
-                            {{ campaign.targets.filter_by(status='error').count() }}
+                            {{ stats.error }}
                         </span>
                     </li>
                     <li class="list-group-item d-flex justify-content-between align-items-center">
                         Replied
                         <span class="badge bg-info rounded-pill">
-                            {{ campaign.targets.filter(campaign.targets.c.replied_at != None).count() }}
+                            {{ stats.replied }}
                         </span>
                     </li>
                 </ul>

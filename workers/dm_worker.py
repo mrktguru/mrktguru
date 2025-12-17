@@ -1,63 +1,50 @@
+"""
+DM Campaign Worker - отправка Direct Messages
+"""
 from celery_app import celery
-from app import db
-from models.dm_campaign import DMCampaign, DMCampaignAccount, DMTarget, DMMessage
+from database import db
+from models.dm_campaign import DMCampaign, DMCampaignAccount, DMTarget
 from models.account import Account
-from utils.telethon_helper import send_message
-from utils.validators import is_working_hours
-from utils.notifications import notify_dm_campaign_limit_reached
-import asyncio
+from utils.telethon_helper import send_dm
+from datetime import datetime
 import time
 import random
-from datetime import datetime
-import logging
-
-logger = logging.getLogger(__name__)
-
-
-def personalize_message(template, target):
-    """Replace variables in message template"""
-    message = template
-    
-    # Basic variables
-    message = message.replace('{{first_name}}', target.first_name or target.username or 'friend')
-    message = message.replace('{{last_name}}', target.last_name or '')
-    message = message.replace('{{username}}', target.username or '')
-    
-    # Custom data from CSV
-    if target.custom_data:
-        for key, value in target.custom_data.items():
-            message = message.replace(f'{{{{{key}}}}}', str(value))
-    
-    return message
+import asyncio
 
 
 @celery.task(bind=True)
 def run_dm_campaign(self, campaign_id):
-    """Main DM campaign worker"""
+    """
+    Main DM campaign worker
     
-    logger.info(f"Starting DM campaign {campaign_id}")
-    
+    Args:
+        campaign_id: ID of campaign to run
+    """
     campaign = DMCampaign.query.get(campaign_id)
     if not campaign:
-        logger.error(f"DM Campaign {campaign_id} not found")
-        return
+        return {"error": "Campaign not found"}
     
-    accounts = [ca.account for ca in campaign.dm_campaign_accounts.all() if ca.status == 'active']
-    if not accounts:
-        logger.error(f"No active accounts for DM campaign {campaign_id}")
-        campaign.status = 'stopped'
-        db.session.commit()
-        return
+    # Get assigned accounts
+    campaign_accounts = DMCampaignAccount.query.filter_by(
+        campaign_id=campaign_id
+    ).filter(DMCampaignAccount.status != "limit_reached").all()
     
+    if not campaign_accounts:
+        return {"error": "No active accounts"}
+    
+    accounts = [ca.account for ca in campaign_accounts]
     current_account_index = 0
     
-    while campaign.status == 'active':
+    print(f"Starting DM campaign {campaign_id} with {len(accounts)} accounts")
+    
+    # Main loop
+    while campaign.status == "active":
         # Refresh campaign
         db.session.refresh(campaign)
         
         # Check working hours
         if not is_working_hours(campaign):
-            logger.info(f"DM Campaign {campaign_id} outside working hours")
+            print("Outside working hours, waiting...")
             time.sleep(60)
             continue
         
@@ -72,20 +59,18 @@ def run_dm_campaign(self, campaign_id):
         ).first()
         
         if campaign_account.messages_sent >= campaign.messages_per_account_limit:
-            campaign_account.status = 'limit_reached'
+            campaign_account.status = "limit_reached"
             db.session.commit()
             
             # Check if all accounts reached limit
-            all_at_limit = all(
-                ca.status == 'limit_reached' 
-                for ca in campaign.dm_campaign_accounts.all()
-            )
+            active_accounts = DMCampaignAccount.query.filter_by(
+                campaign_id=campaign_id
+            ).filter(DMCampaignAccount.status != "limit_reached").count()
             
-            if all_at_limit:
-                campaign.status = 'limit_reached'
+            if active_accounts == 0:
+                print("All accounts reached limit")
+                campaign.status = "limit_reached"
                 db.session.commit()
-                notify_dm_campaign_limit_reached(campaign_id)
-                logger.info(f"DM Campaign {campaign_id} - all accounts reached limit")
                 break
             
             continue
@@ -93,67 +78,100 @@ def run_dm_campaign(self, campaign_id):
         # Get next target
         target = DMTarget.query.filter_by(
             campaign_id=campaign_id,
-            status='new'
+            status="new"
         ).first()
         
         if not target:
-            campaign.status = 'completed'
-            campaign.completed_at = datetime.utcnow()
+            print("No more targets, campaign completed")
+            campaign.status = "completed"
             db.session.commit()
-            logger.info(f"DM Campaign {campaign_id} completed")
             break
         
         # Personalize message
         message_text = personalize_message(campaign.message_text, target)
         
         # Send DM
-        try:
-            result = asyncio.run(send_message(
-                account.id,
-                target.username,
-                message_text,
-                campaign.media_file_path
-            ))
+        print(f"Sending DM to @{target.username} using account {account.phone}")
+        result = asyncio.run(send_dm(
+            account.id,
+            target.username,
+            message_text,
+            campaign.media_file_path
+        ))
+        
+        # Update status
+        if result["status"] == "success":
+            target.status = "sent"
+            target.sent_at = datetime.utcnow()
+            target.sent_by_account_id = account.id
+            campaign.sent_count += 1
+            campaign_account.messages_sent += 1
             
-            if result['success']:
-                target.status = 'sent'
-                target.sent_at = datetime.utcnow()
-                target.sent_by_account_id = account.id
-                campaign.sent_count += 1
-                campaign_account.messages_sent += 1
-                
-                # Save message to history
-                dm_msg = DMMessage(
-                    campaign_id=campaign_id,
-                    target_id=target.id,
-                    account_id=account.id,
-                    direction='outgoing',
-                    message_text=message_text,
-                    has_media=(campaign.media_type != 'none'),
-                    media_type=campaign.media_type,
-                    telegram_message_id=result['message_id']
-                )
-                db.session.add(dm_msg)
-                
-                logger.info(f"Sent DM to {target.username}")
-            else:
-                target.status = 'error'
-                target.error_message = result['error']
-                campaign.error_count += 1
-                logger.warning(f"Failed to send DM to {target.username}: {result['error']}")
+            print(f"✅ DM sent successfully to @{target.username}")
             
-            db.session.commit()
+        elif result["status"] == "flood_wait":
+            # Put account on cooldown
+            account.status = "cooldown"
+            print(f"❌ Account {account.phone} got FloodWait")
             
-        except Exception as e:
-            logger.error(f"Error in DM campaign {campaign_id}: {str(e)}")
-            target.status = 'error'
-            target.error_message = str(e)
+        else:
+            target.status = "error"
+            target.error_message = result.get("error")
             campaign.error_count += 1
-            db.session.commit()
+            
+            error_msg = result.get("error")
+            print(f"❌ Error sending to @{target.username}: {error_msg}")
+        
+        db.session.commit()
         
         # Apply delay
         delay = random.randint(campaign.delay_min, campaign.delay_max)
-        logger.debug(f"Sleeping {delay}s...")
+        print(f"Waiting {delay} seconds...")
         time.sleep(delay)
     
-    logger.info(f"DM campaign {campaign_id} finished")
+    return {
+        "status": "completed",
+        "sent": campaign.sent_count,
+        "errors": campaign.error_count
+    }
+
+
+def is_working_hours(campaign):
+    """Check if current time is within working hours"""
+    if not campaign.working_hours_start or not campaign.working_hours_end:
+        return True
+    
+    now = datetime.now().time()
+    start = campaign.working_hours_start
+    end = campaign.working_hours_end
+    
+    if start <= end:
+        return start <= now <= end
+    else:
+        return now >= start or now <= end
+
+
+def personalize_message(template, target):
+    """
+    Replace variables in message template
+    
+    Args:
+        template: Message template
+        target: DMTarget object
+        
+    Returns:
+        Personalized message
+    """
+    message = template
+    
+    # Replace variables
+    message = message.replace("{{first_name}}", target.first_name or "friend")
+    message = message.replace("{{last_name}}", target.last_name or "")
+    message = message.replace("{{username}}", target.username or "")
+    
+    # Custom fields from CSV
+    if target.custom_data:
+        for key, value in target.custom_data.items():
+            message = message.replace(f"{{{{{key}}}}}", str(value))
+    
+    return message

@@ -1,5 +1,5 @@
 from celery_app import celery
-from app import db
+from database import db
 from models.dm_campaign import DMCampaign, DMTarget, DMMessage
 from models.account import Account
 from utils.telethon_helper import get_telethon_client

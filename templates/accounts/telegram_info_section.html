@@ -1,0 +1,83 @@
+        <!-- Telegram User Info Card - Insert after Account Status card -->
+        <div class="card mb-3">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-telegram"></i> Telegram User Info</h5>
+            </div>
+            <div class="card-body">
+                {% if account.telegram_id %}
+                    <div class="row mb-3">
+                        <div class="col-md-4 text-center">
+                            {% if account.photo_url and account.photo_url != "photo_available" %}
+                                <img src="/{{ account.photo_url }}" 
+                                     class="rounded-circle mb-2" width="100" height="100" style="object-fit: cover;">
+                            {% else %}
+                                <div class="bg-secondary rounded-circle d-inline-flex align-items-center justify-content-center" 
+                                     style="width: 100px; height: 100px;">
+                                    <i class="bi bi-person-fill text-white" style="font-size: 3rem;"></i>
+                                </div>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-8">
+                            <dl class="row mb-0">
+                                <dt class="col-sm-4">ID:</dt>
+                                <dd class="col-sm-8"><code>{{ account.telegram_id }}</code></dd>
+                                
+                                <dt class="col-sm-4">Name:</dt>
+                                <dd class="col-sm-8">
+                                    {{ account.first_name }}
+                                    {% if account.last_name %}{{ account.last_name }}{% endif %}
+                                </dd>
+                                
+                                <dt class="col-sm-4">Username:</dt>
+                                <dd class="col-sm-8">
+                                    {% if account.username %}
+                                        @{{ account.username }}
+                                    {% else %}
+                                        <span class="text-muted">No username</span>
+                                    {% endif %}
+                                </dd>
+                                
+                                <dt class="col-sm-4">Bio:</dt>
+                                <dd class="col-sm-8">
+                                    {% if account.bio %}
+                                        {{ account.bio }}
+                                    {% else %}
+                                        <span class="text-muted">No bio</span>
+                                    {% endif %}
+                                </dd>
+                            </dl>
+                        </div>
+                    </div>
+                    
+                    <!-- Edit Profile Form -->
+                    <button class="btn btn-sm btn-outline-primary" data-bs-toggle="collapse" data-bs-target="#editProfile">
+                        <i class="bi bi-pencil"></i> Edit Profile
+                    </button>
+                    
+                    <div class="collapse mt-3" id="editProfile">
+                        <form method="POST" action="{{ url_for("accounts.update_profile", account_id=account.id) }}" enctype="multipart/form-data">
+                            <div class="mb-2">
+                                <label class="form-label">Username</label>
+                                <input type="text" name="username" class="form-control" value="{{ account.username or "" }}" placeholder="username (without @)">
+                                <small class="text-muted">Enter without @ symbol</small>
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label">Bio</label>
+                                <textarea name="bio" class="form-control" rows="3" placeholder="About me">{{ account.bio or "" }}</textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Profile Photo</label>
+                                <input type="file" name="photo" class="form-control" accept="image/*">
+                            </div>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-save"></i> Save Changes
+                            </button>
+                        </form>
+                    </div>
+                {% else %}
+                    <div class="alert alert-info mb-0">
+                        <i class="bi bi-info-circle"></i> Click "Verify Session" button above to load Telegram user info
+                    </div>
+                {% endif %}
+            </div>
+        </div>

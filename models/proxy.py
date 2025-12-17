@@ -1,5 +1,5 @@
 from datetime import datetime
-from app import db
+from database import db
 
 
 class Proxy(db.Model):

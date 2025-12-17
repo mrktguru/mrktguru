@@ -1,0 +1,25 @@
+    try:
+        result = asyncio.run(verify_session(account_id))
+        
+        if result["success"]:
+            account.status = "active"
+            account.health_score = 100
+            
+            # User is a Telethon User object, not a dict
+            user = result["user"]
+            username = getattr(user, "username", None) or "no username"
+            first_name = getattr(user, "first_name", None) or "User"
+            
+            flash(f"✅ Account verified: {first_name} (@{username})", "success")
+        else:
+            account.status = "invalid"
+            account.health_score = 0
+            error_msg = result.get("error", "Unknown error")
+            flash(f"❌ Verification failed: {error_msg}", "error")
+        
+        db.session.commit()
+        
+    except Exception as e:
+        account.status = "error"
+        db.session.commit()
+        flash(f"❌ Error: {str(e)}", "error")

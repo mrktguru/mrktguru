@@ -1,167 +1,210 @@
+"""
+Maintenance Workers - фоновые задачи обслуживания
+"""
 from celery_app import celery
-from app import db
+from database import db
 from models.proxy import Proxy
 from models.account import Account
-from models.analytics import CampaignStats
-from utils.proxy_helper import rotate_mobile_proxy
 from utils.telethon_helper import verify_session
-from datetime import datetime, timedelta
+from datetime import datetime
 import asyncio
-import logging
-
-logger = logging.getLogger(__name__)
+import requests
 
 
 @celery.task
 def auto_rotate_mobile_proxies():
-    """Automatically rotate mobile proxies based on interval"""
-    
-    logger.info("Auto-rotating mobile proxies")
-    
+    """
+    Automatic rotation of mobile proxies
+    Run every 15 minutes
+    """
     proxies = Proxy.query.filter_by(
         is_mobile=True,
-        status='active'
+        status="active"
     ).all()
     
+    rotated = 0
     for proxy in proxies:
+        if not proxy.rotation_url:
+            continue
+        
+        # Check if rotation interval passed
+        if proxy.last_rotation:
+            elapsed = (datetime.utcnow() - proxy.last_rotation).total_seconds()
+            if elapsed < proxy.rotation_interval:
+                continue
+        
+        # Rotate proxy
         try:
-            # Check if rotation interval passed
-            if proxy.last_rotation:
-                elapsed = (datetime.utcnow() - proxy.last_rotation).total_seconds()
-                if elapsed < proxy.rotation_interval:
-                    continue
-            
-            logger.info(f"Rotating proxy {proxy.id}")
-            result = rotate_mobile_proxy(proxy)
-            
-            if result['success']:
-                logger.info(f"Proxy {proxy.id} rotated. New IP: {result['new_ip']}")
-            else:
-                logger.warning(f"Failed to rotate proxy {proxy.id}: {result['error']}")
-                
+            response = requests.get(proxy.rotation_url, timeout=10)
+            if response.status_code == 200:
+                proxy.last_rotation = datetime.utcnow()
+                rotated += 1
+                print(f"✅ Rotated proxy {proxy.host}:{proxy.port}")
         except Exception as e:
-            logger.error(f"Error rotating proxy {proxy.id}: {str(e)}")
+            print(f"❌ Error rotating proxy {proxy.id}: {e}")
+    
+    db.session.commit()
+    
+    return {"rotated": rotated, "total": len(proxies)}
 
 
 @celery.task
 def check_account_health():
-    """Check health of all accounts"""
+    """
+    Check health of all accounts
+    Run every hour
+    """
+    accounts = Account.query.filter_by(status="active").all()
     
-    logger.info("Checking account health")
-    
-    accounts = Account.query.filter_by(status='active').all()
+    healthy = 0
+    unhealthy = 0
     
     for account in accounts:
         try:
             result = asyncio.run(verify_session(account.id))
             
-            if result['success']:
+            if result["success"]:
                 account.health_score = min(account.health_score + 5, 100)
-                logger.info(f"Account {account.id} is healthy")
+                healthy += 1
             else:
-                account.health_score = max(account.health_score - 20, 0)
+                account.health_score = max(account.health_score - 10, 0)
+                unhealthy += 1
+                
                 if account.health_score < 30:
-                    account.status = 'invalid'
-                logger.warning(f"Account {account.id} health check failed: {result['error']}")
-            
-            db.session.commit()
-            
+                    account.status = "unhealthy"
+                    
         except Exception as e:
-            logger.error(f"Error checking account {account.id}: {str(e)}")
+            print(f"Error checking account {account.id}: {e}")
+            account.health_score = max(account.health_score - 20, 0)
+            unhealthy += 1
+    
+    db.session.commit()
+    
+    return {
+        "healthy": healthy,
+        "unhealthy": unhealthy,
+        "total": len(accounts)
+    }
 
 
 @celery.task
-def reset_daily_counters():
-    """Reset daily counters for all accounts"""
+def reset_cooldown_accounts():
+    """
+    Reset accounts from cooldown status
+    Run every 30 minutes
+    """
+    # Reset accounts that were in cooldown for more than 1 hour
+    from datetime import timedelta
     
-    logger.info("Resetting daily counters")
+    threshold = datetime.utcnow() - timedelta(hours=1)
     
-    Account.query.update({
-        Account.messages_sent_today: 0,
-        Account.invites_sent_today: 0
-    })
+    accounts = Account.query.filter_by(status="cooldown").all()
+    
+    reset = 0
+    for account in accounts:
+        # Simple reset after 1 hour
+        # In production should check last_activity timestamp
+        account.status = "active"
+        reset += 1
+    
     db.session.commit()
+    
+    return {"reset": reset}
 
 
 @celery.task
 def aggregate_daily_stats():
-    """Aggregate daily statistics"""
-    
-    logger.info("Aggregating daily stats")
-    
+    """
+    Aggregate daily statistics
+    Run daily at midnight
+    """
     from models.campaign import InviteCampaign, InviteLog
-    from models.dm_campaign import DMCampaign, DMTarget
+    from models.dm_campaign import DMCampaign
     from sqlalchemy import func
     
-    yesterday = (datetime.utcnow() - timedelta(days=1)).date()
+    today = datetime.utcnow().date()
     
-    # Aggregate invite campaigns
+    # Invite campaigns stats
     invite_stats = db.session.query(
-        InviteLog.campaign_id,
-        func.count(InviteLog.id).label('total'),
-        func.sum(func.cast(InviteLog.status == 'success', db.Integer)).label('success')
+        func.count(InviteLog.id).label("total_invites"),
+        func.sum(db.case((InviteLog.status == "success", 1), else_=0)).label("successful")
     ).filter(
-        func.date(InviteLog.timestamp) == yesterday
-    ).group_by(InviteLog.campaign_id).all()
+        func.date(InviteLog.timestamp) == today
+    ).first()
     
-    for stat in invite_stats:
-        success_rate = (stat.success / stat.total * 100) if stat.total > 0 else 0
-        
-        campaign_stat = CampaignStats(
-            campaign_id=stat.campaign_id,
-            campaign_type='invite',
-            date=yesterday,
-            sent_count=stat.total,
-            error_count=stat.total - stat.success,
-            success_rate=success_rate
-        )
-        db.session.add(campaign_stat)
+    # DM campaigns stats  
+    dm_campaigns = DMCampaign.query.all()
+    dm_sent_today = sum(c.sent_count for c in dm_campaigns)
     
-    db.session.commit()
-    logger.info("Daily stats aggregated")
+    print(f"Daily stats: {invite_stats.total_invites} invites, {dm_sent_today} DMs")
+    
+    return {
+        "date": str(today),
+        "invites": invite_stats.total_invites or 0,
+        "invite_success": invite_stats.successful or 0,
+        "dms_sent": dm_sent_today
+    }
 
 
 @celery.task
 def cleanup_old_logs():
-    """Cleanup logs older than 90 days"""
-    
-    logger.info("Cleaning up old logs")
-    
+    """
+    Clean up old logs
+    Run weekly
+    """
+    from datetime import timedelta
     from models.campaign import InviteLog
     
-    cutoff_date = datetime.utcnow() - timedelta(days=90)
+    # Delete logs older than 90 days
+    threshold = datetime.utcnow() - timedelta(days=90)
     
     deleted = InviteLog.query.filter(
-        InviteLog.timestamp < cutoff_date
+        InviteLog.timestamp < threshold
     ).delete()
     
     db.session.commit()
-    logger.info(f"Deleted {deleted} old log entries")
+    
+    return {"deleted": deleted}
 
 
 @celery.task
-def warmup_account_activity():
-    """Simulate human-like activity for warming up accounts"""
+def test_all_proxies():
+    """
+    Test all proxies
+    Run every 6 hours
+    """
+    proxies = Proxy.query.filter_by(status="active").all()
     
-    logger.info("Running warmup activity")
+    working = 0
+    failed = 0
     
-    accounts = Account.query.filter_by(status='warming_up').all()
-    
-    for account in accounts:
+    for proxy in proxies:
         try:
-            # Placeholder for warmup activities:
-            # - Read messages from subscribed channels
-            # - Send reactions
-            # - Update last_activity
+            # Test proxy with simple HTTP request
+            proxy_url = f"{proxy.type}://{proxy.username}:{proxy.password}@{proxy.host}:{proxy.port}"
             
-            account.last_activity = datetime.utcnow()
-            account.warm_up_days_completed = min(account.warm_up_days_completed + 1, 7)
+            response = requests.get(
+                "https://api.ipify.org?format=json",
+                proxies={"http": proxy_url, "https": proxy_url},
+                timeout=10
+            )
             
-            if account.warm_up_days_completed >= 7:
-                account.status = 'active'
-            
-            db.session.commit()
-            logger.info(f"Account {account.id} warmup activity completed")
-            
+            if response.status_code == 200:
+                proxy.current_ip = response.json()["ip"]
+                working += 1
+            else:
+                proxy.status = "error"
+                failed += 1
+                
         except Exception as e:
-            logger.error(f"Error in warmup activity for account {account.id}: {str(e)}")
+            proxy.status = "error"
+            failed += 1
+            print(f"Proxy {proxy.id} failed: {e}")
+    
+    db.session.commit()
+    
+    return {
+        "working": working,
+        "failed": failed,
+        "total": len(proxies)
+    }

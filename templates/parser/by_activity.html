@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+
+{% block title %}Parse by Activity{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>Parse Users by Activity</h1>
+    <a href="{{ url_for(\"parser.index\") }}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Back
+    </a>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-body">
+                <form method="POST" action="{{ url_for(\"parser.by_activity\") }}">
+                    <div class="mb-3">
+                        <label for="channel" class="form-label">Channel *</label>
+                        <input type="text" class="form-control" id="channel" name="channel" 
+                               placeholder="@channelname" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="days" class="form-label">Time Period (Days)</label>
+                        <input type="number" class="form-control" id="days" name="days" value="7" min="1" max="90">
+                        <small class="text-muted">Parse activity from last N days</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="min_messages" class="form-label">Minimum Messages</label>
+                        <input type="number" class="form-control" id="min_messages" name="min_messages" value="5" min="1">
+                        <small class="text-muted">Users who sent at least N messages</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="collection_name" class="form-label">Collection Name *</label>
+                        <input type="text" class="form-control" id="collection_name" name="collection_name" 
+                               placeholder="e.g. Active Users" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="account_id" class="form-label">Parse With Account *</label>
+                        <select class="form-select" id="account_id" name="account_id" required>
+                            <option value="">Select account...</option>
+                            {% for account in accounts %}
+                                <option value="{{ account.id }}">{{ account.phone }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-activity"></i> Start Parsing
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="alert alert-info">
+            <h5><i class="bi bi-info-circle"></i> Activity Parsing</h5>
+            <ul>
+                <li>Find most active users in channel</li>
+                <li>Filter by message count and time period</li>
+                <li>Great for finding engaged users</li>
+                <li>Higher activity = better conversion</li>
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}
