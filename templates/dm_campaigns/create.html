@@ -1,0 +1,226 @@
+{% extends "base.html" %}
+
+{% block title %}Create DM Campaign - Telegram System{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h4 class="mb-0">Create New DM Campaign</h4>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('dm_campaigns.create') }}" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Campaign Name *</label>
+                        <input type="text" class="form-control" id="name" name="name" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Description</label>
+                        <textarea class="form-control" id="description" name="description" rows="2"></textarea>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="message_text" class="form-label">Message Template *</label>
+                        <textarea class="form-control" id="message_text" name="message_text" rows="6" required></textarea>
+                        <small class="form-text text-muted">
+                            Variables: {{first_name}}, {{last_name}}, {{username}}, or any custom fields from CSV
+                        </small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Media (Optional)</label>
+                        <select class="form-select mb-2" id="media_type" name="media_type">
+                            <option value="none">No media</option>
+                            <option value="photo">Photo</option>
+                            <option value="video">Video</option>
+                            <option value="audio">Audio</option>
+                            <option value="document">Document</option>
+                        </select>
+                        
+                        <div id="media_upload" style="display: none;">
+                            <input type="file" class="form-control" name="media_file" 
+                                   accept="image/*,video/*,audio/*,.pdf,.doc,.docx">
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Select Accounts * <span class="badge bg-secondary" id="selected_count">0</span></label>
+                        <div class="card">
+                            <div class="card-body" style="max-height: 250px; overflow-y: auto;">
+                                {% if accounts %}
+                                    {% for account in accounts %}
+                                    <div class="form-check">
+                                        <input class="form-check-input account-checkbox" type="checkbox" 
+                                               name="account_ids" value="{{ account.id }}" id="acc_{{ account.id }}">
+                                        <label class="form-check-label" for="acc_{{ account.id }}">
+                                            {{ account.phone }}
+                                            <span class="badge bg-{{ 'success' if account.status == 'active' else 'warning' }}">
+                                                {{ account.status }}
+                                            </span>
+                                        </label>
+                                    </div>
+                                    {% endfor %}
+                                    <div class="mt-2">
+                                        <button type="button" class="btn btn-sm btn-outline-primary" id="selectAll">Select All</button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" id="deselectAll">Deselect All</button>
+                                    </div>
+                                {% else %}
+                                    <p class="text-muted">No active accounts. <a href="{{ url_for('accounts.upload') }}">Upload accounts</a></p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="accordion mb-3" id="advancedSettings">
+                        <div class="accordion-item">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" 
+                                        data-bs-target="#collapseAdvanced">
+                                    Advanced Settings
+                                </button>
+                            </h2>
+                            <div id="collapseAdvanced" class="accordion-collapse collapse">
+                                <div class="accordion-body">
+                                    <div class="mb-3">
+                                        <label for="messages_per_account_limit" class="form-label">Messages per Account Limit</label>
+                                        <input type="number" class="form-control" name="messages_per_account_limit" 
+                                               value="5" min="1" max="50">
+                                        <small class="form-text text-muted">Maximum DMs each account can send (anti-ban protection)</small>
+                                    </div>
+                                    
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label">Delay Min (seconds)</label>
+                                                <input type="number" class="form-control" name="delay_min" value="60" min="30">
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label">Delay Max (seconds)</label>
+                                                <input type="number" class="form-control" name="delay_max" value="180" min="60">
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label">Working Hours Start</label>
+                                                <input type="time" class="form-control" name="working_hours_start" value="09:00">
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label">Working Hours End</label>
+                                                <input type="time" class="form-control" name="working_hours_end" value="22:00">
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i>
+                        <strong>Next steps:</strong>
+                        <ol class="mb-0 mt-2">
+                            <li>Create campaign with message template</li>
+                            <li>Import target users from CSV/Excel</li>
+                            <li>Review and start campaign</li>
+                        </ol>
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="bi bi-plus-circle"></i> Create DM Campaign
+                        </button>
+                        <a href="{{ url_for('dm_campaigns.list_campaigns') }}" class="btn btn-outline-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card mb-3">
+            <div class="card-header">
+                <h5 class="mb-0">Message Tips</h5>
+            </div>
+            <div class="card-body">
+                <ul class="small">
+                    <li><strong>Personalize</strong> - Use {{first_name}} variable</li>
+                    <li><strong>Keep it short</strong> - 1-3 sentences ideal</li>
+                    <li><strong>Clear CTA</strong> - What do you want them to do?</li>
+                    <li><strong>No spam words</strong> - Avoid "free", "click here", etc.</li>
+                    <li><strong>Test first</strong> - Send to yourself to check</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="card mb-3">
+            <div class="card-header">
+                <h5 class="mb-0">Message Example</h5>
+            </div>
+            <div class="card-body">
+                <div class="bg-light p-3 rounded">
+                    <small>
+                        <strong>Template:</strong><br>
+                        Hi {{first_name}}! 👋<br><br>
+                        I noticed you're interested in crypto. We're launching a new project that might interest you.<br><br>
+                        Would you like to know more?
+                    </small>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Anti-Ban Tips</h5>
+            </div>
+            <div class="card-body">
+                <ul class="small">
+                    <li>Limit 5-10 messages per account</li>
+                    <li>Use 60-180 second delays</li>
+                    <li>Different accounts for different campaigns</li>
+                    <li>Monitor for replies - don't spam responders</li>
+                    <li>Use working hours (9 AM - 10 PM)</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    function updateCount() {
+        $('#selected_count').text($('.account-checkbox:checked').length);
+    }
+
+    $('.account-checkbox').on('change', updateCount);
+
+    $('#selectAll').on('click', function() {
+        $('.account-checkbox').prop('checked', true);
+        updateCount();
+    });
+
+    $('#deselectAll').on('click', function() {
+        $('.account-checkbox').prop('checked', false);
+        updateCount();
+    });
+
+    $('#media_type').on('change', function() {
+        if ($(this).val() !== 'none') {
+            $('#media_upload').show();
+        } else {
+            $('#media_upload').hide();
+        }
+    });
+});
+</script>
+{% endblock %}

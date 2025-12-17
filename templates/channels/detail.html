@@ -1,0 +1,266 @@
+{% extends "base.html" %}
+
+{% block title %}{{ channel.title }} - Channels{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1>{{ channel.title }}</h1>
+        {% if channel.username %}
+            <p class="text-muted"><code>@{{ channel.username }}</code></p>
+        {% endif %}
+    </div>
+    <a href="{{ url_for('channels.list_channels') }}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Back
+    </a>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <!-- Channel Info -->
+        <div class="card mb-3">
+            <div class="card-header">
+                <h5 class="mb-0">Channel Information</h5>
+            </div>
+            <div class="card-body">
+                <dl class="row">
+                    <dt class="col-sm-3">Type:</dt>
+                    <dd class="col-sm-9">
+                        <span class="badge bg-{% if channel.type == 'channel' %}primary{% else %}success{% endif %}">
+                            {{ channel.type }}
+                        </span>
+                    </dd>
+
+                    <dt class="col-sm-3">Chat ID:</dt>
+                    <dd class="col-sm-9"><code>{{ channel.chat_id }}</code></dd>
+
+                    <dt class="col-sm-3">Status:</dt>
+                    <dd class="col-sm-9">
+                        <span class="badge bg-{{ 'success' if channel.status == 'active' else 'secondary' }}">
+                            {{ channel.status }}
+                        </span>
+                    </dd>
+
+                    <dt class="col-sm-3">Admin Rights:</dt>
+                    <dd class="col-sm-9">
+                        {% if channel.is_admin %}
+                            <span class="badge bg-success">
+                                <i class="bi bi-shield-check"></i> Admin
+                            </span>
+                            {% if channel.admin_rights %}
+                                <div class="mt-2">
+                                    {% for right, value in channel.admin_rights.items() if value %}
+                                        <span class="badge bg-info me-1">{{ right }}</span>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        {% else %}
+                            <span class="badge bg-secondary">No admin rights</span>
+                        {% endif %}
+                    </dd>
+
+                    <dt class="col-sm-3">Owner Account:</dt>
+                    <dd class="col-sm-9">
+                        {% if channel.owner_account %}
+                            <a href="{{ url_for('accounts.detail', account_id=channel.owner_account.id) }}">
+                                {{ channel.owner_account.phone }}
+                            </a>
+                        {% else %}
+                            <span class="text-muted">-</span>
+                        {% endif %}
+                    </dd>
+
+                    <dt class="col-sm-3">Added:</dt>
+                    <dd class="col-sm-9">{{ channel.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</dd>
+                </dl>
+            </div>
+        </div>
+
+        <!-- Posts -->
+        {% if channel.is_admin %}
+        <div class="card mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Recent Posts ({{ channel.posts.count() }})</h5>
+                <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#createPostModal">
+                    <i class="bi bi-plus"></i> Create Post
+                </button>
+            </div>
+            <div class="card-body">
+                {% if channel.posts.count() > 0 %}
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Content</th>
+                                <th>Type</th>
+                                <th>Posted</th>
+                                <th>Views</th>
+                                <th>Pinned</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for post in channel.posts.order_by(channel.posts.c.posted_at.desc()).limit(10) %}
+                            <tr>
+                                <td>
+                                    {% if post.text_content %}
+                                        {{ post.text_content[:100] }}...
+                                    {% else %}
+                                        <span class="text-muted">[Media only]</span>
+                                    {% endif %}
+                                </td>
+                                <td><span class="badge bg-secondary">{{ post.content_type }}</span></td>
+                                <td><small>{{ post.posted_at.strftime('%m-%d %H:%M') }}</small></td>
+                                <td>{{ post.views_count }}</td>
+                                <td>
+                                    {% if post.is_pinned %}
+                                        <i class="bi bi-pin-fill text-primary"></i>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        {% if not post.is_pinned %}
+                                        <button class="btn btn-sm btn-outline-primary" title="Pin">
+                                            <i class="bi bi-pin"></i>
+                                        </button>
+                                        {% endif %}
+                                        <button class="btn btn-sm btn-outline-danger" title="Delete">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted">No posts yet. Create your first post!</p>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Usage in Campaigns -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Used in Campaigns</h5>
+            </div>
+            <div class="card-body">
+                {% set invite_campaigns = channel.invite_campaigns.all() %}
+                {% if invite_campaigns %}
+                <h6>Invite Campaigns:</h6>
+                <ul>
+                    {% for campaign in invite_campaigns %}
+                    <li>
+                        <a href="{{ url_for('campaigns.detail', campaign_id=campaign.id) }}">
+                            {{ campaign.name }}
+                        </a>
+                        <span class="badge bg-{{ 'success' if campaign.status == 'active' else 'secondary' }}">
+                            {{ campaign.status }}
+                        </span>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <p class="text-muted">Not used in any campaigns yet.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <!-- Quick Stats -->
+        <div class="card mb-3">
+            <div class="card-header">
+                <h5 class="mb-0">Quick Stats</h5>
+            </div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-sm-6">Posts:</dt>
+                    <dd class="col-sm-6 text-end">{{ channel.posts.count() }}</dd>
+
+                    <dt class="col-sm-6">Messages:</dt>
+                    <dd class="col-sm-6 text-end">{{ channel.messages.count() }}</dd>
+
+                    <dt class="col-sm-6">Campaigns:</dt>
+                    <dd class="col-sm-6 text-end">{{ channel.invite_campaigns.count() }}</dd>
+                </dl>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Quick Actions</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    {% if channel.is_admin %}
+                    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createPostModal">
+                        <i class="bi bi-file-earmark-text"></i> Create Post
+                    </button>
+                    {% endif %}
+
+                    <a href="{{ url_for('campaigns.create') }}?channel_id={{ channel.id }}" class="btn btn-success">
+                        <i class="bi bi-megaphone"></i> Create Invite Campaign
+                    </a>
+
+                    <a href="{{ url_for('parser.index') }}?channel={{ channel.username }}" class="btn btn-info">
+                        <i class="bi bi-people"></i> Parse Members
+                    </a>
+
+                    <form method="POST" action="{{ url_for('channels.delete', channel_id=channel.id) }}" 
+                          onsubmit="return confirm('Delete this channel from system?')">
+                        <button type="submit" class="btn btn-outline-danger w-100">
+                            <i class="bi bi-trash"></i> Remove from System
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Create Post Modal -->
+{% if channel.is_admin %}
+<div class="modal fade" id="createPostModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Create Post</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('channels.create_post', channel_id=channel.id) }}" enctype="multipart/form-data">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="text_content" class="form-label">Message Text</label>
+                        <textarea class="form-control" id="text_content" name="text_content" rows="6"></textarea>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="media_file" class="form-label">Media (Optional)</label>
+                        <input type="file" class="form-control" id="media_file" name="media_file" 
+                               accept="image/*,video/*">
+                    </div>
+
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="pin_post" name="pin_post">
+                        <label class="form-check-label" for="pin_post">
+                            Pin this post
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-send"></i> Post
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}

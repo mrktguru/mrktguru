@@ -1,0 +1,269 @@
+{% extends "base.html" %}
+
+{% block title %}Create Invite Campaign - Telegram System{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h4 class="mb-0">Create New Invite Campaign</h4>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('campaigns.create') }}">
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Campaign Name *</label>
+                        <input type="text" class="form-control" id="name" name="name" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Description</label>
+                        <textarea class="form-control" id="description" name="description" rows="2"></textarea>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="channel_id" class="form-label">Target Channel *</label>
+                        <select class="form-select" id="channel_id" name="channel_id" required>
+                            <option value="">-- Select Channel --</option>
+                            {% for channel in channels %}
+                            <option value="{{ channel.id }}">
+                                {{ channel.title }} ({{ channel.username or 'No username' }})
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <small class="form-text text-muted">
+                            Channel where users will be invited. <a href="{{ url_for('channels.add') }}">Add channel</a>
+                        </small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Strategy *</label>
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="strategy" id="strategy_safe" 
+                                           value="safe" checked>
+                                    <label class="form-check-label" for="strategy_safe">
+                                        <strong>Safe</strong>
+                                        <br><small class="text-muted">60-120s delays, 3-5/hour</small>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="strategy" id="strategy_normal" 
+                                           value="normal">
+                                    <label class="form-check-label" for="strategy_normal">
+                                        <strong>Normal</strong>
+                                        <br><small class="text-muted">45-90s delays, 5-10/hour</small>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="strategy" id="strategy_aggressive" 
+                                           value="aggressive">
+                                    <label class="form-check-label" for="strategy_aggressive">
+                                        <strong>Aggressive</strong>
+                                        <br><small class="text-muted">30-60s delays, 8-15/hour</small>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Select Accounts * <span class="badge bg-secondary" id="selected_count">0</span></label>
+                        <div class="card">
+                            <div class="card-body" style="max-height: 300px; overflow-y: auto;">
+                                {% if accounts %}
+                                    {% for account in accounts %}
+                                    <div class="form-check">
+                                        <input class="form-check-input account-checkbox" type="checkbox" 
+                                               name="account_ids" value="{{ account.id }}" id="acc_{{ account.id }}">
+                                        <label class="form-check-label" for="acc_{{ account.id }}">
+                                            {{ account.phone }}
+                                            <span class="badge bg-{{ 'success' if account.status == 'active' else 'warning' }}">
+                                                {{ account.status }}
+                                            </span>
+                                            <span class="badge bg-info">Health: {{ account.health_score }}%</span>
+                                            {% if account.proxy %}
+                                                <i class="bi bi-shield-check text-success" title="Has proxy"></i>
+                                            {% endif %}
+                                        </label>
+                                    </div>
+                                    {% endfor %}
+                                    <div class="mt-2">
+                                        <button type="button" class="btn btn-sm btn-outline-primary" id="selectAll">
+                                            Select All Active
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" id="deselectAll">
+                                            Deselect All
+                                        </button>
+                                    </div>
+                                {% else %}
+                                    <p class="text-muted">No active accounts. <a href="{{ url_for('accounts.upload') }}">Upload accounts</a></p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="accordion mb-3" id="advancedSettings">
+                        <div class="accordion-item">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" 
+                                        data-bs-target="#collapseAdvanced">
+                                    Advanced Settings (Optional)
+                                </button>
+                            </h2>
+                            <div id="collapseAdvanced" class="accordion-collapse collapse" 
+                                 data-bs-parent="#advancedSettings">
+                                <div class="accordion-body">
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label">Working Hours Start</label>
+                                                <input type="time" class="form-control" name="working_hours_start" 
+                                                       value="09:00">
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label">Working Hours End</label>
+                                                <input type="time" class="form-control" name="working_hours_end" 
+                                                       value="22:00">
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input" type="checkbox" name="human_like_behavior" 
+                                               id="human_like" checked>
+                                        <label class="form-check-label" for="human_like">
+                                            Enable human-like behavior (random delays, pauses)
+                                        </label>
+                                    </div>
+                                    
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="auto_pause_on_errors" 
+                                               id="auto_pause" checked>
+                                        <label class="form-check-label" for="auto_pause">
+                                            Auto-pause on critical errors
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i>
+                        <strong>Next steps after creating:</strong>
+                        <ol class="mb-0 mt-2">
+                            <li>Import target users from source channels</li>
+                            <li>Review settings and targets</li>
+                            <li>Start the campaign</li>
+                        </ol>
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="bi bi-plus-circle"></i> Create Campaign
+                        </button>
+                        <a href="{{ url_for('campaigns.list_campaigns') }}" class="btn btn-outline-secondary">
+                            Cancel
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card mb-3">
+            <div class="card-header">
+                <h5 class="mb-0">Campaign Tips</h5>
+            </div>
+            <div class="card-body">
+                <ul class="small">
+                    <li><strong>Start with Safe</strong> strategy for new accounts</li>
+                    <li><strong>Use multiple accounts</strong> to distribute load</li>
+                    <li><strong>Assign proxies</strong> to all accounts before starting</li>
+                    <li><strong>Import quality users</strong> - better targeting = less failures</li>
+                    <li><strong>Monitor first hour</strong> - check for FloodWait errors</li>
+                    <li><strong>Respect working hours</strong> - avoid night time</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Strategy Comparison</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th></th>
+                            <th>Safe</th>
+                            <th>Normal</th>
+                            <th>Aggressive</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><small>Delay</small></td>
+                            <td><small>60-120s</small></td>
+                            <td><small>45-90s</small></td>
+                            <td><small>30-60s</small></td>
+                        </tr>
+                        <tr>
+                            <td><small>Per Hour</small></td>
+                            <td><small>3-5</small></td>
+                            <td><small>5-10</small></td>
+                            <td><small>8-15</small></td>
+                        </tr>
+                        <tr>
+                            <td><small>Risk</small></td>
+                            <td><span class="badge bg-success">Low</span></td>
+                            <td><span class="badge bg-warning">Medium</span></td>
+                            <td><span class="badge bg-danger">High</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // Update selected count
+    function updateCount() {
+        var count = $('.account-checkbox:checked').length;
+        $('#selected_count').text(count);
+    }
+
+    $('.account-checkbox').on('change', updateCount);
+
+    // Select all active accounts
+    $('#selectAll').on('click', function() {
+        $('.account-checkbox').each(function() {
+            var label = $(this).next('label').text();
+            if (label.includes('active')) {
+                $(this).prop('checked', true);
+            }
+        });
+        updateCount();
+    });
+
+    // Deselect all
+    $('#deselectAll').on('click', function() {
+        $('.account-checkbox').prop('checked', false);
+        updateCount();
+    });
+});
+</script>
+{% endblock %}

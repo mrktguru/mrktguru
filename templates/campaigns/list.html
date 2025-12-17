@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+
+{% block title %}Invite Campaigns - Telegram System{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>Invite Campaigns</h1>
+    <a href="{{ url_for('campaigns.create') }}" class="btn btn-primary">
+        <i class="bi bi-plus-circle"></i> New Campaign
+    </a>
+</div>
+
+<div class="row mb-3">
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h3>{{ campaigns|selectattr('status', 'equalto', 'active')|list|length }}</h3>
+                <small class="text-success">Active</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h3>{{ campaigns|selectattr('status', 'equalto', 'paused')|list|length }}</h3>
+                <small class="text-warning">Paused</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h3>{{ campaigns|selectattr('status', 'equalto', 'completed')|list|length }}</h3>
+                <small class="text-info">Completed</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h3>{{ campaigns|sum(attribute='invited_count')|default(0) }}</h3>
+                <small class="text-muted">Total Invites</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <div class="row">
+            <div class="col-md-6">
+                <h5 class="mb-0">All Campaigns</h5>
+            </div>
+            <div class="col-md-3">
+                <select class="form-select form-select-sm" id="filterStatus">
+                    <option value="">All Statuses</option>
+                    <option value="draft">Draft</option>
+                    <option value="active">Active</option>
+                    <option value="paused">Paused</option>
+                    <option value="stopped">Stopped</option>
+                    <option value="completed">Completed</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <input type="text" class="form-control form-control-sm" id="searchCampaign" placeholder="Search...">
+            </div>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0" id="campaignsTable">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Channel</th>
+                        <th>Status</th>
+                        <th>Strategy</th>
+                        <th>Progress</th>
+                        <th>Success Rate</th>
+                        <th>Accounts</th>
+                        <th>Created</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for campaign in campaigns %}
+                    <tr data-status="{{ campaign.status }}">
+                        <td>
+                            <a href="{{ url_for('campaigns.detail', campaign_id=campaign.id) }}">
+                                <strong>{{ campaign.name }}</strong>
+                            </a>
+                            {% if campaign.description %}
+                                <br><small class="text-muted">{{ campaign.description[:50] }}...</small>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if campaign.channel %}
+                                <a href="{{ url_for('channels.detail', channel_id=campaign.channel.id) }}">
+                                    {{ campaign.channel.title }}
+                                </a>
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if campaign.status == 'active' %}
+                                <span class="badge bg-success">{{ campaign.status }}</span>
+                            {% elif campaign.status == 'paused' %}
+                                <span class="badge bg-warning">{{ campaign.status }}</span>
+                            {% elif campaign.status == 'completed' %}
+                                <span class="badge bg-info">{{ campaign.status }}</span>
+                            {% elif campaign.status == 'stopped' %}
+                                <span class="badge bg-danger">{{ campaign.status }}</span>
+                            {% else %}
+                                <span class="badge bg-secondary">{{ campaign.status }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="badge bg-{% if campaign.strategy == 'safe' %}success{% elif campaign.strategy == 'normal' %}primary{% else %}warning{% endif %}">
+                                {{ campaign.strategy }}
+                            </span>
+                        </td>
+                        <td>
+                            {% set progress = (campaign.invited_count + campaign.failed_count) %}
+                            {% set total = campaign.total_targets %}
+                            {% set percent = (progress / total * 100)|int if total > 0 else 0 %}
+                            
+                            <div class="progress" style="height: 20px;">
+                                <div class="progress-bar" style="width: {{ percent }}%">
+                                    {{ progress }}/{{ total }}
+                                </div>
+                            </div>
+                            <small class="text-muted">{{ percent }}%</small>
+                        </td>
+                        <td>
+                            {% set total_sent = campaign.invited_count + campaign.failed_count %}
+                            {% set success_rate = (campaign.invited_count / total_sent * 100)|int if total_sent > 0 else 0 %}
+                            
+                            <span class="badge bg-{% if success_rate >= 80 %}success{% elif success_rate >= 50 %}warning{% else %}danger{% endif %}">
+                                {{ success_rate }}%
+                            </span>
+                            <br>
+                            <small class="text-success">{{ campaign.invited_count }} ✓</small>
+                            <small class="text-danger">{{ campaign.failed_count }} ✗</small>
+                        </td>
+                        <td>
+                            <span class="badge bg-primary">{{ campaign.campaign_accounts.count() }}</span>
+                        </td>
+                        <td>
+                            <small>{{ campaign.created_at.strftime('%Y-%m-%d') }}</small>
+                            {% if campaign.started_at %}
+                                <br><small class="text-muted">Started: {{ campaign.started_at.strftime('%m-%d %H:%M') }}</small>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                <a href="{{ url_for('campaigns.detail', campaign_id=campaign.id) }}" 
+                                   class="btn btn-sm btn-outline-primary" title="Details">
+                                    <i class="bi bi-eye"></i>
+                                </a>
+                                
+                                {% if campaign.status == 'draft' or campaign.status == 'paused' %}
+                                <form method="POST" action="{{ url_for('campaigns.start', campaign_id=campaign.id) }}" style="display: inline;">
+                                    <button type="submit" class="btn btn-sm btn-outline-success" title="Start">
+                                        <i class="bi bi-play-fill"></i>
+                                    </button>
+                                </form>
+                                {% endif %}
+                                
+                                {% if campaign.status == 'active' %}
+                                <form method="POST" action="{{ url_for('campaigns.pause', campaign_id=campaign.id) }}" style="display: inline;">
+                                    <button type="submit" class="btn btn-sm btn-outline-warning" title="Pause">
+                                        <i class="bi bi-pause-fill"></i>
+                                    </button>
+                                </form>
+                                {% endif %}
+                                
+                                {% if campaign.status != 'stopped' and campaign.status != 'completed' %}
+                                <form method="POST" action="{{ url_for('campaigns.stop', campaign_id=campaign.id) }}" 
+                                      onsubmit="return confirm('Stop this campaign?')" style="display: inline;">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Stop">
+                                        <i class="bi bi-stop-fill"></i>
+                                    </button>
+                                </form>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // Search functionality
+    $('#searchCampaign').on('keyup', function() {
+        var value = $(this).val().toLowerCase();
+        $('#campaignsTable tbody tr').filter(function() {
+            $(this).toggle($(this).text().toLowerCase().indexOf(value) > -1);
+        });
+    });
+
+    // Filter by status
+    $('#filterStatus').on('change', function() {
+        var status = $(this).val();
+        if (status === '') {
+            $('#campaignsTable tbody tr').show();
+        } else {
+            $('#campaignsTable tbody tr').each(function() {
+                if ($(this).data('status') === status) {
+                    $(this).show();
+                } else {
+                    $(this).hide();
+                }
+            });
+        }
+    });
+
+    // Auto-refresh for active campaigns
+    {% if campaigns|selectattr('status', 'equalto', 'active')|list|length > 0 %}
+    setInterval(function() {
+        location.reload();
+    }, 30000); // Refresh every 30 seconds
+    {% endif %}
+});
+</script>
+{% endblock %}

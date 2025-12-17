@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block title %}Scheduled Tasks - Automation{% endblock %}
+
+{% block content %}
+<h1 class="mb-4">Scheduled Tasks</h1>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Create Scheduled Task</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('automation.scheduled_tasks') }}">
+                    <div class="mb-3">
+                        <label for="task_type" class="form-label">Task Type</label>
+                        <select class="form-select" id="task_type" name="task_type" required>
+                            <option value="">-- Select Type --</option>
+                            <option value="start_campaign">Start Campaign</option>
+                            <option value="pause_campaign">Pause Campaign</option>
+                            <option value="post_message">Post Message</option>
+                            <option value="subscribe_channel">Subscribe to Channel</option>
+                            <option value="rotate_proxy">Rotate Proxy</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="scheduled_for" class="form-label">Schedule For</label>
+                        <input type="datetime-local" class="form-control" id="scheduled_for" name="scheduled_for" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="entity_id" class="form-label">Entity ID (if applicable)</label>
+                        <input type="number" class="form-control" id="entity_id" name="entity_id">
+                    </div>
+
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="bi bi-clock"></i> Schedule Task
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Upcoming Tasks</h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted">Task list would appear here</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

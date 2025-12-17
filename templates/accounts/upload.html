@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+
+{% block title %}Upload Sessions - Telegram System{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h4 class="mb-0">Upload Telegram Session Files</h4>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i>
+                    <strong>Instructions:</strong>
+                    <ul class="mb-0 mt-2">
+                        <li>Upload .session files from Telethon</li>
+                        <li>Files should be named with phone number (e.g., +1234567890.session)</li>
+                        <li>Device profiles will be automatically generated</li>
+                        <li>Warm-up subscriptions will be added automatically</li>
+                        <li>You can assign proxies during upload or later</li>
+                    </ul>
+                </div>
+
+                <form method="POST" action="{{ url_for('accounts.upload') }}" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label for="session_files" class="form-label">Session Files (.session)</label>
+                        <input type="file" class="form-control" id="session_files" name="session_files" 
+                               multiple accept=".session" required>
+                        <small class="form-text text-muted">You can select multiple files at once</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="region" class="form-label">Region (for device emulation)</label>
+                        <select class="form-select" id="region" name="region">
+                            <option value="RU">Russia</option>
+                            <option value="US">United States</option>
+                            <option value="EU">Europe</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Proxy Assignment (optional)</label>
+                        <select class="form-select" id="proxy_mode" name="proxy_mode">
+                            <option value="none">No proxy (assign later)</option>
+                            <option value="round_robin">Round-robin (distribute evenly)</option>
+                            <option value="random">Random assignment</option>
+                            <option value="specific">Specific proxy for all</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3" id="specific_proxy_div" style="display: none;">
+                        <label for="specific_proxy" class="form-label">Select Proxy</label>
+                        <select class="form-select" id="specific_proxy" name="specific_proxy">
+                            <option value="">-- Select Proxy --</option>
+                            {% for proxy in proxies %}
+                            <option value="{{ proxy.id }}">
+                                {{ proxy.type }}://{{ proxy.host }}:{{ proxy.port }}
+                                {% if proxy.current_ip %} ({{ proxy.current_ip }}){% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="auto_warmup" name="auto_warmup" checked>
+                            <label class="form-check-label" for="auto_warmup">
+                                Auto warm-up (subscribe to popular channels)
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="verify_sessions" name="verify_sessions">
+                            <label class="form-check-label" for="verify_sessions">
+                                Verify sessions after upload (slower)
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="bi bi-upload"></i> Upload Sessions
+                        </button>
+                        <a href="{{ url_for('accounts.list_accounts') }}" class="btn btn-outline-secondary">
+                            Cancel
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="mb-0">Available Proxies</h5>
+            </div>
+            <div class="card-body">
+                {% if proxies %}
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Type</th>
+                                <th>Host:Port</th>
+                                <th>IP</th>
+                                <th>Status</th>
+                                <th>Assigned</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for proxy in proxies %}
+                            <tr>
+                                <td><span class="badge bg-secondary">{{ proxy.type }}</span></td>
+                                <td>{{ proxy.host }}:{{ proxy.port }}</td>
+                                <td>{{ proxy.current_ip or '-' }}</td>
+                                <td>
+                                    <span class="badge bg-{{ 'success' if proxy.status == 'active' else 'danger' }}">
+                                        {{ proxy.status }}
+                                    </span>
+                                </td>
+                                <td>{{ proxy.accounts.count() }} accounts</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted">No proxies available. <a href="{{ url_for('proxies.add') }}">Add proxy</a></p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    $('#proxy_mode').on('change', function() {
+        if ($(this).val() === 'specific') {
+            $('#specific_proxy_div').show();
+        } else {
+            $('#specific_proxy_div').hide();
+        }
+    });
+});
+</script>
+{% endblock %}

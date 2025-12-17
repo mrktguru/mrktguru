@@ -1,0 +1,41 @@
+/* Custom styles for Telegram System */
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    background-color: #f8f9fa;
+}
+
+.navbar-brand {
+    font-weight: bold;
+}
+
+.card {
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.table-responsive {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.badge {
+    font-size: 0.85em;
+}
+
+.status-active { color: #28a745; }
+.status-paused { color: #ffc107; }
+.status-stopped { color: #dc3545; }
+.status-completed { color: #17a2b8; }
+
+.alert {
+    border-radius: 6px;
+}
+
+.progress {
+    height: 25px;
+}
+
+.btn {
+    border-radius: 6px;
+}

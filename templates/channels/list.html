@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+
+{% block title %}Channels - Telegram System{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>Channels & Groups</h1>
+    <a href="{{ url_for('channels.add') }}" class="btn btn-primary">
+        <i class="bi bi-plus-circle"></i> Add Channel
+    </a>
+</div>
+
+<div class="row mb-3">
+    <div class="col-md-4">
+        <div class="card text-center">
+            <div class="card-body">
+                <h3>{{ channels|selectattr('type', 'equalto', 'channel')|list|length }}</h3>
+                <small class="text-primary">Channels</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card text-center">
+            <div class="card-body">
+                <h3>{{ channels|selectattr('type', 'equalto', 'group')|list|length }}</h3>
+                <small class="text-success">Groups</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card text-center">
+            <div class="card-body">
+                <h3>{{ channels|selectattr('is_admin', 'equalto', True)|list|length }}</h3>
+                <small class="text-info">Admin Rights</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <div class="row">
+            <div class="col-md-6">
+                <h5 class="mb-0">All Channels</h5>
+            </div>
+            <div class="col-md-6">
+                <input type="text" class="form-control form-control-sm" id="searchChannel" placeholder="Search...">
+            </div>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0" id="channelsTable">
+                <thead>
+                    <tr>
+                        <th>Title</th>
+                        <th>Username</th>
+                        <th>Type</th>
+                        <th>Status</th>
+                        <th>Admin</th>
+                        <th>Owner Account</th>
+                        <th>Posts</th>
+                        <th>Added</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for channel in channels %}
+                    <tr>
+                        <td>
+                            <a href="{{ url_for('channels.detail', channel_id=channel.id) }}">
+                                <strong>{{ channel.title }}</strong>
+                            </a>
+                        </td>
+                        <td>
+                            {% if channel.username %}
+                                <code>@{{ channel.username }}</code>
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="badge bg-{% if channel.type == 'channel' %}primary{% else %}success{% endif %}">
+                                {{ channel.type }}
+                            </span>
+                        </td>
+                        <td>
+                            <span class="badge bg-{{ 'success' if channel.status == 'active' else 'secondary' }}">
+                                {{ channel.status }}
+                            </span>
+                        </td>
+                        <td>
+                            {% if channel.is_admin %}
+                                <span class="badge bg-success">
+                                    <i class="bi bi-shield-check"></i> Yes
+                                </span>
+                            {% else %}
+                                <span class="text-muted">No</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if channel.owner_account %}
+                                <a href="{{ url_for('accounts.detail', account_id=channel.owner_account.id) }}">
+                                    {{ channel.owner_account.phone }}
+                                </a>
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="badge bg-info">{{ channel.posts.count() }}</span>
+                        </td>
+                        <td>
+                            <small>{{ channel.created_at.strftime('%Y-%m-%d') }}</small>
+                        </td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                <a href="{{ url_for('channels.detail', channel_id=channel.id) }}" 
+                                   class="btn btn-sm btn-outline-primary" title="Details">
+                                    <i class="bi bi-eye"></i>
+                                </a>
+                                {% if channel.is_admin %}
+                                <a href="{{ url_for('channels.posts', channel_id=channel.id) }}" 
+                                   class="btn btn-sm btn-outline-info" title="Manage Posts">
+                                    <i class="bi bi-file-earmark-text"></i>
+                                </a>
+                                {% endif %}
+                                <form method="POST" action="{{ url_for('channels.delete', channel_id=channel.id) }}" 
+                                      onsubmit="return confirm('Delete this channel?')" style="display: inline;">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    $('#searchChannel').on('keyup', function() {
+        var value = $(this).val().toLowerCase();
+        $('#channelsTable tbody tr').filter(function() {
+            $(this).toggle($(this).text().toLowerCase().indexOf(value) > -1);
+        });
+    });
+});
+</script>
+{% endblock %}

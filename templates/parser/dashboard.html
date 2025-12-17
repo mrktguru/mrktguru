@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+
+{% block title %}Parser - Telegram System{% endblock %}
+
+{% block content %}
+<h1 class="mb-4">User Parser</h1>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card mb-3">
+            <div class="card-header">
+                <h5 class="mb-0">Start Parsing</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('parser.parse') }}">
+                    <div class="mb-3">
+                        <label for="job_type" class="form-label">Parse Type</label>
+                        <select class="form-select" id="job_type" name="job_type">
+                            <option value="single_channel">Single Channel</option>
+                            <option value="multi_channel">Multiple Channels</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="channels" class="form-label">Channel(s)</label>
+                        <textarea class="form-control" id="channels" name="channels" rows="3" 
+                                  placeholder="@channel1, @channel2, @channel3" required></textarea>
+                        <small class="form-text text-muted">
+                            Enter one or more channel usernames, separated by commas
+                        </small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="collection_name" class="form-label">Collection Name</label>
+                        <input type="text" class="form-control" id="collection_name" name="collection_name" 
+                               placeholder="e.g., Crypto Enthusiasts" required>
+                        <small class="form-text text-muted">
+                            Name for this collection of users
+                        </small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="account_id" class="form-label">Account to Use</label>
+                        <select class="form-select" id="account_id" name="account_id" required>
+                            <option value="">-- Select Account --</option>
+                            {% for account in accounts %}
+                            <option value="{{ account.id }}">{{ account.phone }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Filters</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="exclude_bots" id="exclude_bots" checked>
+                            <label class="form-check-label" for="exclude_bots">Exclude bots</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="only_with_photo" id="only_with_photo">
+                            <label class="form-check-label" for="only_with_photo">Only users with profile photo</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="only_premium" id="only_premium">
+                            <label class="form-check-label" for="only_premium">Only Telegram Premium users</label>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary btn-lg w-100">
+                        <i class="bi bi-search"></i> Start Parsing
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Recent Parse Jobs</h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-sm mb-0">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Type</th>
+                                <th>Status</th>
+                                <th>Parsed</th>
+                                <th>Started</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for job in jobs %}
+                            <tr>
+                                <td>{{ job.name }}</td>
+                                <td><span class="badge bg-secondary">{{ job.job_type }}</span></td>
+                                <td>
+                                    {% if job.status == 'running' %}
+                                        <span class="badge bg-warning">{{ job.status }}</span>
+                                    {% elif job.status == 'completed' %}
+                                        <span class="badge bg-success">{{ job.status }}</span>
+                                    {% elif job.status == 'failed' %}
+                                        <span class="badge bg-danger">{{ job.status }}</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">{{ job.status }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ job.total_valid }} / {{ job.total_parsed }}</td>
+                                <td><small>{{ job.started_at.strftime('%m-%d %H:%M') if job.started_at else '-' }}</small></td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card mb-3">
+            <div class="card-header">
+                <h5 class="mb-0">Collections</h5>
+            </div>
+            <div class="card-body">
+                {% if collections %}
+                <div class="list-group">
+                    {% for collection in collections %}
+                    <a href="{{ url_for('parser.library') }}?collection={{ collection }}" 
+                       class="list-group-item list-group-item-action">
+                        {{ collection }}
+                    </a>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-muted">No collections yet</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Tips</h5>
+            </div>
+            <div class="card-body">
+                <ul class="small">
+                    <li>Parse from multiple channels to find overlapping users</li>
+                    <li>Users with profile photos are more likely to be real</li>
+                    <li>Premium users indicate active engagement</li>
+                    <li>Use collections to organize different target groups</li>
+                    <li>Export to campaigns for targeted invites</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

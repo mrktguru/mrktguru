@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+
+{% block title %}Accounts - Telegram System{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>Telegram Accounts</h1>
+    <a href="{{ url_for('accounts.upload') }}" class="btn btn-primary">
+        <i class="bi bi-upload"></i> Upload Sessions
+    </a>
+</div>
+
+<div class="row mb-3">
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h3>{{ accounts|selectattr('status', 'equalto', 'active')|list|length }}</h3>
+                <small class="text-success">Active</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h3>{{ accounts|selectattr('status', 'equalto', 'warming_up')|list|length }}</h3>
+                <small class="text-warning">Warming Up</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h3>{{ accounts|selectattr('status', 'equalto', 'cooldown')|list|length }}</h3>
+                <small class="text-info">Cooldown</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h3>{{ accounts|selectattr('status', 'equalto', 'banned')|list|length }}</h3>
+                <small class="text-danger">Banned</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <div class="row">
+            <div class="col-md-6">
+                <h5 class="mb-0">All Accounts</h5>
+            </div>
+            <div class="col-md-6">
+                <input type="text" class="form-control form-control-sm" id="searchAccount" placeholder="Search...">
+            </div>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0" id="accountsTable">
+                <thead>
+                    <tr>
+                        <th>Phone</th>
+                        <th>Status</th>
+                        <th>Health</th>
+                        <th>Proxy</th>
+                        <th>Device</th>
+                        <th>Sent Today</th>
+                        <th>Warm-up</th>
+                        <th>Last Activity</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for account in accounts %}
+                    <tr>
+                        <td>
+                            <a href="{{ url_for('accounts.detail', account_id=account.id) }}">
+                                {{ account.phone }}
+                            </a>
+                        </td>
+                        <td>
+                            {% if account.status == 'active' %}
+                                <span class="badge bg-success">{{ account.status }}</span>
+                            {% elif account.status == 'warming_up' %}
+                                <span class="badge bg-warning">{{ account.status }}</span>
+                            {% elif account.status == 'cooldown' %}
+                                <span class="badge bg-info">{{ account.status }}</span>
+                            {% elif account.status == 'banned' %}
+                                <span class="badge bg-danger">{{ account.status }}</span>
+                            {% else %}
+                                <span class="badge bg-secondary">{{ account.status }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="progress" style="height: 20px;">
+                                <div class="progress-bar {% if account.health_score >= 70 %}bg-success{% elif account.health_score >= 40 %}bg-warning{% else %}bg-danger{% endif %}" 
+                                     style="width: {{ account.health_score }}%">
+                                    {{ account.health_score }}%
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            {% if account.proxy %}
+                                <span class="badge bg-primary" title="{{ account.proxy.host }}:{{ account.proxy.port }}">
+                                    {{ account.proxy.type }}
+                                </span>
+                            {% else %}
+                                <span class="text-muted">No proxy</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if account.device_profile %}
+                                <small title="{{ account.device_profile.device_model }}">
+                                    {{ account.device_profile.device_model[:20] }}...
+                                </small>
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <small>
+                                <i class="bi bi-envelope"></i> {{ account.messages_sent_today }}<br>
+                                <i class="bi bi-person-plus"></i> {{ account.invites_sent_today }}
+                            </small>
+                        </td>
+                        <td>{{ account.warm_up_days_completed }}/7 days</td>
+                        <td>
+                            {% if account.last_activity %}
+                                <small>{{ account.last_activity.strftime('%Y-%m-%d %H:%M') }}</small>
+                            {% else %}
+                                <span class="text-muted">Never</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                <a href="{{ url_for('accounts.detail', account_id=account.id) }}" 
+                                   class="btn btn-sm btn-outline-primary" title="Details">
+                                    <i class="bi bi-eye"></i>
+                                </a>
+                                <form method="POST" action="{{ url_for('accounts.verify', account_id=account.id) }}" style="display: inline;">
+                                    <button type="submit" class="btn btn-sm btn-outline-success" title="Verify Session">
+                                        <i class="bi bi-check-circle"></i>
+                                    </button>
+                                </form>
+                                <form method="POST" action="{{ url_for('accounts.delete', account_id=account.id) }}" 
+                                      onsubmit="return confirm('Delete this account?')" style="display: inline;">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // Search functionality
+    $('#searchAccount').on('keyup', function() {
+        var value = $(this).val().toLowerCase();
+        $('#accountsTable tbody tr').filter(function() {
+            $(this).toggle($(this).text().toLowerCase().indexOf(value) > -1);
+        });
+    });
+});
+</script>
+{% endblock %}

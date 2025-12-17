@@ -1,0 +1,278 @@
+{% extends "base.html" %}
+
+{% block title %}Account {{ account.phone }} - Telegram System{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>Account: {{ account.phone }}</h1>
+    <div>
+        <a href="{{ url_for('accounts.list_accounts') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Back
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-4">
+        <div class="card mb-3">
+            <div class="card-header">
+                <h5 class="mb-0">Account Status</h5>
+            </div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-sm-5">Status:</dt>
+                    <dd class="col-sm-7">
+                        {% if account.status == 'active' %}
+                            <span class="badge bg-success">{{ account.status }}</span>
+                        {% elif account.status == 'warming_up' %}
+                            <span class="badge bg-warning">{{ account.status }}</span>
+                        {% elif account.status == 'cooldown' %}
+                            <span class="badge bg-info">{{ account.status }}</span>
+                        {% else %}
+                            <span class="badge bg-danger">{{ account.status }}</span>
+                        {% endif %}
+                    </dd>
+
+                    <dt class="col-sm-5">Health:</dt>
+                    <dd class="col-sm-7">
+                        <div class="progress">
+                            <div class="progress-bar {% if account.health_score >= 70 %}bg-success{% elif account.health_score >= 40 %}bg-warning{% else %}bg-danger{% endif %}" 
+                                 style="width: {{ account.health_score }}%">
+                                {{ account.health_score }}%
+                            </div>
+                        </div>
+                    </dd>
+
+                    <dt class="col-sm-5">Created:</dt>
+                    <dd class="col-sm-7">{{ account.created_at.strftime('%Y-%m-%d') }}</dd>
+
+                    <dt class="col-sm-5">Last Activity:</dt>
+                    <dd class="col-sm-7">
+                        {% if account.last_activity %}
+                            {{ account.last_activity.strftime('%Y-%m-%d %H:%M') }}
+                        {% else %}
+                            <span class="text-muted">Never</span>
+                        {% endif %}
+                    </dd>
+
+                    <dt class="col-sm-5">Cooldown Until:</dt>
+                    <dd class="col-sm-7">
+                        {% if account.cooldown_until %}
+                            {{ account.cooldown_until.strftime('%Y-%m-%d %H:%M') }}
+                        {% else %}
+                            <span class="text-muted">-</span>
+                        {% endif %}
+                    </dd>
+                </dl>
+
+                <div class="d-grid gap-2 mt-3">
+                    <form method="POST" action="{{ url_for('accounts.verify', account_id=account.id) }}">
+                        <button type="submit" class="btn btn-success w-100">
+                            <i class="bi bi-check-circle"></i> Verify Session
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-3">
+            <div class="card-header">
+                <h5 class="mb-0">Daily Stats</h5>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-6">
+                        <h3>{{ account.messages_sent_today }}</h3>
+                        <small class="text-muted">Messages</small>
+                    </div>
+                    <div class="col-6">
+                        <h3>{{ account.invites_sent_today }}</h3>
+                        <small class="text-muted">Invites</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-3">
+            <div class="card-header">
+                <h5 class="mb-0">Warm-up Progress</h5>
+            </div>
+            <div class="card-body">
+                <div class="progress mb-2" style="height: 25px;">
+                    <div class="progress-bar" style="width: {{ (account.warm_up_days_completed / 7 * 100)|int }}%">
+                        {{ account.warm_up_days_completed }}/7 days
+                    </div>
+                </div>
+                {% if account.warm_up_days_completed < 7 %}
+                    <small class="text-muted">
+                        {{ 7 - account.warm_up_days_completed }} days remaining
+                    </small>
+                {% else %}
+                    <small class="text-success">✓ Warm-up completed</small>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-8">
+        <div class="card mb-3">
+            <div class="card-header">
+                <h5 class="mb-0">Device Profile</h5>
+            </div>
+            <div class="card-body">
+                {% if account.device_profile %}
+                <dl class="row mb-0">
+                    <dt class="col-sm-4">Device Model:</dt>
+                    <dd class="col-sm-8">{{ account.device_profile.device_model }}</dd>
+
+                    <dt class="col-sm-4">System Version:</dt>
+                    <dd class="col-sm-8">{{ account.device_profile.system_version }}</dd>
+
+                    <dt class="col-sm-4">App Version:</dt>
+                    <dd class="col-sm-8">{{ account.device_profile.app_version }}</dd>
+
+                    <dt class="col-sm-4">Language:</dt>
+                    <dd class="col-sm-8">{{ account.device_profile.lang_code }} / {{ account.device_profile.system_lang_code }}</dd>
+                </dl>
+                {% else %}
+                <p class="text-muted">No device profile</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="card mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Proxy Assignment</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('accounts.assign_proxy', account_id=account.id) }}">
+                    <div class="row">
+                        <div class="col-md-9">
+                            <select class="form-select" name="proxy_id">
+                                <option value="">No proxy</option>
+                                {% for proxy in proxies %}
+                                <option value="{{ proxy.id }}" {% if account.proxy_id == proxy.id %}selected{% endif %}>
+                                    {{ proxy.type }}://{{ proxy.host }}:{{ proxy.port }}
+                                    {% if proxy.current_ip %}({{ proxy.current_ip }}){% endif %}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <button type="submit" class="btn btn-primary w-100">Update</button>
+                        </div>
+                    </div>
+                </form>
+
+                {% if account.proxy %}
+                <div class="mt-3 p-3 bg-light rounded">
+                    <strong>Current Proxy:</strong><br>
+                    Type: {{ account.proxy.type }}<br>
+                    Host: {{ account.proxy.host }}:{{ account.proxy.port }}<br>
+                    IP: {{ account.proxy.current_ip or 'Unknown' }}<br>
+                    Status: <span class="badge bg-{{ 'success' if account.proxy.status == 'active' else 'danger' }}">
+                        {{ account.proxy.status }}
+                    </span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="card mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Subscriptions ({{ account.subscriptions.count() }})</h5>
+                <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addSubscriptionModal">
+                    <i class="bi bi-plus"></i> Add
+                </button>
+            </div>
+            <div class="card-body">
+                {% if account.subscriptions.count() > 0 %}
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Channel</th>
+                                <th>Subscribed At</th>
+                                <th>Source</th>
+                                <th>Status</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for sub in account.subscriptions %}
+                            <tr>
+                                <td>@{{ sub.channel_username }}</td>
+                                <td>{{ sub.subscribed_at.strftime('%Y-%m-%d') }}</td>
+                                <td><span class="badge bg-secondary">{{ sub.subscription_source }}</span></td>
+                                <td>
+                                    {% if sub.is_active %}
+                                        <span class="badge bg-success">Active</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">Inactive</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <form method="POST" action="{{ url_for('accounts.remove_subscription', account_id=account.id, sub_id=sub.id) }}" style="display: inline;">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted">No subscriptions yet</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header bg-danger text-white">
+                <h5 class="mb-0">Danger Zone</h5>
+            </div>
+            <div class="card-body">
+                <p>Once you delete an account, there is no going back. The session file will also be removed.</p>
+                <form method="POST" action="{{ url_for('accounts.delete', account_id=account.id) }}" 
+                      onsubmit="return confirm('Are you sure you want to delete this account? This action cannot be undone.')">
+                    <button type="submit" class="btn btn-danger">
+                        <i class="bi bi-trash"></i> Delete Account
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Subscription Modal -->
+<div class="modal fade" id="addSubscriptionModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Add Subscription</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('accounts.add_subscription', account_id=account.id) }}">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="channel_username" class="form-label">Channel Username</label>
+                        <input type="text" class="form-control" id="channel_username" name="channel_username" 
+                               placeholder="username or @username" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="notes" class="form-label">Notes (optional)</label>
+                        <textarea class="form-control" id="notes" name="notes" rows="2"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Add Subscription</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

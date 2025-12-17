@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+
+{% block title %}Automation - Telegram System{% endblock %}
+
+{% block content %}
+<h1 class="mb-4">Automation</h1>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Scheduled Tasks</h5>
+                <a href="{{ url_for('automation.scheduled_tasks') }}" class="btn btn-sm btn-primary">
+                    <i class="bi bi-plus"></i> New Task
+                </a>
+            </div>
+            <div class="card-body">
+                {% if scheduled_tasks %}
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Type</th>
+                                <th>Scheduled For</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for task in scheduled_tasks %}
+                            <tr>
+                                <td>{{ task.task_type }}</td>
+                                <td><small>{{ task.scheduled_for.strftime('%Y-%m-%d %H:%M') }}</small></td>
+                                <td><span class="badge bg-secondary">{{ task.status }}</span></td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted">No scheduled tasks</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Auto-Actions</h5>
+                <a href="{{ url_for('automation.auto_actions') }}" class="btn btn-sm btn-primary">
+                    <i class="bi bi-plus"></i> New Action
+                </a>
+            </div>
+            <div class="card-body">
+                {% if auto_actions %}
+                <div class="list-group">
+                    {% for action in auto_actions %}
+                    <div class="list-group-item">
+                        <div class="d-flex justify-content-between">
+                            <strong>{{ action.name }}</strong>
+                            <span class="badge bg-{{ 'success' if action.is_enabled else 'secondary' }}">
+                                {{ 'Enabled' if action.is_enabled else 'Disabled' }}
+                            </span>
+                        </div>
+                        <small class="text-muted">
+                            Trigger: {{ action.trigger_type }} → Action: {{ action.action_type }}
+                        </small>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-muted">No auto-actions configured</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0">Automation Examples</h5>
+    </div>
+    <div class="card-body">
+        <h6>Scheduled Tasks:</h6>
+        <ul>
+            <li>Start/stop campaigns at specific times</li>
+            <li>Subscribe accounts to channels</li>
+            <li>Post messages to channels</li>
+            <li>Rotate proxies</li>
+            <li>Generate reports</li>
+        </ul>
+
+        <h6 class="mt-3">Auto-Actions:</h6>
+        <ul>
+            <li>Pause account when health score drops below threshold</li>
+            <li>Post to channel when campaign reaches 50% completion</li>
+            <li>Send notification when receiving DM replies</li>
+            <li>Auto-blacklist users who send stop keywords</li>
+        </ul>
+    </div>
+</div>
+
+{% endblock %}

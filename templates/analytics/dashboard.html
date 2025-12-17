@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+
+{% block title %}Analytics - Telegram System{% endblock %}
+
+{% block content %}
+<h1 class="mb-4">Analytics Dashboard</h1>
+
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h3 class="text-primary">{{ stats.total_invites }}</h3>
+                <small class="text-muted">Total Invites</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h3 class="text-success">{{ stats.total_dms }}</h3>
+                <small class="text-muted">Total DMs Sent</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h3 class="text-info">{{ stats.active_campaigns }}</h3>
+                <small class="text-muted">Active Campaigns</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h3 class="text-warning">{{ stats.accounts_in_use }}</h3>
+                <small class="text-muted">Accounts in Use</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card mb-3">
+            <div class="card-header">
+                <h5 class="mb-0">Activity (Last 7 Days)</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="activityChart" height="100"></canvas>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Campaign Performance</h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-sm mb-0">
+                        <thead>
+                            <tr>
+                                <th>Campaign</th>
+                                <th>Type</th>
+                                <th>Success Rate</th>
+                                <th>Total Sent</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Campaign data would go here -->
+                            <tr>
+                                <td colspan="5" class="text-center text-muted">
+                                    No campaign data available
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card mb-3">
+            <div class="card-header">
+                <h5 class="mb-0">Quick Reports</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <button class="btn btn-outline-primary">
+                        <i class="bi bi-file-earmark-pdf"></i> Campaign Summary (PDF)
+                    </button>
+                    <button class="btn btn-outline-success">
+                        <i class="bi bi-file-earmark-excel"></i> Account Performance (Excel)
+                    </button>
+                    <button class="btn btn-outline-info">
+                        <i class="bi bi-file-earmark-text"></i> System Health (CSV)
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Top Performing Accounts</h5>
+            </div>
+            <div class="card-body">
+                <ul class="list-group list-group-flush">
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        No data yet
+                        <span class="badge bg-primary rounded-pill">-</span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+// Activity Chart
+const ctx = document.getElementById('activityChart');
+new Chart(ctx, {
+    type: 'line',
+    data: {
+        labels: {{ [day.date for day in daily_invites]|tojson }},
+        datasets: [{
+            label: 'Invites Sent',
+            data: {{ [day.count for day in daily_invites]|tojson }},
+            borderColor: 'rgb(75, 192, 192)',
+            tension: 0.1
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: {
+            legend: {
+                display: true
+            }
+        },
+        scales: {
+            y: {
+                beginAtZero: true
+            }
+        }
+    }
+});
+</script>
+{% endblock %}

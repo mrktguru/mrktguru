@@ -1,0 +1,441 @@
+{% extends "base.html" %}
+
+{% block title %}{{ campaign.name }} - DM Campaign{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1>{{ campaign.name }}</h1>
+        {% if campaign.description %}
+            <p class="text-muted">{{ campaign.description }}</p>
+        {% endif %}
+    </div>
+    <div>
+        <a href="{{ url_for('dm_campaigns.list_campaigns') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Back
+        </a>
+    </div>
+</div>
+
+<!-- Status and Actions -->
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col-md-3">
+                        <h5>Status</h5>
+                        {% if campaign.status == 'active' %}
+                            <span class="badge bg-success fs-5">{{ campaign.status }}</span>
+                            <div class="spinner-border spinner-border-sm text-success ms-2" role="status"></div>
+                        {% elif campaign.status == 'paused' %}
+                            <span class="badge bg-warning fs-5">{{ campaign.status }}</span>
+                        {% elif campaign.status == 'limit_reached' %}
+                            <span class="badge bg-warning fs-5">Limit Reached</span>
+                        {% elif campaign.status == 'completed' %}
+                            <span class="badge bg-info fs-5">{{ campaign.status }}</span>
+                        {% else %}
+                            <span class="badge bg-secondary fs-5">{{ campaign.status }}</span>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="col-md-9 text-end">
+                        <div class="btn-group">
+                            {% if campaign.status == 'draft' or campaign.status == 'paused' %}
+                            <form method="POST" action="{{ url_for('dm_campaigns.start', campaign_id=campaign.id) }}" style="display: inline;">
+                                <button type="submit" class="btn btn-success">
+                                    <i class="bi bi-play-fill"></i> Start
+                                </button>
+                            </form>
+                            {% endif %}
+                            
+                            {% if campaign.status == 'active' %}
+                            <form method="POST" action="{{ url_for('dm_campaigns.pause', campaign_id=campaign.id) }}" style="display: inline;">
+                                <button type="submit" class="btn btn-warning">
+                                    <i class="bi bi-pause-fill"></i> Pause
+                                </button>
+                            </form>
+                            {% endif %}
+                            
+                            <a href="{{ url_for('dm_campaigns.conversations', campaign_id=campaign.id) }}" class="btn btn-info">
+                                <i class="bi bi-chat-dots"></i> View Conversations
+                            </a>
+                            
+                            <button class="btn btn-secondary" onclick="window.print()">
+                                <i class="bi bi-printer"></i> Print
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Statistics -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h3 class="text-primary">{{ campaign.total_targets }}</h3>
+                <small class="text-muted">Total Targets</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h3 class="text-success">{{ campaign.sent_count }}</h3>
+                <small class="text-muted">Successfully Sent</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h3 class="text-danger">{{ campaign.error_count }}</h3>
+                <small class="text-muted">Errors</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                {% set replies = campaign.targets.filter(campaign.targets.c.replied_at != None).count() %}
+                <h3 class="text-info">{{ replies }}</h3>
+                <small class="text-muted">Replies Received</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Progress -->
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="mb-3">Progress</h5>
+                {% set progress = campaign.sent_count + campaign.error_count %}
+                {% set percent = (progress / campaign.total_targets * 100)|int if campaign.total_targets > 0 else 0 %}
+                
+                <div class="progress" style="height: 30px;">
+                    <div class="progress-bar bg-success" style="width: {{ (campaign.sent_count / campaign.total_targets * 100)|int if campaign.total_targets > 0 else 0 }}%">
+                        {{ campaign.sent_count }} sent
+                    </div>
+                    <div class="progress-bar bg-danger" style="width: {{ (campaign.error_count / campaign.total_targets * 100)|int if campaign.total_targets > 0 else 0 }}%">
+                        {{ campaign.error_count }} errors
+                    </div>
+                </div>
+                <div class="mt-2">
+                    <small class="text-muted">{{ progress }} / {{ campaign.total_targets }} processed ({{ percent }}%)</small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Left Column -->
+    <div class="col-md-8">
+        <!-- Message Template -->
+        <div class="card mb-3">
+            <div class="card-header">
+                <h5 class="mb-0">Message Template</h5>
+            </div>
+            <div class="card-body">
+                <div class="bg-light p-3 rounded">
+                    <pre class="mb-0" style="white-space: pre-wrap;">{{ campaign.message_text }}</pre>
+                </div>
+                
+                {% if campaign.media_type != 'none' %}
+                <div class="mt-3">
+                    <span class="badge bg-info">
+                        <i class="bi bi-paperclip"></i> Media: {{ campaign.media_type }}
+                    </span>
+                </div>
+                {% endif %}
+                
+                <div class="mt-3">
+                    <small class="text-muted">
+                        <strong>Variables:</strong> {{first_name}}, {{last_name}}, {{username}}, {{custom_fields}}
+                    </small>
+                </div>
+            </div>
+        </div>
+
+        <!-- Settings -->
+        <div class="card mb-3">
+            <div class="card-header">
+                <h5 class="mb-0">Settings</h5>
+            </div>
+            <div class="card-body">
+                <dl class="row">
+                    <dt class="col-sm-4">Delay Range:</dt>
+                    <dd class="col-sm-8">{{ campaign.delay_min }}-{{ campaign.delay_max }} seconds</dd>
+                    
+                    <dt class="col-sm-4">Per Account Limit:</dt>
+                    <dd class="col-sm-8">{{ campaign.messages_per_account_limit }} messages</dd>
+                    
+                    <dt class="col-sm-4">Working Hours:</dt>
+                    <dd class="col-sm-8">{{ campaign.working_hours_start.strftime('%H:%M') }} - {{ campaign.working_hours_end.strftime('%H:%M') }}</dd>
+                    
+                    <dt class="col-sm-4">Created:</dt>
+                    <dd class="col-sm-8">{{ campaign.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</dd>
+                    
+                    <dt class="col-sm-4">Started:</dt>
+                    <dd class="col-sm-8">
+                        {% if campaign.started_at %}
+                            {{ campaign.started_at.strftime('%Y-%m-%d %H:%M:%S') }}
+                        {% else %}
+                            <span class="text-muted">Not started</span>
+                        {% endif %}
+                    </dd>
+                </dl>
+            </div>
+        </div>
+
+        <!-- Assigned Accounts -->
+        <div class="card mb-3">
+            <div class="card-header">
+                <h5 class="mb-0">Assigned Accounts ({{ campaign.dm_campaign_accounts.count() }})</h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-sm mb-0">
+                        <thead>
+                            <tr>
+                                <th>Phone</th>
+                                <th>Status</th>
+                                <th>Messages Sent</th>
+                                <th>Limit</th>
+                                <th>Progress</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for ca in campaign.dm_campaign_accounts %}
+                            <tr>
+                                <td>
+                                    <a href="{{ url_for('accounts.detail', account_id=ca.account.id) }}">
+                                        {{ ca.account.phone }}
+                                    </a>
+                                </td>
+                                <td>
+                                    <span class="badge bg-{{ 'success' if ca.status == 'active' else 'warning' }}">
+                                        {{ ca.status }}
+                                    </span>
+                                </td>
+                                <td>{{ ca.messages_sent }}</td>
+                                <td>{{ campaign.messages_per_account_limit }}</td>
+                                <td>
+                                    <div class="progress" style="height: 15px;">
+                                        <div class="progress-bar" 
+                                             style="width: {{ (ca.messages_sent / campaign.messages_per_account_limit * 100)|int }}%"></div>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Targets List -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Targets ({{ campaign.targets.count() }})</h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                    <table class="table table-sm table-striped mb-0">
+                        <thead class="sticky-top bg-white">
+                            <tr>
+                                <th>Username</th>
+                                <th>Name</th>
+                                <th>Status</th>
+                                <th>Sent At</th>
+                                <th>Replied</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for target in campaign.targets.limit(100) %}
+                            <tr>
+                                <td><code>@{{ target.username }}</code></td>
+                                <td>{{ target.first_name }} {{ target.last_name or '' }}</td>
+                                <td>
+                                    {% if target.status == 'sent' %}
+                                        <span class="badge bg-success">{{ target.status }}</span>
+                                    {% elif target.status == 'error' %}
+                                        <span class="badge bg-danger">{{ target.status }}</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">{{ target.status }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if target.sent_at %}
+                                        <small>{{ target.sent_at.strftime('%m-%d %H:%M') }}</small>
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if target.replied_at %}
+                                        <span class="badge bg-info">
+                                            <i class="bi bi-reply-fill"></i>
+                                        </span>
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% if campaign.targets.count() > 100 %}
+                <div class="card-footer text-center">
+                    <small class="text-muted">Showing first 100 targets</small>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Column -->
+    <div class="col-md-4">
+        <!-- Import Targets -->
+        <div class="card mb-3">
+            <div class="card-header">
+                <h5 class="mb-0">Import Targets</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('dm_campaigns.import_targets', campaign_id=campaign.id) }}" 
+                      enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label for="file" class="form-label">CSV/Excel File</label>
+                        <input type="file" class="form-control" id="file" name="file" 
+                               accept=".csv,.xlsx,.xls" required>
+                        <small class="form-text text-muted">
+                            Required column: username<br>
+                            Optional: first_name, last_name
+                        </small>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="bi bi-upload"></i> Import
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Status Breakdown -->
+        <div class="card mb-3">
+            <div class="card-header">
+                <h5 class="mb-0">Status Breakdown</h5>
+            </div>
+            <div class="card-body">
+                <ul class="list-group list-group-flush">
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        New (Pending)
+                        <span class="badge bg-secondary rounded-pill">
+                            {{ campaign.targets.filter_by(status='new').count() }}
+                        </span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        Sent
+                        <span class="badge bg-success rounded-pill">
+                            {{ campaign.targets.filter_by(status='sent').count() }}
+                        </span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        Error
+                        <span class="badge bg-danger rounded-pill">
+                            {{ campaign.targets.filter_by(status='error').count() }}
+                        </span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        Replied
+                        <span class="badge bg-info rounded-pill">
+                            {{ campaign.targets.filter(campaign.targets.c.replied_at != None).count() }}
+                        </span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Quick Actions</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <a href="{{ url_for('dm_campaigns.conversations', campaign_id=campaign.id) }}" 
+                       class="btn btn-info">
+                        <i class="bi bi-chat-dots"></i> View All Conversations
+                    </a>
+                    
+                    <form method="POST" action="{{ url_for('dm_campaigns.delete_targets', campaign_id=campaign.id) }}" 
+                          onsubmit="return confirm('Delete all error targets?')">
+                        <input type="hidden" name="status" value="error">
+                        <button type="submit" class="btn btn-outline-danger w-100">
+                            <i class="bi bi-trash"></i> Delete Error Targets
+                        </button>
+                    </form>
+                    
+                    <button class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#exportModal">
+                        <i class="bi bi-download"></i> Export Targets
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Export Modal -->
+<div class="modal fade" id="exportModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Export Targets</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Choose export format and filters:</p>
+                <form method="POST" action="{{ url_for('dm_campaigns.export', campaign_id=campaign.id) }}">
+                    <div class="mb-3">
+                        <label class="form-label">Format</label>
+                        <select class="form-select" name="format">
+                            <option value="csv">CSV</option>
+                            <option value="excel">Excel</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Filter by Status</label>
+                        <select class="form-select" name="status">
+                            <option value="">All</option>
+                            <option value="sent">Sent</option>
+                            <option value="new">New</option>
+                            <option value="error">Error</option>
+                        </select>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary w-100">Export</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+{% if campaign.status == 'active' %}
+setInterval(function() {
+    location.reload();
+}, 15000);
+{% endif %}
+</script>
+{% endblock %}
