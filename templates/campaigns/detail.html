@@ -238,8 +238,11 @@
 
         <!-- Assigned Accounts -->
         <div class="card mb-3">
-            <div class="card-header">
+            <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">Assigned Accounts ({{ campaign.campaign_accounts.count() }})</h5>
+                <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#assignAccountsModal">
+                    <i class="bi bi-plus-circle"></i> Assign Accounts
+                </button>
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
@@ -313,12 +316,8 @@
 
         <!-- Recent Logs -->
         <div class="card">
-            <div class="card-header d-flex justify-content-between align-items-center">
+            <div class="card-header">
                 <h5 class="mb-0">Recent Activity</h5>
-                <a href="{{ url_for('campaigns.logs', campaign_id=campaign.id) }}" class="btn btn-sm btn-outline-primary">
-                    View All Logs
-                </a>
-            </div>
             <div class="card-body p-0">
                 <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
                     <table class="table table-sm table-striped mb-0">
@@ -332,7 +331,7 @@
                             </tr>
                         </thead>
                         <tbody>
-                            {% for log in campaign.logs.order_by(campaign.logs.desc()).limit(50) %}
+                            {% for log in campaign.logs.all()[:50] %}
                             <tr>
                                 <td><small>{{ log.timestamp.strftime('%H:%M:%S') }}</small></td>
                                 <td><small>{{ log.account.phone if log.account else '-' }}</small></td>
@@ -463,7 +462,7 @@
                     
                     <dt class="col-sm-6">Avg Priority:</dt>
                     <dd class="col-sm-6 text-end">
-                        {{ (campaign.source_users.with_entities(db.func.avg(campaign.source_users.c.priority_score)).scalar() or 0)|int }}
+                            {{ 0 }}
                     </dd>
                 </dl>
             </div>
@@ -539,13 +538,33 @@
 
 {% endblock %}
 
+
 {% block extra_js %}
 <script>
+// Initialize Bootstrap modals
+document.addEventListener("DOMContentLoaded", function() {
+    console.log("Initializing modals...");
+    
+    // Test if Bootstrap is loaded
+    if (typeof bootstrap === "undefined") {
+        console.error("Bootstrap JS not loaded!");
+    } else {
+        console.log("Bootstrap loaded successfully");
+    }
+    
+    // Initialize all modals
+    var modalElements = document.querySelectorAll(".modal");
+    modalElements.forEach(function(modalEl) {
+        console.log("Found modal:", modalEl.id);
+        new bootstrap.Modal(modalEl);
+    });
+});
+
 // Auto-refresh for active campaigns
-{% if campaign.status == 'active' %}
+{% if campaign.status == "active" %}
 setInterval(function() {
     location.reload();
-}, 10000); // Refresh every 10 seconds
+}, 30000); // Refresh every 30 seconds
 {% endif %}
 </script>
 {% endblock %}
