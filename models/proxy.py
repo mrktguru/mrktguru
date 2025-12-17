@@ -13,6 +13,7 @@ class Proxy(db.Model):
     username = db.Column(db.String(255))
     password = db.Column(db.String(255))
     rotation_url = db.Column(db.Text)
+    rotation_type = db.Column(db.String(20), default="api")  # auto/api
     rotation_interval = db.Column(db.Integer, default=1200)  # seconds
     current_ip = db.Column(db.String(50))
     last_rotation = db.Column(db.DateTime)

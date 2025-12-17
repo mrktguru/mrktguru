@@ -4,7 +4,7 @@
 
 {% block content %}
 <div class="row justify-content-center">
-    <div class="col-md-6">
+    <div class="col-md-8">
         <div class="card">
             <div class="card-header">
                 <h4 class="mb-0">Add New Proxy</h4>
@@ -13,18 +13,23 @@
                 <div class="alert alert-info">
                     <strong>Supported formats:</strong>
                     <ul class="mb-0 mt-2">
-                        <li><code>socks5://host:port</code></li>
-                        <li><code>socks5://username:password@host:port</code></li>
-                        <li><code>http://host:port</code></li>
-                        <li><code>http://username:password@host:port</code></li>
+                        <li><strong>DataImpulse (auto-rotating):</strong><br>
+                            <code>socks5://login__cr.us:password@gw.dataimpulse.com:824</code>
+                        </li>
+                        <li><strong>Standard with auth:</strong><br>
+                            <code>socks5://username:password@host:port</code>
+                        </li>
+                        <li><strong>HTTP proxy:</strong><br>
+                            <code>http://username:password@host:port</code>
+                        </li>
                     </ul>
                 </div>
 
-                <form method="POST" action="{{ url_for('proxies.add') }}">
+                <form method="POST" action="{{ url_for("proxies.add") }}">
                     <div class="mb-3">
                         <label for="proxy_string" class="form-label">Proxy String *</label>
                         <input type="text" class="form-control" id="proxy_string" name="proxy_string" 
-                               placeholder="socks5://username:password@host:port" required>
+                               placeholder="socks5://login__cr.us:password@gw.dataimpulse.com:824" required>
                         <small class="form-text text-muted">Full proxy connection string</small>
                     </div>
 
@@ -43,27 +48,40 @@
                                 <h6>Mobile Proxy Settings</h6>
                                 
                                 <div class="mb-3">
-                                    <label for="rotation_url" class="form-label">Rotation URL</label>
-                                    <input type="url" class="form-control" id="rotation_url" name="rotation_url" 
-                                           placeholder="https://api.proxy-provider.com/rotate?key=xxx">
+                                    <label class="form-label">Rotation Type</label>
+                                    <select class="form-select" id="rotation_type" name="rotation_type">
+                                        <option value="auto" selected>Auto-rotating (rotates on every request)</option>
+                                        <option value="api">API-based (requires rotation URL)</option>
+                                    </select>
                                     <small class="form-text text-muted">
-                                        URL to call for IP rotation (provided by your proxy service)
+                                        DataImpulse = Auto-rotating<br>
+                                        Others = API-based
                                     </small>
                                 </div>
 
-                                <div class="mb-3">
-                                    <label for="rotation_interval" class="form-label">Auto-rotation Interval</label>
-                                    <select class="form-select" id="rotation_interval" name="rotation_interval">
-                                        <option value="300">5 minutes</option>
-                                        <option value="600">10 minutes</option>
-                                        <option value="900">15 minutes</option>
-                                        <option value="1200" selected>20 minutes</option>
-                                        <option value="1800">30 minutes</option>
-                                        <option value="3600">1 hour</option>
-                                    </select>
-                                    <small class="form-text text-muted">
-                                        How often to automatically rotate IP
-                                    </small>
+                                <div id="api_rotation_settings" style="display: none;">
+                                    <div class="mb-3">
+                                        <label for="rotation_url" class="form-label">Rotation URL</label>
+                                        <input type="url" class="form-control" id="rotation_url" name="rotation_url" 
+                                               placeholder="https://api.proxy-provider.com/rotate?key=xxx">
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label for="rotation_interval" class="form-label">Auto-rotation Interval</label>
+                                        <select class="form-select" id="rotation_interval" name="rotation_interval">
+                                            <option value="300">5 minutes</option>
+                                            <option value="600">10 minutes</option>
+                                            <option value="900">15 minutes</option>
+                                            <option value="1200" selected>20 minutes</option>
+                                            <option value="1800">30 minutes</option>
+                                            <option value="3600">1 hour</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div id="auto_rotation_info" class="alert alert-success" style="display: none;">
+                                    <i class="bi bi-check-circle"></i>
+                                    <strong>Auto-rotating proxy!</strong> IP rotates on every request.
                                 </div>
                             </div>
                         </div>
@@ -71,16 +89,13 @@
 
                     <div class="mb-3">
                         <label for="notes" class="form-label">Notes (optional)</label>
-                        <textarea class="form-control" id="notes" name="notes" rows="3" 
-                                  placeholder="Provider name, location, etc."></textarea>
+                        <textarea class="form-control" id="notes" name="notes" rows="3"></textarea>
                     </div>
 
                     <div class="mb-3">
                         <div class="form-check">
                             <input class="form-check-input" type="checkbox" id="test_on_add" name="test_on_add" checked>
-                            <label class="form-check-label" for="test_on_add">
-                                Test connection after adding
-                            </label>
+                            <label class="form-check-label" for="test_on_add">Test connection after adding</label>
                         </div>
                     </div>
 
@@ -88,83 +103,25 @@
                         <button type="submit" class="btn btn-primary btn-lg">
                             <i class="bi bi-plus-circle"></i> Add Proxy
                         </button>
-                        <a href="{{ url_for('proxies.list_proxies') }}" class="btn btn-outline-secondary">
-                            Cancel
-                        </a>
+                        <a href="{{ url_for("proxies.list_proxies") }}" class="btn btn-outline-secondary">Cancel</a>
                     </div>
-                </form>
-            </div>
-        </div>
-
-        <div class="card mt-4">
-            <div class="card-header">
-                <h5 class="mb-0">Bulk Import</h5>
-            </div>
-            <div class="card-body">
-                <p>Import multiple proxies at once:</p>
-                <form method="POST" action="{{ url_for('proxies.bulk_import') }}">
-                    <div class="mb-3">
-                        <label for="proxy_list" class="form-label">Proxy List (one per line)</label>
-                        <textarea class="form-control" id="proxy_list" name="proxy_list" rows="8" 
-                                  placeholder="socks5://user:pass@host1:port&#10;socks5://user:pass@host2:port&#10;http://host3:port"></textarea>
-                    </div>
-                    <button type="submit" class="btn btn-secondary w-100">
-                        <i class="bi bi-upload"></i> Import Bulk
-                    </button>
                 </form>
             </div>
         </div>
     </div>
 
-    <div class="col-md-6">
+    <div class="col-md-4">
         <div class="card">
             <div class="card-header">
-                <h5 class="mb-0">Recommended Proxy Providers</h5>
+                <h5 class="mb-0"><i class="bi bi-star-fill text-warning"></i> DataImpulse</h5>
             </div>
             <div class="card-body">
-                <div class="list-group">
-                    <div class="list-group-item">
-                        <h6 class="mb-1">Mobile Proxies (Best for anti-ban)</h6>
-                        <ul>
-                            <li>Airproxy.io - Russia, USA, Europe</li>
-                            <li>Proxy6.net - Russian mobile proxies</li>
-                            <li>MobileProxy.Space - Global coverage</li>
-                        </ul>
-                    </div>
-                    <div class="list-group-item">
-                        <h6 class="mb-1">Residential Proxies</h6>
-                        <ul>
-                            <li>Smartproxy.com - Global pool</li>
-                            <li>Oxylabs.io - Premium quality</li>
-                        </ul>
-                    </div>
-                    <div class="list-group-item">
-                        <h6 class="mb-1">Datacenter Proxies (Budget)</h6>
-                        <ul>
-                            <li>Webshare.io - Free tier available</li>
-                            <li>ProxyScrape.com - Affordable</li>
-                        </ul>
-                    </div>
-                </div>
-
-                <div class="alert alert-warning mt-3">
-                    <i class="bi bi-exclamation-triangle"></i>
-                    <strong>Important:</strong> For Telegram automation, mobile proxies with rotation are HIGHLY recommended to avoid bans.
-                </div>
-            </div>
-        </div>
-
-        <div class="card mt-4">
-            <div class="card-header">
-                <h5 class="mb-0">Tips</h5>
-            </div>
-            <div class="card-body">
-                <ul>
-                    <li><strong>Test proxies</strong> before assigning to accounts</li>
-                    <li><strong>Rotate IPs regularly</strong> (every 20-30 minutes)</li>
-                    <li><strong>Use different IPs</strong> for different accounts</li>
-                    <li><strong>Monitor health</strong> - replace failing proxies quickly</li>
-                    <li><strong>Geolocation matters</strong> - match account location if possible</li>
+                <p><strong>Auto-rotating mobile proxies</strong></p>
+                <code class="d-block p-2 bg-light rounded">socks5://login__cr.us:pass@gw.dataimpulse.com:824</code>
+                <ul class="mt-3">
+                    <li>Automatic rotation on every request</li>
+                    <li>No API needed</li>
+                    <li>Best for anti-ban</li>
                 </ul>
             </div>
         </div>
@@ -175,11 +132,28 @@
 {% block extra_js %}
 <script>
 $(document).ready(function() {
-    $('#is_mobile').on('change', function() {
-        if ($(this).is(':checked')) {
-            $('#mobile_settings').slideDown();
+    $("#is_mobile").on("change", function() {
+        $(this).is(":checked") ? $("#mobile_settings").slideDown() : $("#mobile_settings").slideUp();
+    });
+    
+    $("#rotation_type").on("change", function() {
+        if ($(this).val() === "api") {
+            $("#api_rotation_settings").slideDown();
+            $("#auto_rotation_info").slideUp();
         } else {
-            $('#mobile_settings').slideUp();
+            $("#api_rotation_settings").slideUp();
+            $("#auto_rotation_info").slideDown();
+        }
+    });
+    
+    $("#proxy_string").on("input", function() {
+        var proxy = $(this).val().toLowerCase();
+        if (proxy.includes("dataimpulse.com") || proxy.includes("__cr.")) {
+            $("#is_mobile").prop("checked", true);
+            $("#mobile_settings").slideDown();
+            $("#rotation_type").val("auto");
+            $("#api_rotation_settings").slideUp();
+            $("#auto_rotation_info").slideDown();
         }
     });
 });

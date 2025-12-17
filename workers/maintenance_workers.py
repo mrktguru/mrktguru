@@ -14,13 +14,23 @@ import requests
 @celery.task
 def auto_rotate_mobile_proxies():
     """
-    Automatic rotation of mobile proxies
+    Automatic rotation of mobile proxies (API-based only)
     Run every 15 minutes
+    Auto-rotating proxies (DataImpulse) are skipped - they rotate on every request
     """
+    # Only get API-based mobile proxies
     proxies = Proxy.query.filter_by(
         is_mobile=True,
+        rotation_type="api",
         status="active"
     ).all()
+    
+    # Count auto-rotating proxies (for info)
+    auto_proxies = Proxy.query.filter_by(
+        is_mobile=True,
+        rotation_type="auto",
+        status="active"
+    ).count()
     
     rotated = 0
     for proxy in proxies:
@@ -33,19 +43,22 @@ def auto_rotate_mobile_proxies():
             if elapsed < proxy.rotation_interval:
                 continue
         
-        # Rotate proxy
+        # Rotate proxy via API
         try:
             response = requests.get(proxy.rotation_url, timeout=10)
             if response.status_code == 200:
                 proxy.last_rotation = datetime.utcnow()
                 rotated += 1
-                print(f"✅ Rotated proxy {proxy.host}:{proxy.port}")
+                print(f"✅ Rotated API proxy {proxy.host}:{proxy.port}")
         except Exception as e:
             print(f"❌ Error rotating proxy {proxy.id}: {e}")
     
     db.session.commit()
     
-    return {"rotated": rotated, "total": len(proxies)}
+    if auto_proxies > 0:
+        print(f"ℹ️  {auto_proxies} auto-rotating proxies (no rotation needed)")
+    
+    return {"rotated": rotated, "api_proxies": len(proxies), "auto_proxies": auto_proxies}
 
 
 @celery.task

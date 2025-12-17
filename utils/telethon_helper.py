@@ -236,3 +236,70 @@ def cleanup_clients():
         if client.is_connected():
             client.disconnect()
     _active_clients.clear()
+
+
+async def get_channel_info(account_id, channel_username):
+    """
+    Get channel/group information
+    Returns dict with channel details or error
+    """
+    client = None
+    try:
+        client = get_telethon_client(account_id)
+        await client.connect()
+        
+        # Try to get entity
+        entity = None
+        for fmt in [f"@{channel_username}", channel_username, f"https://t.me/{channel_username}"]:
+            try:
+                entity = await client.get_entity(fmt)
+                break
+            except:
+                continue
+        
+        if not entity:
+            return {"success": False, "error": f"Could not find channel: {channel_username}"}
+        
+        # Get channel details
+        from telethon.tl.types import Channel, Chat
+        
+        channel_type = "channel"
+        if isinstance(entity, Channel):
+            if entity.megagroup:
+                channel_type = "megagroup"
+            elif entity.broadcast:
+                channel_type = "channel"
+            else:
+                channel_type = "group"
+        elif isinstance(entity, Chat):
+            channel_type = "group"
+        
+        # Check admin rights
+        is_admin = False
+        admin_rights = None
+        try:
+            full_channel = await client.get_entity(entity)
+            is_admin = getattr(full_channel, "admin_rights", None) is not None
+            if is_admin:
+                admin_rights = str(full_channel.admin_rights)
+        except:
+            pass
+        
+        return {
+            "success": True,
+            "channel": {
+                "id": entity.id,
+                "title": getattr(entity, "title", channel_username),
+                "username": channel_username,
+                "type": channel_type,
+                "is_admin": is_admin,
+                "admin_rights": admin_rights,
+                "participants_count": getattr(entity, "participants_count", 0)
+            }
+        }
+        
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+    finally:
+        if client and client.is_connected():
+            await client.disconnect()

@@ -45,6 +45,7 @@ def upload():
                     # Check if account already exists
                     existing = Account.query.filter_by(phone=phone).first()
                     if existing:
+                        errors.append(f"{phone}: Account already exists (delete it first)")
                         skipped += 1
                         continue
                     
@@ -108,8 +109,9 @@ def detail(account_id):
 @accounts_bp.route("/<int:account_id>/verify", methods=["POST"])
 @login_required
 def verify(account_id):
-    """Verify account session and fetch user info"""
+    """Verify account session, fetch user info, and import existing subscriptions"""
     from utils.telethon_helper import get_telethon_client
+    from models.account import AccountSubscription
     import asyncio
     
     account = Account.query.get_or_404(account_id)
@@ -119,6 +121,7 @@ def verify(account_id):
     
     async def verify_and_fetch():
         client = None
+        subscriptions_found = 0
         try:
             client = get_telethon_client(account_id)
             await client.connect()
@@ -141,28 +144,88 @@ def verify(account_id):
                 if hasattr(me, "photo") and me.photo:
                     account.photo_url = "photo_available"
             
-            account.status = "active"
-            account.health_score = 100
+            # Get existing subscriptions from Telegram
+            try:
+                from telethon.tl.types import Channel
+                
+                dialogs = await client.get_dialogs()
+                
+                for dialog in dialogs:
+                    entity = dialog.entity
+                    
+                    # Check if it is a channel or megagroup
+                    if isinstance(entity, Channel):
+                        channel_username = getattr(entity, "username", None)
+                        channel_title = getattr(entity, "title", "Unknown")
+                        
+                        if not channel_username:
+                            continue
+                        
+                        # Check if already in our database
+                        existing = AccountSubscription.query.filter_by(
+                            account_id=account_id,
+                            channel_username=channel_username
+                        ).first()
+                        
+                        if not existing:
+                            # Add to subscriptions
+                            subscription = AccountSubscription(
+                                account_id=account_id,
+                                channel_username=channel_username,
+                                status="active",
+                                subscription_source="imported",
+                                notes=f"Auto-imported: {channel_title}"
+                            )
+                            db.session.add(subscription)
+                            subscriptions_found += 1
+                            
+            except Exception as subs_err:
+                print(f"Error fetching subscriptions: {subs_err}")
             
-            return True, account.first_name, account.username or "no username"
+            # Check if account can access channels (spam-block test)
+            can_access_channels = False
+            try:
+                # Try to find a known public CHANNEL (not user profile)
+                # Using @telegram channel as test
+                test_entity = await client.get_entity("@telegram")
+                # Also check if it is actually a channel
+                from telethon.tl.types import Channel
+                if isinstance(test_entity, Channel):
+                    can_access_channels = True
+            except Exception as test_err:
+                # If cannot find @telegram, account is spam-blocked
+                print(f"Spam-block test failed: {test_err}")
+                pass
+            
+            if not can_access_channels:
+                account.status = "spam-block"
+                account.health_score = 30
+                account.notes = "WARNING: Account cannot search/join channels. Possible spam-block."
+            else:
+                account.status = "active"
+                account.health_score = 100
+            
+            return True, account.first_name, account.username or "no username", subscriptions_found
             
         except Exception as e:
             account.status = "error"
             account.health_score = 0
-            return False, None, str(e)
+            return False, None, str(e), 0
             
         finally:
             if client and client.is_connected():
                 await client.disconnect()
-                # Give time for cleanup
                 await asyncio.sleep(0.1)
     
     try:
-        success, first_name, info = loop.run_until_complete(verify_and_fetch())
+        success, first_name, info, subs_count = loop.run_until_complete(verify_and_fetch())
         db.session.commit()
         
         if success:
-            flash(f"Session verified! User: {first_name} (@{info})", "success")
+            msg = f"Session verified! User: {first_name} (@{info})"
+            if subs_count > 0:
+                msg += f". Imported {subs_count} existing subscriptions."
+            flash(msg, "success")
         else:
             flash(f"Verification failed: {info}", "error")
             
@@ -171,11 +234,9 @@ def verify(account_id):
         db.session.commit()
         flash(f"Error: {str(e)}", "error")
     finally:
-        # Wait for all pending tasks before closing loop
         pending = asyncio.all_tasks(loop)
         for task in pending:
             task.cancel()
-        # Run loop briefly to cancel tasks
         try:
             loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
         except:
@@ -191,14 +252,47 @@ def delete(account_id):
     """Delete account"""
     account = Account.query.get_or_404(account_id)
     
-    # Delete session file
-    if os.path.exists(account.session_file_path):
-        os.remove(account.session_file_path)
+    try:
+        # Delete related records first to avoid constraint errors
+        from models.dm_campaign import DMCampaignAccount
+        from models.campaign import CampaignAccount
+        
+        # Delete DM campaign associations
+        DMCampaignAccount.query.filter_by(account_id=account_id).delete()
+        
+        # Delete invite campaign associations
+        CampaignAccount.query.filter_by(account_id=account_id).delete()
+        
+        # Delete invite logs
+        db.session.execute(db.text("DELETE FROM invite_logs WHERE account_id = :aid"), {"aid": account_id})
+        
+        # Delete DM messages
+        db.session.execute(db.text("DELETE FROM dm_messages WHERE account_id = :aid"), {"aid": account_id})
+        
+        # Delete session file and journal if exist
+        if os.path.exists(account.session_file_path):
+            os.remove(account.session_file_path)
+        
+        # Also delete .session-journal file
+        journal_path = account.session_file_path + "-journal"
+        if os.path.exists(journal_path):
+            os.remove(journal_path)
+        
+        # Delete profile photo if exists
+        if account.photo_url:
+            photo_path = account.photo_url.replace("/uploads/", "uploads/")
+            if os.path.exists(photo_path):
+                os.remove(photo_path)
+        
+        # Delete from database (cascade will handle subscriptions and device_profile)
+        db.session.delete(account)
+        db.session.commit()
+        
+        flash("Account deleted successfully", "success")
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Error deleting account: {str(e)}", "error")
     
-    db.session.delete(account)
-    db.session.commit()
-    
-    flash("Account deleted", "success")
     return redirect(url_for("accounts.list_accounts"))
 
 
@@ -243,6 +337,11 @@ def add_subscription(account_id):
     if "t.me/" in channel_username:
         channel_username = channel_username.split("t.me/")[-1].split("/")[0].split("?")[0]
     
+    # Check if account is spam-blocked
+    if account.status == "spam-block":
+        flash("⚠️ WARNING: This account has spam-block and cannot join channels. Please use a different account.", "error")
+        return redirect(url_for("accounts.detail", account_id=account_id))
+    
     # Check if already exists
     existing = AccountSubscription.query.filter_by(
         account_id=account_id,
@@ -263,8 +362,17 @@ def add_subscription(account_id):
             client = get_telethon_client(account_id)
             await client.connect()
             
-            # Get channel entity
-            entity = await client.get_entity(channel_username)
+            # Get channel entity - try different formats
+            try:
+                # Try as @username
+                entity = await client.get_entity(f"@{channel_username}")
+            except:
+                try:
+                    # Try without @
+                    entity = await client.get_entity(channel_username)
+                except:
+                    # Try as t.me link
+                    entity = await client.get_entity(f"https://t.me/{channel_username}")
             
             # Try to join
             try:

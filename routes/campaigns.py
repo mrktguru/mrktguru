@@ -1,4 +1,5 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
+import os
 from utils.decorators import login_required
 from models.campaign import InviteCampaign, CampaignAccount, SourceUser
 from models.channel import Channel
@@ -83,12 +84,9 @@ def create():
 def detail(campaign_id):
     """Campaign details"""
     campaign = InviteCampaign.query.get_or_404(campaign_id)
-    return render_template('campaigns/detail.html', campaign=campaign)
+    accounts = Account.query.filter_by(status="active").all()
+    return render_template("campaigns/detail.html", campaign=campaign, accounts=accounts)
 
-
-@campaigns_bp.route('/<int:campaign_id>/start', methods=['POST'])
-@login_required
-def start(campaign_id):
     """Start campaign"""
     campaign = InviteCampaign.query.get_or_404(campaign_id)
     
@@ -288,3 +286,163 @@ def stats(campaign_id):
         account_stats=account_stats,
         hourly_stats=hourly_stats
     )
+
+
+@campaigns_bp.route("/<int:campaign_id>/upload-targets", methods=["POST"])
+@login_required
+def upload_targets(campaign_id):
+    """Upload target users from CSV/XLS file"""
+    import csv
+    import pandas as pd
+    from werkzeug.utils import secure_filename
+    
+    campaign = InviteCampaign.query.get_or_404(campaign_id)
+    
+    if "file" not in request.files:
+        flash("No file uploaded", "error")
+        return redirect(url_for("campaigns.detail", campaign_id=campaign_id))
+    
+    file = request.files["file"]
+    if file.filename == "":
+        flash("No file selected", "error")
+        return redirect(url_for("campaigns.detail", campaign_id=campaign_id))
+    
+    if not file.filename.endswith((".csv", ".xlsx", ".xls")):
+        flash("Only CSV and Excel files are supported", "error")
+        return redirect(url_for("campaigns.detail", campaign_id=campaign_id))
+    
+    try:
+        # Save file temporarily
+        filename = secure_filename(file.filename)
+        filepath = os.path.join("uploads/csv", filename)
+        os.makedirs("uploads/csv", exist_ok=True)
+        file.save(filepath)
+        
+        # Parse file
+        users_data = []
+        if filename.endswith(".csv"):
+            with open(filepath, "r", encoding="utf-8") as f:
+                reader = csv.DictReader(f)
+                users_data = list(reader)
+        else:
+            df = pd.read_excel(filepath)
+            users_data = df.to_dict("records")
+        
+        # Import users
+        imported = 0
+        skipped = 0
+        
+        for row in users_data:
+            # Get username (required field)
+            username = row.get("username", "").strip().lstrip("@")
+            user_id = row.get("user_id") or row.get("id") or None
+            first_name = row.get("first_name", "")
+            last_name = row.get("last_name", "")
+            
+            if not username:
+                skipped += 1
+                continue
+            
+            # Check if already exists
+            existing = SourceUser.query.filter_by(
+                campaign_id=campaign_id,
+                username=username
+            ).first()
+            
+            if existing:
+                skipped += 1
+                continue
+            
+            # Add user
+            source_user = SourceUser(
+                campaign_id=campaign_id,
+                username=username if username else None,
+                user_id=int(user_id) if user_id else None,
+                first_name=first_name,
+                last_name=last_name,
+                source="csv_upload",
+                status="pending"
+            )
+            db.session.add(source_user)
+            imported += 1
+        
+        db.session.commit()
+        
+        # Cleanup temp file
+        os.remove(filepath)
+        
+        flash(f"Successfully imported {imported} users. Skipped {skipped} duplicates.", "success")
+        
+    except Exception as e:
+        flash(f"Error importing users: {str(e)}", "error")
+    
+    return redirect(url_for("campaigns.detail", campaign_id=campaign_id))
+
+
+@campaigns_bp.route("/<int:campaign_id>/assign-accounts", methods=["POST"])
+@login_required
+def assign_accounts(campaign_id):
+    """Assign accounts to campaign"""
+    campaign = InviteCampaign.query.get_or_404(campaign_id)
+    account_ids = request.form.getlist("account_ids")
+    
+    if not account_ids:
+        flash("No accounts selected", "error")
+        return redirect(url_for("campaigns.detail", campaign_id=campaign_id))
+    
+    # Add new accounts
+    added = 0
+    for account_id in account_ids:
+        # Check if already assigned
+        existing = CampaignAccount.query.filter_by(
+            campaign_id=campaign_id,
+            account_id=int(account_id)
+        ).first()
+        
+        if not existing:
+            ca = CampaignAccount(
+                campaign_id=campaign_id,
+                account_id=int(account_id),
+                status="active"
+            )
+            db.session.add(ca)
+            added += 1
+    
+    db.session.commit()
+    flash(f"Added {added} accounts to campaign", "success")
+    return redirect(url_for("campaigns.detail", campaign_id=campaign_id))
+
+
+@campaigns_bp.route("/<int:campaign_id>/edit", methods=["GET", "POST"])
+@login_required
+def edit(campaign_id):
+    """Edit campaign settings"""
+    campaign = InviteCampaign.query.get_or_404(campaign_id)
+    
+    if request.method == "POST":
+        campaign.name = request.form.get("name")
+        campaign.description = request.form.get("description")
+        campaign.strategy = request.form.get("strategy")
+        campaign.delay_min = int(request.form.get("delay_min", 60))
+        campaign.delay_max = int(request.form.get("delay_max", 120))
+        campaign.invites_per_hour_min = int(request.form.get("invites_per_hour_min", 3))
+        campaign.invites_per_hour_max = int(request.form.get("invites_per_hour_max", 5))
+        
+        db.session.commit()
+        flash("Campaign settings updated", "success")
+        return redirect(url_for("campaigns.detail", campaign_id=campaign_id))
+    
+    # GET - show edit form
+    accounts = Account.query.filter_by(status="active").all()
+    channels = Channel.query.all()
+    return render_template("campaigns/edit.html", campaign=campaign, accounts=accounts, channels=channels)
+
+
+@campaigns_bp.route("/<int:campaign_id>/start", methods=["POST"])
+@login_required
+def start(campaign_id):
+    
+    # GET - show edit form
+    accounts = Account.query.filter_by(status="active").all()
+    channels = Channel.query.all()
+    return render_template("campaigns/edit.html", campaign=campaign, accounts=accounts, channels=channels)

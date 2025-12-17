@@ -30,7 +30,7 @@
     <div class="col-md-4">
         <div class="card text-center">
             <div class="card-body">
-                <h3>{{ proxies|sum(attribute='accounts.count')|default(0) }}</h3>
+                <h3>{{ proxies|length }}</h3>
                 <small class="text-muted">Total Assignments</small>
             </div>
         </div>

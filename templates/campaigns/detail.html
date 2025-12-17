@@ -288,6 +288,29 @@
             </div>
         </div>
 
+        <!-- Target Users -->
+        <div class="card mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Target Users ({{ campaign.source_users.count() }})</h5>
+                <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#uploadTargetsModal">
+                    <i class="bi bi-upload"></i> Upload CSV/XLS
+                </button>
+            </div>
+            <div class="card-body">
+                {% if campaign.source_users.count() > 0 %}
+                <div class="row">
+                    <div class="col-md-3"><strong>Total:</strong> {{ campaign.source_users.count() }}</div>
+                    <div class="col-md-3"><strong>Pending:</strong> {{ campaign.source_users.filter_by(status="pending").count() }}</div>
+                    <div class="col-md-3"><strong>Invited:</strong> {{ campaign.source_users.filter_by(status="invited").count() }}</div>
+                    <div class="col-md-3"><strong>Failed:</strong> {{ campaign.source_users.filter_by(status="failed").count() }}</div>
+                </div>
+                {% else %}
+                <p class="text-muted mb-0">No target users uploaded yet. Click "Upload CSV/XLS" to add users to invite.</p>
+                <small class="text-muted">Expected CSV format: username</small>
+                {% endif %}
+            </div>
+        </div>
+
         <!-- Recent Logs -->
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
@@ -447,6 +470,72 @@
         </div>
     </div>
 </div>
+
+
+<!-- Upload Targets Modal -->
+<div class="modal fade" id="uploadTargetsModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="{{ url_for("campaigns.upload_targets", campaign_id=campaign.id) }}" enctype="multipart/form-data">
+                <div class="modal-header">
+                    <h5 class="modal-title">Upload Target Users</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="file" class="form-label">CSV or Excel File</label>
+                        <input type="file" class="form-control" id="file" name="file" accept=".csv,.xlsx,.xls" required>
+                        <small class="form-text text-muted">File should contain column: username</small>
+                    </div>
+                    <div class="alert alert-info">
+                        <strong>CSV Example:</strong><br>
+                        <code>username</code><br>
+                        <code>john_doe</code><br>
+                        <code>jane_smith</code>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Upload</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Assign Accounts Modal -->
+<div class="modal fade" id="assignAccountsModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="{{ url_for("campaigns.assign_accounts", campaign_id=campaign.id) }}">
+                <div class="modal-header">
+                    <h5 class="modal-title">Assign Accounts to Campaign</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Select Accounts</label>
+                        {% set assigned_ids = campaign.campaign_accounts.all()|map(attribute="account_id")|list %}
+                        {% for account in accounts %}
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="account_ids" value="{{ account.id }}" id="acc{{ account.id }}" {% if account.id in assigned_ids %}disabled checked{% endif %}>
+                            <label class="form-check-label" for="acc{{ account.id }}">
+                                {{ account.phone }} <span class="badge bg-{{ "success" if account.status == "active" else "danger" }}">{{ account.status }}</span>
+                                {% if account.id in assigned_ids %}<small class="text-muted">(already assigned)</small>{% endif %}
+                            </label>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Assign Selected</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 
 {% endblock %}
 
