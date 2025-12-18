@@ -63,6 +63,11 @@ celery.conf.beat_schedule = {
         "schedule": crontab(hour=0, minute=0),
     },
     
+    # Start active campaigns every minute
+    "start-active-campaigns": {
+        "task": "workers.campaign_scheduler.start_active_campaigns",
+        "schedule": crontab(),
+    },
     # Clean up old logs weekly (Sunday at 2 AM)
     "cleanup-old-logs": {
         "task": "workers.maintenance_workers.cleanup_old_logs",
@@ -81,7 +86,8 @@ celery.autodiscover_tasks([
     "workers.invite_worker",
     "workers.dm_worker", 
     "workers.parser_worker",
-    "workers.maintenance_workers"
+    "workers.maintenance_workers",
+    "workers.campaign_scheduler"
 ])
 
 if __name__ == "__main__":

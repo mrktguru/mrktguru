@@ -5,7 +5,6 @@ from models.campaign import InviteCampaign, CampaignAccount, SourceUser
 from models.channel import Channel
 from models.account import Account
 from database import db
-from workers.invite_worker import run_invite_campaign
 
 campaigns_bp = Blueprint('campaigns', __name__)
 
@@ -104,9 +103,8 @@ def detail(campaign_id):
     db.session.commit()
     
     # Start worker
-    from workers.invite_worker import run_invite_campaign
-    run_invite_campaign.delay(campaign_id)
-    run_invite_campaign.delay(campaign_id)
+    pass  # Worker will be triggered by scheduler
+    pass  # Worker will be triggered by scheduler
     
     flash('Campaign started', 'success')
     return redirect(url_for('campaigns.detail', campaign_id=campaign_id))
@@ -441,8 +439,68 @@ def edit(campaign_id):
 @campaigns_bp.route("/<int:campaign_id>/start", methods=["POST"])
 @login_required
 def start(campaign_id):
+    campaign = InviteCampaign.query.get_or_404(campaign_id)
     
-    # GET - show edit form
-    accounts = Account.query.filter_by(status="active").all()
-    channels = Channel.query.all()
-    return render_template("campaigns/edit.html", campaign=campaign, accounts=accounts, channels=channels)
+    if campaign.status == "active":
+        flash("Campaign is already running", "warning")
+        return redirect(url_for("campaigns.detail", campaign_id=campaign_id))
+    
+    campaign.status = "active"
+    from datetime import datetime
+    campaign.started_at = datetime.now()
+    db.session.commit()
+    
+    flash("Campaign started successfully", "success")
+    
+    # Start Celery worker
+    pass  # Worker will be triggered by scheduler
+
+    return redirect(url_for("campaigns.detail", campaign_id=campaign_id))
+@campaigns_bp.route("/<int:campaign_id>/update-settings", methods=["POST"])
+@login_required  
+def update_settings(campaign_id):
+    """Update campaign settings"""
+    campaign = InviteCampaign.query.get_or_404(campaign_id)
+    
+    campaign.delay_min = int(request.form.get("delay_min", 60))
+    campaign.delay_max = int(request.form.get("delay_max", 120))
+    campaign.invites_per_hour_min = int(request.form.get("invites_per_hour_min", 3))
+    campaign.invites_per_hour_max = int(request.form.get("invites_per_hour_max", 5))
+    campaign.burst_limit = int(request.form.get("burst_limit", 3))
+    campaign.burst_pause_minutes = int(request.form.get("burst_pause_minutes", 15))
+    
+    # Handle time fields
+    start_time = request.form.get("working_hours_start")
+    end_time = request.form.get("working_hours_end")
+    if start_time:
+        from datetime import datetime
+        campaign.working_hours_start = datetime.strptime(start_time, "%H:%M").time()
+    if end_time:
+        from datetime import datetime
+        campaign.working_hours_end = datetime.strptime(end_time, "%H:%M").time()
+    
+    # Checkboxes
+    campaign.human_like_behavior = bool(request.form.get("human_like_behavior"))
+    campaign.auto_pause_on_errors = bool(request.form.get("auto_pause_on_errors"))
+    
+    db.session.commit()
+    
+    flash("Settings saved successfully", "success")
+    return redirect(url_for("campaigns.detail", campaign_id=campaign_id))
+
+
+@campaigns_bp.route("/<int:campaign_id>/delete-target/<int:user_id>", methods=["POST"])
+@login_required
+def delete_target(campaign_id, user_id):
+    """Delete a target user from campaign"""
+    from models.campaign import SourceUser
+    user = SourceUser.query.filter_by(
+        campaign_id=campaign_id,
+        id=user_id
+    ).first_or_404()
+    
+    db.session.delete(user)
+    db.session.commit()
+    
+    flash("User deleted successfully", "success")
+    return redirect(url_for("campaigns.detail", campaign_id=campaign_id))

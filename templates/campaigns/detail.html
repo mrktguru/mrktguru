@@ -202,37 +202,73 @@
                 <h5 class="mb-0">Settings</h5>
             </div>
             <div class="card-body">
-                <dl class="row">
-                    <dt class="col-sm-4">Delay Range:</dt>
-                    <dd class="col-sm-8">{{ campaign.delay_min }}-{{ campaign.delay_max }} seconds</dd>
+                <form method="POST" action="{{ url_for('campaigns.update_settings', campaign_id=campaign.id) }}">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Delay Min (seconds)</label>
+                            <input type="number" class="form-control form-control-sm" name="delay_min" value="{{ campaign.delay_min }}" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Delay Max (seconds)</label>
+                            <input type="number" class="form-control form-control-sm" name="delay_max" value="{{ campaign.delay_max }}" required>
+                        </div>
+                    </div>
                     
-                    <dt class="col-sm-4">Invites per Hour:</dt>
-                    <dd class="col-sm-8">{{ campaign.invites_per_hour_min }}-{{ campaign.invites_per_hour_max }}</dd>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Invites per Hour Min</label>
+                            <input type="number" class="form-control form-control-sm" name="invites_per_hour_min" value="{{ campaign.invites_per_hour_min }}" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Invites per Hour Max</label>
+                            <input type="number" class="form-control form-control-sm" name="invites_per_hour_max" value="{{ campaign.invites_per_hour_max }}" required>
+                        </div>
+                    </div>
                     
-                    <dt class="col-sm-4">Burst Limit:</dt>
-                    <dd class="col-sm-8">{{ campaign.burst_limit }} invites, then pause {{ campaign.burst_pause_minutes }} min</dd>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Burst Limit (invites)</label>
+                            <input type="number" class="form-control form-control-sm" name="burst_limit" value="{{ campaign.burst_limit }}" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Burst Pause (minutes)</label>
+                            <input type="number" class="form-control form-control-sm" name="burst_pause_minutes" value="{{ campaign.burst_pause_minutes }}" required>
+                        </div>
+                    </div>
                     
-                    <dt class="col-sm-4">Working Hours:</dt>
-                    <dd class="col-sm-8">{{ campaign.working_hours_start.strftime('%H:%M') }} - {{ campaign.working_hours_end.strftime('%H:%M') }}</dd>
+                    <div class="row mb-3">
+                        <div class="col-md-3">
+                            <label class="form-label">Working Hours Start</label>
+                            <input type="time" class="form-control form-control-sm" name="working_hours_start" value="{{ campaign.working_hours_start.strftime('%H:%M') if campaign.working_hours_start else '09:00' }}">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Working Hours End</label>
+                            <input type="time" class="form-control form-control-sm" name="working_hours_end" value="{{ campaign.working_hours_end.strftime('%H:%M') if campaign.working_hours_end else '22:00' }}">
+                        </div>
+                        <div class="col-md-3">
+                            <div class="form-check mt-4">
+                                <input class="form-check-input" type="checkbox" name="human_like_behavior" value="1" id="humanLike" {{ 'checked' if campaign.human_like_behavior else '' }}>
+                                <label class="form-check-label" for="humanLike">
+                                    Human-like Behavior
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="form-check mt-4">
+                                <input class="form-check-input" type="checkbox" name="auto_pause_on_errors" value="1" id="autoPause" {{ 'checked' if campaign.auto_pause_on_errors else '' }}>
+                                <label class="form-check-label" for="autoPause">
+                                    Auto-pause on Errors
+                                </label>
+                            </div>
+                        </div>
+                    </div>
                     
-                    <dt class="col-sm-4">Human-like Behavior:</dt>
-                    <dd class="col-sm-8">
-                        {% if campaign.human_like_behavior %}
-                            <span class="badge bg-success">Enabled</span>
-                        {% else %}
-                            <span class="badge bg-secondary">Disabled</span>
-                        {% endif %}
-                    </dd>
-                    
-                    <dt class="col-sm-4">Auto-pause on Errors:</dt>
-                    <dd class="col-sm-8">
-                        {% if campaign.auto_pause_on_errors %}
-                            <span class="badge bg-success">Enabled</span>
-                        {% else %}
-                            <span class="badge bg-secondary">Disabled</span>
-                        {% endif %}
-                    </dd>
-                </dl>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-circle"></i> Save Settings
+                        </button>
+                    </div>
+                </form>
             </div>
         </div>
 
@@ -310,6 +346,62 @@
                 {% else %}
                 <p class="text-muted mb-0">No target users uploaded yet. Click "Upload CSV/XLS" to add users to invite.</p>
                 <small class="text-muted">Expected CSV format: username</small>
+                {% endif %}
+                
+                {% if campaign.source_users.count() > 0 %}
+                <hr>
+                <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                    <table class="table table-sm table-striped mb-0">
+                        <thead class="sticky-top bg-white">
+                            <tr>
+                                <th>Username</th>
+                                <th>Status</th>
+                                <th>Invited At</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for user in campaign.source_users.all()[:100] %}
+                            <tr>
+                                <td>
+                                    <small>{{ user.username }}</small>
+                                    {% if user.user_id %}
+                                    <br><small class="text-muted">ID: {{ user.user_id }}</small>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if user.status == "pending" %}
+                                    <span class="badge bg-secondary">Pending</span>
+                                    {% elif user.status == "invited" %}
+                                    <span class="badge bg-success">Invited</span>
+                                    {% elif user.status == "failed" %}
+                                    <span class="badge bg-danger">Failed</span>
+                                    {% else %}
+                                    <span class="badge bg-info">{{ user.status }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if user.invited_at %}
+                                    <small>{{ user.invited_at.strftime("%Y-%m-%d %H:%M") }}</small>
+                                    {% else %}
+                                    <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <form method="POST" action="{{ url_for('campaigns.delete_target', campaign_id=campaign.id, user_id=user.id) }}" style="display: inline;">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Delete this user?')">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% if campaign.source_users.count() > 100 %}
+                <p class="text-muted text-center mt-2"><small>Showing first 100 of {{ campaign.source_users.count() }} users</small></p>
+                {% endif %}
                 {% endif %}
             </div>
         </div>
