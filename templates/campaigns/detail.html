@@ -260,6 +260,16 @@
                                     Auto-pause on Errors
                                 </label>
                             </div>
+                        <div class="col-md-3">
+                            <div class="form-check mt-4">
+                                <input class="form-check-input" type="checkbox" name="ignore_working_hours" value="1" id="ignoreHours" {{ "checked" if campaign.ignore_working_hours else "" }}>
+                                <label class="form-check-label" for="ignoreHours">
+                                    Ignore Working Hours (24/7)
+                                </label>
+                            </div>
+                        </div>
+                                </label>
+                            </div>
                         </div>
                     </div>
                     
@@ -290,6 +300,7 @@
                                 <th>Invites Sent</th>
                                 <th>Last Invite</th>
                                 <th>Health</th>
+                                <th style="width: 100px;">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -318,6 +329,13 @@
                                         <div class="progress-bar bg-{{ 'success' if ca.account.health_score >= 70 else 'warning' if ca.account.health_score >= 40 else 'danger' }}" 
                                              style="width: {{ ca.account.health_score }}%"></div>
                                     </div>
+                                </td>
+                                <td class="text-center">
+                                    <form method="POST" action="{{ url_for('campaigns.remove_account', campaign_id=campaign.id, account_id=ca.account.id) }}" style="display:inline;" onsubmit="return confirm('Remove account?');">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger">
+                                            <i class="bi bi-x-circle"></i>
+                                        </button>
+                                    </form>
                                 </td>
                             </tr>
                             {% endfor %}
@@ -394,7 +412,7 @@
                                         </button>
                                     </form>
                                 </td>
-                            </tr>
+                                
                             {% endfor %}
                         </tbody>
                     </table>

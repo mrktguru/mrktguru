@@ -417,6 +417,31 @@ def assign_accounts(campaign_id):
     return redirect(url_for("campaigns.detail", campaign_id=campaign_id))
 
 
+
+@campaigns_bp.route("/<int:campaign_id>/remove-account/<int:account_id>", methods=["POST"])
+@login_required
+def remove_account(campaign_id, account_id):
+    """Remove account from campaign"""
+    from models.campaign import CampaignAccount
+    
+    campaign = InviteCampaign.query.get_or_404(campaign_id)
+    account = Account.query.get_or_404(account_id)
+    
+    # Find and delete CampaignAccount entry
+    ca = CampaignAccount.query.filter_by(
+        campaign_id=campaign_id,
+        account_id=account_id
+    ).first()
+    
+    if ca:
+        db.session.delete(ca)
+        db.session.commit()
+        flash(f"Account {account.phone} removed from campaign", "success")
+    else:
+        flash("Account not found in campaign", "error")
+    
+    return redirect(url_for("campaigns.detail", campaign_id=campaign_id))
+
 @campaigns_bp.route("/<int:campaign_id>/edit", methods=["GET", "POST"])
 @login_required
 def edit(campaign_id):

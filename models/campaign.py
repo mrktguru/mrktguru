@@ -29,6 +29,7 @@ class InviteCampaign(db.Model):
     burst_pause_minutes = db.Column(db.Integer, default=15)
     working_hours_start = db.Column(db.Time, default=time(9, 0))
     working_hours_end = db.Column(db.Time, default=time(22, 0))
+    ignore_working_hours = db.Column(db.Boolean, default=False)
     human_like_behavior = db.Column(db.Boolean, default=True)
     auto_pause_on_errors = db.Column(db.Boolean, default=True)
     

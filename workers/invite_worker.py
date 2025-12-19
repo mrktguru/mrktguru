@@ -27,8 +27,8 @@ def run_invite_campaign(self, campaign_id):
         if not campaign or campaign.status != "active":
             return {"status": "stopped", "message": "Campaign not active"}
             
-        # Check working hours
-        if not is_working_hours(campaign):
+        # Check working hours (unless ignored)
+        if not campaign.ignore_working_hours and not is_working_hours(campaign):
             print("Outside working hours, retry in 60 seconds")
             # Retry after 60 seconds
             run_invite_campaign.apply_async((campaign_id,), countdown=60)
