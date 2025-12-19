@@ -33,6 +33,7 @@ def create_app():
     from routes.dashboard import dashboard_bp
     from routes.accounts import accounts_bp
     from routes.proxies import proxies_bp
+    from routes.logs import logs_bp
     from routes.channels import channels_bp
     from routes.campaigns import campaigns_bp
     from routes.dm_campaigns import dm_campaigns_bp
@@ -44,6 +45,7 @@ def create_app():
     app.register_blueprint(dashboard_bp, url_prefix="/dashboard")
     app.register_blueprint(accounts_bp, url_prefix="/accounts")
     app.register_blueprint(proxies_bp, url_prefix="/proxies")
+    app.register_blueprint(logs_bp)
     app.register_blueprint(channels_bp, url_prefix="/channels")
     app.register_blueprint(campaigns_bp, url_prefix="/campaigns")
     app.register_blueprint(dm_campaigns_bp, url_prefix="/dm-campaigns")

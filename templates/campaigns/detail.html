@@ -615,7 +615,7 @@
 
 <!-- Assign Accounts Modal -->
 <div class="modal fade" id="assignAccountsModal" tabindex="-1">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <form method="POST" action="{{ url_for("campaigns.assign_accounts", campaign_id=campaign.id) }}">
                 <div class="modal-header">
@@ -623,6 +623,9 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> Only accounts with admin rights in the target channel can be assigned.
+                    </div>
                     <div class="mb-3">
                         <label class="form-label">Select Accounts</label>
                         {% set assigned_ids = campaign.campaign_accounts.all()|map(attribute="account_id")|list %}
@@ -679,3 +682,90 @@ setInterval(function() {
 {% endif %}
 </script>
 {% endblock %}
+
+<!-- Logs Modal -->
+<div class="modal fade" id="logsModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Campaign Logs - Real-time</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
+                    <table class="table table-sm table-striped">
+                        <thead class="table-dark sticky-top">
+                            <tr>
+                                <th>Time</th>
+                                <th>Account</th>
+                                <th>Action</th>
+                                <th>Target</th>
+                                <th>Status</th>
+                                <th>Message</th>
+                            </tr>
+                        </thead>
+                        <tbody id="logsTableBody">
+                            <tr>
+                                <td colspan="6" class="text-center">
+                                    <div class="spinner-border spinner-border-sm" role="status"></div>
+                                    Loading logs...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <span class="me-auto text-muted" id="logsCount">0 logs</span>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let logsInterval = null;
+
+function loadLogs() {
+    fetch("/logs/campaign/{{ campaign.id }}")
+        .then(response => response.json())
+        .then(data => {
+            const tbody = document.getElementById("logsTableBody");
+            const count = document.getElementById("logsCount");
+            
+            if (data.logs.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted">No logs yet</td></tr>`;
+            } else {
+                tbody.innerHTML = data.logs.map(log => `
+                    <tr>
+                        <td><small>${log.created_at}</small></td>
+                        <td><small>${log.account_phone || "-"}</small></td>
+                        <td><span class="badge bg-info">${log.action}</span></td>
+                        <td>${log.target_username || "-"}</td>
+                        <td><span class="badge bg-${log.status === "success" ? "success" : log.status === "error" ? "danger" : "warning"}">${log.status}</span></td>
+                        <td><small>${log.message}</small></td>
+                    </tr>
+                `).join("");
+            }
+            
+            count.textContent = `${data.count} logs`;
+        })
+        .catch(error => {
+            console.error("Error loading logs:", error);
+        });
+}
+
+// Start polling when modal opens
+document.getElementById("logsModal").addEventListener("shown.bs.modal", function() {
+    loadLogs();
+    logsInterval = setInterval(loadLogs, 3000); // Update every 3 seconds
+});
+
+// Stop polling when modal closes
+document.getElementById("logsModal").addEventListener("hidden.bs.modal", function() {
+    if (logsInterval) {
+        clearInterval(logsInterval);
+        logsInterval = null;
+    }
+});
+</script>

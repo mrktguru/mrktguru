@@ -481,10 +481,11 @@ def start(campaign_id):
     campaign.started_at = datetime.now()
     db.session.commit()
     
-    flash("Campaign started successfully", "success")
+    # Trigger first invite immediately
+    from workers.invite_worker import run_invite_campaign
+    run_invite_campaign.apply_async((campaign_id,), countdown=0)
     
-    # Start Celery worker
-    pass  # Worker will be triggered by scheduler
+    flash("Campaign started! First invite scheduled immediately.", "success")
 
     return redirect(url_for("campaigns.detail", campaign_id=campaign_id))
 @campaigns_bp.route("/<int:campaign_id>/update-settings", methods=["POST"])
