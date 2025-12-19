@@ -3,6 +3,7 @@ import asyncio
 from telethon import TelegramClient
 from telethon.sessions import StringSession
 from config import Config
+from telethon.tl.functions.messages import AddChatUserRequest
 
 # DO NOT store active clients - always create fresh ones
 _active_clients = {}
@@ -99,22 +100,133 @@ async def verify_session(account_id):
 
 
 async def send_invite(account_id, channel_username, target_user_id):
-    """Send invite to user"""
+    """Send invite to user with detailed error handling"""
+    from telethon.errors import (
+        UserPrivacyRestrictedError,
+        UserNotMutualContactError, 
+        UserChannelsTooMuchError,
+        UserAlreadyParticipantError,
+        UserIdInvalidError,
+        PeerFloodError,
+        FloodWaitError,
+        ChatAdminRequiredError,
+        ChatWriteForbiddenError,
+        ChannelPrivateError,
+        UserBannedInChannelError
+    )
+    from telethon.tl.functions.channels import InviteToChannelRequest
+    
     client = None
     try:
         client = get_telethon_client(account_id)
         await client.connect()
         
+        # Get channel entity
         channel = await client.get_entity(channel_username)
-        await client(AddChatUserRequest(
-            chat_id=channel.id,
-            user_id=target_user_id,
-            fwd_limit=0
+        
+        # Get user entity
+        user = await client.get_entity(target_user_id)
+        
+        # Invite to channel (supergroup)
+        await client(InviteToChannelRequest(
+            channel=channel,
+            users=[user]
         ))
         
-        return {"success": True, "error": None}
+        return {
+            "status": "success", 
+            "error": None,
+            "error_type": None
+        }
+        
+    except UserAlreadyParticipantError:
+        return {
+            "status": "already_member",
+            "error": "User already in group",
+            "error_type": "already_member"
+        }
+        
+    except UserPrivacyRestrictedError:
+        return {
+            "status": "privacy_restricted",
+            "error": "User privacy settings prevent invites",
+            "error_type": "privacy_restricted"
+        }
+        
+    except UserNotMutualContactError:
+        return {
+            "status": "not_mutual_contact",
+            "error": "User requires mutual contact",
+            "error_type": "not_mutual_contact"
+        }
+        
+    except UserChannelsTooMuchError:
+        return {
+            "status": "too_many_channels",
+            "error": "User joined too many channels",
+            "error_type": "too_many_channels"
+        }
+        
+    except UserIdInvalidError:
+        return {
+            "status": "invalid_user",
+            "error": "Invalid user ID",
+            "error_type": "invalid_user"
+        }
+        
+    except PeerFloodError:
+        return {
+            "status": "flood_wait",
+            "error": "Too many requests, account limited",
+            "error_type": "peer_flood"
+        }
+        
+    except FloodWaitError as e:
+        return {
+            "status": "flood_wait",
+            "error": f"Flood wait {e.seconds} seconds",
+            "error_type": "flood_wait",
+            "wait_seconds": e.seconds
+        }
+        
+    except UserBannedInChannelError:
+        return {
+            "status": "banned",
+            "error": "User banned in channel",
+            "error_type": "banned"
+        }
+        
+    except ChatAdminRequiredError:
+        return {
+            "status": "no_permission",
+            "error": "Account needs admin rights",
+            "error_type": "no_admin"
+        }
+        
+    except ChannelPrivateError:
+        return {
+            "status": "channel_private",
+            "error": "Channel is private",
+            "error_type": "channel_private"
+        }
+        
     except Exception as e:
-        return {"success": False, "error": str(e)}
+        error_msg = str(e)
+        
+        # Detect "Could not find the input entity"
+        if "Could not find the input entity" in error_msg:
+            return {
+                "status": "user_not_found",
+                "error": "User not found or deleted",
+                "error_type": "user_not_found"
+            }
+        
+        return {
+            "status": "failed",
+            "error": error_msg,
+            "error_type": "unknown"
+        }
+        
     finally:
         if client and client.is_connected():
             await client.disconnect()

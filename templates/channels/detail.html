@@ -49,9 +49,7 @@
                             </span>
                             {% if channel.admin_rights %}
                                 <div class="mt-2">
-                                    {% for right, value in channel.admin_rights.items() if value %}
-                                        <span class="badge bg-info me-1">{{ right }}</span>
-                                    {% endfor %}
+                                    <!-- Admin rights: {{ channel.admin_rights }} -->
                                 </div>
                             {% endif %}
                         {% else %}

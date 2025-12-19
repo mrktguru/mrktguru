@@ -331,11 +331,11 @@ def upload_targets(campaign_id):
         skipped = 0
         
         for row in users_data:
-            # Get username (required field)
-            username = row.get("username", "").strip().lstrip("@")
-            user_id = row.get("user_id") or row.get("id") or None
-            first_name = row.get("first_name", "")
-            last_name = row.get("last_name", "")
+            # Get username (required field) - case insensitive
+            username = (row.get("username") or row.get("Username") or "").strip().lstrip("@")
+            user_id = row.get("user_id") or row.get("User ID") or row.get("id") or None
+            first_name = row.get("first_name") or row.get("First Name") or ""
+            last_name = row.get("last_name") or row.get("Last Name") or ""
             
             if not username:
                 skipped += 1
@@ -352,12 +352,18 @@ def upload_targets(campaign_id):
                 continue
             
             # Add user
+            # Handle NaN and empty values
+            try:
+                parsed_user_id = int(user_id) if user_id and str(user_id).strip() and str(user_id) != "nan" else None
+            except (ValueError, TypeError):
+                parsed_user_id = None
+            
             source_user = SourceUser(
                 campaign_id=campaign_id,
                 username=username if username else None,
-                user_id=int(user_id) if user_id else None,
-                first_name=first_name,
-                last_name=last_name,
+                user_id=parsed_user_id,
+                first_name=first_name if first_name and str(first_name) != "nan" else "",
+                last_name=last_name if last_name and str(last_name) != "nan" else "",
                 source="csv_upload",
                 status="pending"
             )

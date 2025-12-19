@@ -11,80 +11,86 @@ import time
 import random
 import asyncio
 
-# Import Flask app for context
-# Flask app context handled by database.py
-
 
 @celery.task(bind=True)
 def run_invite_campaign(self, campaign_id):
     """
-    Main invite campaign worker
+    Invite one user and schedule next invite
     
     Args:
         campaign_id: ID of campaign to run
     """
-    campaign = InviteCampaign.query.get(campaign_id)
-    # Use database session directly
-    if not campaign:
-        return {"error": "Campaign not found"}
-        
-    # Get assigned accounts
-    campaign_accounts = CampaignAccount.query.filter_by(
-        campaign_id=campaign_id,
-        status="active"
-    ).all()
-        
-    if not campaign_accounts:
-        return {"error": "No active accounts assigned"}
-        
-    accounts = [ca.account for ca in campaign_accounts]
-    current_account_index = 0
-        
-    print(f"Starting invite campaign {campaign_id} with {len(accounts)} accounts")
-        
-    # Main loop
-    while campaign.status == "active":
-        # Refresh campaign status
-        db.session.refresh(campaign)
+    from app import app as flask_app
+    
+    with flask_app.app_context():
+        campaign = InviteCampaign.query.get(campaign_id)
+        if not campaign or campaign.status != "active":
+            return {"status": "stopped", "message": "Campaign not active"}
             
         # Check working hours
         if not is_working_hours(campaign):
-            print("Outside working hours, waiting...")
-            time.sleep(60)
-            continue
+            print("Outside working hours, retry in 60 seconds")
+            # Retry after 60 seconds
+            run_invite_campaign.apply_async((campaign_id,), countdown=60)
+            return {"status": "waiting", "message": "Outside working hours"}
             
-        # Round-robin account selection
-        account = accounts[current_account_index]
-        current_account_index = (current_account_index + 1) % len(accounts)
+        # Get assigned accounts
+        campaign_accounts = CampaignAccount.query.filter_by(
+            campaign_id=campaign_id,
+            status="active"
+        ).all()
             
+        if not campaign_accounts:
+            return {"error": "No active accounts assigned"}
+            
+        accounts = [ca.account for ca in campaign_accounts]
+        
+        # Get account for this invite (round-robin based on invited_count)
+        account_index = campaign.invited_count % len(accounts)
+        account = accounts[account_index]
+                
         # Check account daily limit
         if account.invites_sent_today >= get_daily_limit(account, campaign):
             print(f"Account {account.phone} reached daily limit")
-            continue
-            
-        # Get next target (highest priority score)
+            # Try next account or wait
+            if len(accounts) > 1:
+                # Force next account
+                campaign.invited_count += 1
+                db.session.commit()
+                run_invite_campaign.apply_async((campaign_id,), countdown=5)
+            else:
+                run_invite_campaign.apply_async((campaign_id,), countdown=3600)
+            return {"status": "limit_reached"}
+                
+        # Get next pending target
         target = SourceUser.query.filter_by(
             campaign_id=campaign_id,
             status="pending"
         ).order_by(SourceUser.priority_score.desc()).first()
-            
+                
         if not target:
             print("No more targets, campaign completed")
             campaign.status = "completed"
             db.session.commit()
-            break
-            
+            return {"status": "completed"}
+                
         # Send invite
-        print(f"Inviting user {target.username} using account {account.phone}")
+        print(f"[Campaign {campaign_id}] Inviting {target.username} using {account.phone}")
+        # Extract username from channel URL
+        channel_username = campaign.channel.username
+        if "t.me/" in channel_username:
+            channel_username = channel_username.split("t.me/")[-1]
+        
+        print(f"DEBUG: channel_username = {channel_username}")
         result = asyncio.run(send_invite(
             account.id,
-            campaign.channel.username,
+            channel_username,
             target.user_id
         ))
-            
+                
         # Log result
         log_invite_result(campaign_id, account.id, target, result)
-            
+                
         # Update stats
         if result["status"] == "success":
             target.status = "invited"
@@ -92,35 +98,44 @@ def run_invite_campaign(self, campaign_id):
             target.invited_by_account_id = account.id
             campaign.invited_count += 1
             account.invites_sent_today += 1
-                
+            print(f"✅ Successfully invited {target.username}")
+                    
         elif result["status"] == "flood_wait":
             # Put account on cooldown
             account.status = "cooldown"
-            print(f"Account {account.phone} got FloodWait, cooling down")
-                
+            print(f"⚠️  Account {account.phone} got FloodWait, cooling down")
+            # Mark target as failed for now
+            target.status = "failed"
+            target.error_message = "FloodWait"
+            campaign.failed_count += 1
+                    
         else:
             target.status = "failed"
             target.error_message = result.get("error")
             campaign.failed_count += 1
-            
+            print(f"❌ Failed to invite {target.username}: {result.get('error')}")
+                
         db.session.commit()
-            
-        # Apply delay
+                
+        # Calculate delay for next invite
         delay = random.randint(campaign.delay_min, campaign.delay_max)
-        print(f"Waiting {delay} seconds...")
-        time.sleep(delay)
-            
-        # Check burst limit
-        if account.invites_sent_today % campaign.burst_limit == 0:
-            burst_pause = campaign.burst_pause_minutes * 60
-            print(f"Burst limit reached, pausing {campaign.burst_pause_minutes} minutes")
-            time.sleep(burst_pause)
         
-    return {
-        "status": "completed",
-        "invited": campaign.invited_count,
-        "failed": campaign.failed_count
-    }
+        # Check burst limit
+        if (campaign.invited_count % campaign.burst_limit) == 0 and campaign.invited_count > 0:
+            burst_pause = campaign.burst_pause_minutes * 60
+            print(f"💤 Burst limit reached, pausing {campaign.burst_pause_minutes} minutes")
+            delay = burst_pause
+        
+        print(f"⏱️  Next invite in {delay} seconds...")
+        
+        # Schedule next invite
+        run_invite_campaign.apply_async((campaign_id,), countdown=delay)
+            
+        return {
+            "status": "success",
+            "invited": target.username,
+            "next_in": delay
+        }
 
 
 def is_working_hours(campaign):
@@ -154,15 +169,18 @@ def get_daily_limit(account, campaign):
 
 def log_invite_result(campaign_id, account_id, target, result):
     """Log invite operation"""
-    log = InviteLog(
-        campaign_id=campaign_id,
-        account_id=account_id,
-        target_user_id=target.user_id,
-        status=result["status"],
-        details=result.get("error")
-    )
-    db.session.add(log)
-    db.session.commit()
+    from app import app as flask_app
+    
+    with flask_app.app_context():
+        log = InviteLog(
+            campaign_id=campaign_id,
+            account_id=account_id,
+            target_user_id=target.user_id,
+            status=result["status"],
+            details=result.get("error")
+        )
+        db.session.add(log)
+        db.session.commit()
 
 
 @celery.task
@@ -171,10 +189,13 @@ def reset_daily_counters():
     Reset daily invite counters for all accounts
     Run daily at midnight
     """
-    accounts = Account.query.all()
-    for account in accounts:
-        account.invites_sent_today = 0
-        account.messages_sent_today = 0
+    from app import app as flask_app
     
-    db.session.commit()
-    return {"reset": len(accounts)}
+    with flask_app.app_context():
+        accounts = Account.query.all()
+        for account in accounts:
+            account.invites_sent_today = 0
+            account.messages_sent_today = 0
+        
+        db.session.commit()
+        return {"reset": len(accounts)}

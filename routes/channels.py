@@ -79,3 +79,42 @@ def delete(channel_id):
     db.session.commit()
     flash('Channel deleted', 'success')
     return redirect(url_for('channels.list_channels'))
+
+# Stub routes for future features
+@channels_bp.route("/<int:channel_id>/posts")
+@login_required
+def posts(channel_id):
+    """Channel posts (stub)"""
+    channel = Channel.query.get_or_404(channel_id)
+    flash("Posts feature coming soon", "info")
+    return redirect(url_for("channels.detail", channel_id=channel_id))
+
+@channels_bp.route("/<int:channel_id>/create-post", methods=["GET", "POST"])
+@login_required
+def create_post(channel_id):
+    """Create post (stub)"""
+    channel = Channel.query.get_or_404(channel_id)
+    flash("Create post feature coming soon", "info")
+    return redirect(url_for("channels.detail", channel_id=channel_id))
+
+@channels_bp.route("/<int:channel_id>/messages")
+@login_required
+def messages(channel_id):
+    """Channel messages (stub)"""
+    channel = Channel.query.get_or_404(channel_id)
+    flash("Messages feature coming soon", "info")
+    return redirect(url_for("channels.detail", channel_id=channel_id))
+
+@channels_bp.route("/<int:channel_id>/message/<int:message_id>/reply", methods=["POST"])
+@login_required
+def reply_message(channel_id, message_id):
+    """Reply to message (stub)"""
+    flash("Reply feature coming soon", "info")
+    return redirect(url_for("channels.detail", channel_id=channel_id))
+
+@channels_bp.route("/<int:channel_id>/post/<int:post_id>/pin", methods=["POST"])
+@login_required
+def pin_post(channel_id, post_id):
+    """Pin post (stub)"""
+    flash("Pin post feature coming soon", "info")
+    return redirect(url_for("channels.detail", channel_id=channel_id))

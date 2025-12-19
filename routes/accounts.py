@@ -9,6 +9,8 @@ import os
 from werkzeug.utils import secure_filename
 import asyncio
 
+import nest_asyncio
+nest_asyncio.apply()
 accounts_bp = Blueprint("accounts", __name__)
 
 
