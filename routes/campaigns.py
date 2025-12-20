@@ -86,29 +86,6 @@ def detail(campaign_id):
     accounts = Account.query.filter_by(status="active").all()
     return render_template("campaigns/detail.html", campaign=campaign, accounts=accounts)
 
-    """Start campaign"""
-    campaign = InviteCampaign.query.get_or_404(campaign_id)
-    
-    if campaign.status != 'draft' and campaign.status != 'paused':
-        flash('Campaign cannot be started in current state', 'error')
-        return redirect(url_for('campaigns.detail', campaign_id=campaign_id))
-    
-    if campaign.total_targets == 0:
-        flash('No targets to invite. Import users first', 'error')
-        return redirect(url_for('campaigns.detail', campaign_id=campaign_id))
-    
-    campaign.status = 'active'
-    from datetime import datetime
-    campaign.started_at = datetime.utcnow()
-    db.session.commit()
-    
-    # Start worker
-    pass  # Worker will be triggered by scheduler
-    pass  # Worker will be triggered by scheduler
-    
-    flash('Campaign started', 'success')
-    return redirect(url_for('campaigns.detail', campaign_id=campaign_id))
-
 
 @campaigns_bp.route('/<int:campaign_id>/pause', methods=['POST'])
 @login_required

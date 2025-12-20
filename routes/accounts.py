@@ -319,7 +319,6 @@ def assign_proxy(account_id):
 
 @accounts_bp.route("/<int:account_id>/add-subscription", methods=["POST"])
 @login_required
-@login_required
 def add_subscription(account_id):
     """Add channel subscription - actually joins the channel/group"""
     from utils.telethon_helper import get_telethon_client
@@ -480,3 +479,268 @@ def update_profile(account_id):
     db.session.commit()
     flash("Profile updated successfully", "success")
     return redirect(url_for("accounts.detail", account_id=account_id))
+
+
+# ==================== WARMUP SETTINGS ROUTES ====================
+
+@accounts_bp.route("/<int:account_id>/warmup")
+@login_required
+def warmup_settings(account_id):
+    """View warmup settings for account"""
+    from models.warmup import AccountWarmupChannel, ConversationPair, WarmupActivity, WarmupChannelTheme
+    
+    account = Account.query.get_or_404(account_id)
+    
+    # Get warmup channels
+    warmup_channels = AccountWarmupChannel.query.filter_by(
+        account_id=account_id
+    ).all()
+    
+    # Get conversation pairs
+    pairs = ConversationPair.query.filter(
+        db.or_(
+            ConversationPair.account_a_id == account_id,
+            ConversationPair.account_b_id == account_id
+        )
+    ).all()
+    
+    # Get partner accounts for each pair
+    conversation_partners = []
+    for pair in pairs:
+        partner_id = pair.account_b_id if pair.account_a_id == account_id else pair.account_a_id
+        partner = Account.query.get(partner_id)
+        if partner:
+            conversation_partners.append({
+                "pair_id": pair.id,
+                "partner": partner,
+                "last_conversation": pair.last_conversation_at,
+                "conversation_count": pair.conversation_count
+            })
+    
+    # Get recent warmup activities
+    recent_activities = WarmupActivity.query.filter_by(
+        account_id=account_id
+    ).order_by(WarmupActivity.timestamp.desc()).limit(20).all()
+    
+    # Get available themes
+    themes = WarmupChannelTheme.query.all()
+    
+    # Get other accounts for pairing
+    other_accounts = Account.query.filter(
+        Account.id != account_id,
+        Account.status.in_(['warming_up', 'active'])
+    ).all()
+    
+    return render_template(
+        "accounts/warmup_settings.html",
+        account=account,
+        warmup_channels=warmup_channels,
+        conversation_partners=conversation_partners,
+        recent_activities=recent_activities,
+        themes=themes,
+        other_accounts=other_accounts
+    )
+
+
+@accounts_bp.route("/<int:account_id>/warmup/add-channel", methods=["POST"])
+@login_required
+def add_warmup_channel(account_id):
+    """Add a channel for warmup reading"""
+    from models.warmup import AccountWarmupChannel
+    
+    account = Account.query.get_or_404(account_id)
+    channel_username = request.form.get("channel_username", "").strip().lstrip("@")
+    
+    if not channel_username:
+        flash("Channel username is required", "error")
+        return redirect(url_for("accounts.warmup_settings", account_id=account_id))
+    
+    # Check if already exists
+    existing = AccountWarmupChannel.query.filter_by(
+        account_id=account_id,
+        channel_username=channel_username
+    ).first()
+    
+    if existing:
+        flash(f"Channel @{channel_username} already added", "warning")
+        return redirect(url_for("accounts.warmup_settings", account_id=account_id))
+    
+    # Add channel
+    warmup_channel = AccountWarmupChannel(
+        account_id=account_id,
+        channel_username=channel_username,
+        source="manual"
+    )
+    db.session.add(warmup_channel)
+    db.session.commit()
+    
+    flash(f"Added @{channel_username} for warmup reading", "success")
+    return redirect(url_for("accounts.warmup_settings", account_id=account_id))
+
+
+@accounts_bp.route("/<int:account_id>/warmup/add-theme", methods=["POST"])
+@login_required
+def add_warmup_theme(account_id):
+    """Add channels from a theme"""
+    from models.warmup import AccountWarmupChannel, WarmupChannelTheme
+    
+    account = Account.query.get_or_404(account_id)
+    theme_id = request.form.get("theme_id")
+    
+    if not theme_id:
+        flash("Please select a theme", "error")
+        return redirect(url_for("accounts.warmup_settings", account_id=account_id))
+    
+    theme = WarmupChannelTheme.query.get(theme_id)
+    if not theme:
+        flash("Theme not found", "error")
+        return redirect(url_for("accounts.warmup_settings", account_id=account_id))
+    
+    # Add channels from theme
+    channels = theme.get_channels_list()
+    added = 0
+    
+    for channel in channels:
+        existing = AccountWarmupChannel.query.filter_by(
+            account_id=account_id,
+            channel_username=channel
+        ).first()
+        
+        if not existing:
+            warmup_channel = AccountWarmupChannel(
+                account_id=account_id,
+                channel_username=channel,
+                source=f"theme:{theme.name}"
+            )
+            db.session.add(warmup_channel)
+            added += 1
+    
+    db.session.commit()
+    
+    flash(f"Added {added} channels from '{theme.display_name}' theme", "success")
+    return redirect(url_for("accounts.warmup_settings", account_id=account_id))
+
+
+@accounts_bp.route("/<int:account_id>/warmup/remove-channel/<int:channel_id>", methods=["POST"])
+@login_required
+def remove_warmup_channel(account_id, channel_id):
+    """Remove a warmup channel"""
+    from models.warmup import AccountWarmupChannel
+    
+    channel = AccountWarmupChannel.query.get_or_404(channel_id)
+    
+    if channel.account_id != account_id:
+        flash("Invalid channel", "error")
+        return redirect(url_for("accounts.warmup_settings", account_id=account_id))
+    
+    db.session.delete(channel)
+    db.session.commit()
+    
+    flash(f"Removed @{channel.channel_username} from warmup", "info")
+    return redirect(url_for("accounts.warmup_settings", account_id=account_id))
+
+
+@accounts_bp.route("/<int:account_id>/warmup/add-pair", methods=["POST"])
+@login_required
+def add_conversation_pair(account_id):
+    """Add a conversation partner (bidirectional)"""
+    from models.warmup import ConversationPair
+    
+    account = Account.query.get_or_404(account_id)
+    partner_id = request.form.get("partner_id")
+    
+    if not partner_id:
+        flash("Please select a partner account", "error")
+        return redirect(url_for("accounts.warmup_settings", account_id=account_id))
+    
+    partner_id = int(partner_id)
+    
+    if partner_id == account_id:
+        flash("Cannot pair account with itself", "error")
+        return redirect(url_for("accounts.warmup_settings", account_id=account_id))
+    
+    partner = Account.query.get(partner_id)
+    if not partner:
+        flash("Partner account not found", "error")
+        return redirect(url_for("accounts.warmup_settings", account_id=account_id))
+    
+    # Check if pair already exists (in either direction)
+    existing = ConversationPair.query.filter(
+        db.or_(
+            db.and_(
+                ConversationPair.account_a_id == account_id,
+                ConversationPair.account_b_id == partner_id
+            ),
+            db.and_(
+                ConversationPair.account_a_id == partner_id,
+                ConversationPair.account_b_id == account_id
+            )
+        )
+    ).first()
+    
+    if existing:
+        flash(f"Already paired with {partner.phone}", "warning")
+        return redirect(url_for("accounts.warmup_settings", account_id=account_id))
+    
+    # Create pair (bidirectional by design)
+    pair = ConversationPair(
+        account_a_id=account_id,
+        account_b_id=partner_id
+    )
+    db.session.add(pair)
+    db.session.commit()
+    
+    flash(f"Added conversation pair with {partner.phone}", "success")
+    return redirect(url_for("accounts.warmup_settings", account_id=account_id))
+
+
+@accounts_bp.route("/<int:account_id>/warmup/remove-pair/<int:pair_id>", methods=["POST"])
+@login_required
+def remove_conversation_pair(account_id, pair_id):
+    """Remove a conversation pair"""
+    from models.warmup import ConversationPair
+    
+    pair = ConversationPair.query.get_or_404(pair_id)
+    
+    if pair.account_a_id != account_id and pair.account_b_id != account_id:
+        flash("Invalid pair", "error")
+        return redirect(url_for("accounts.warmup_settings", account_id=account_id))
+    
+    db.session.delete(pair)
+    db.session.commit()
+    
+    flash("Removed conversation pair", "info")
+    return redirect(url_for("accounts.warmup_settings", account_id=account_id))
+
+
+@accounts_bp.route("/<int:account_id>/warmup/pause", methods=["POST"])
+@login_required
+def pause_warmup(account_id):
+    """Pause warmup activity for account"""
+    account = Account.query.get_or_404(account_id)
+    
+    if account.status == 'active':
+        account.status = 'paused'
+        db.session.commit()
+        flash("⏸️ Warmup activity paused", "info")
+    else:
+        flash(f"Cannot pause account with status '{account.status}'", "warning")
+    
+    return redirect(url_for("accounts.warmup_settings", account_id=account_id))
+
+
+@accounts_bp.route("/<int:account_id>/warmup/resume", methods=["POST"])
+@login_required
+def resume_warmup(account_id):
+    """Resume warmup activity for account"""
+    account = Account.query.get_or_404(account_id)
+    
+    if account.status == 'paused':
+        account.status = 'active'
+        db.session.commit()
+        flash("▶️ Warmup activity resumed", "success")
+    else:
+        flash(f"Cannot resume account with status '{account.status}'", "warning")
+    
+    return redirect(url_for("accounts.warmup_settings", account_id=account_id))
+

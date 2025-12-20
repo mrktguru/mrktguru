@@ -434,3 +434,206 @@ async def get_channel_info(account_id, channel_username):
     finally:
         if client and client.is_connected():
             await client.disconnect()
+
+
+# ==================== WARMUP FUNCTIONS ====================
+
+async def read_channel_posts(account_id, channel_username, count=10, delay_between=5):
+    """
+    Read posts from a channel (mark as read)
+    
+    Args:
+        account_id: Account ID
+        channel_username: Channel to read from
+        count: Number of posts to read
+        delay_between: Delay between reading posts (seconds)
+    
+    Returns:
+        dict: {success, posts_read, error}
+    """
+    import random
+    import asyncio
+    
+    client = None
+    try:
+        client = get_telethon_client(account_id)
+        await client.connect()
+        
+        # Get channel entity
+        channel = await client.get_entity(channel_username)
+        
+        # Get messages
+        messages = []
+        async for message in client.iter_messages(channel, limit=count):
+            messages.append(message)
+        
+        if not messages:
+            return {"success": True, "posts_read": 0, "error": None}
+        
+        # Mark messages as read with delays
+        posts_read = 0
+        for message in messages:
+            try:
+                await client.send_read_acknowledge(channel, message)
+                posts_read += 1
+                
+                # Random delay to simulate human reading
+                if delay_between > 0 and posts_read < len(messages):
+                    await asyncio.sleep(random.uniform(delay_between * 0.5, delay_between * 1.5))
+            except Exception as e:
+                print(f"Error marking message as read: {e}")
+                continue
+        
+        return {"success": True, "posts_read": posts_read, "error": None}
+        
+    except Exception as e:
+        return {"success": False, "posts_read": 0, "error": str(e)}
+    finally:
+        if client and client.is_connected():
+            await client.disconnect()
+
+
+async def join_channel_for_warmup(account_id, channel_username):
+    """
+    Join a channel for warmup purposes
+    
+    Args:
+        account_id: Account ID
+        channel_username: Channel to join
+    
+    Returns:
+        dict: {success, already_member, error}
+    """
+    from telethon.tl.functions.channels import JoinChannelRequest
+    from telethon.errors import (
+        ChannelPrivateError,
+        UserAlreadyParticipantError,
+        FloodWaitError
+    )
+    
+    client = None
+    try:
+        client = get_telethon_client(account_id)
+        await client.connect()
+        
+        # Get channel entity
+        channel = await client.get_entity(channel_username)
+        
+        # Try to join
+        try:
+            await client(JoinChannelRequest(channel))
+            return {"success": True, "already_member": False, "error": None}
+        except UserAlreadyParticipantError:
+            return {"success": True, "already_member": True, "error": None}
+        except FloodWaitError as e:
+            return {"success": False, "already_member": False, "error": f"FloodWait: {e.seconds}s", "wait_seconds": e.seconds}
+        except ChannelPrivateError:
+            return {"success": False, "already_member": False, "error": "Channel is private"}
+            
+    except Exception as e:
+        return {"success": False, "already_member": False, "error": str(e)}
+    finally:
+        if client and client.is_connected():
+            await client.disconnect()
+
+
+async def react_to_post(account_id, channel_username, message_id=None, reaction="👍"):
+    """
+    React to a post in a channel
+    
+    Args:
+        account_id: Account ID
+        channel_username: Channel with the post
+        message_id: Specific message ID (if None, react to latest post)
+        reaction: Emoji reaction to send
+    
+    Returns:
+        dict: {success, error}
+    """
+    from telethon.tl.functions.messages import SendReactionRequest
+    from telethon.tl.types import ReactionEmoji
+    
+    client = None
+    try:
+        client = get_telethon_client(account_id)
+        await client.connect()
+        
+        # Get channel entity
+        channel = await client.get_entity(channel_username)
+        
+        # Get message to react to
+        if message_id is None:
+            # Get latest message
+            async for message in client.iter_messages(channel, limit=1):
+                message_id = message.id
+                break
+        
+        if message_id is None:
+            return {"success": False, "error": "No messages in channel"}
+        
+        # Send reaction
+        await client(SendReactionRequest(
+            peer=channel,
+            msg_id=message_id,
+            reaction=[ReactionEmoji(emoticon=reaction)]
+        ))
+        
+        return {"success": True, "error": None}
+        
+    except Exception as e:
+        error_msg = str(e)
+        # Reactions might not be enabled on this channel
+        if "REACTION_INVALID" in error_msg or "REACTIONS_TOO_MANY" in error_msg:
+            return {"success": False, "error": "Reactions not allowed on this channel"}
+        return {"success": False, "error": error_msg}
+    finally:
+        if client and client.is_connected():
+            await client.disconnect()
+
+
+async def send_conversation_message(account_id, target_account_id, message_text):
+    """
+    Send a message to another account (for warmup conversations)
+    
+    Args:
+        account_id: Sender account ID
+        target_account_id: Receiver account ID
+        message_text: Message to send
+    
+    Returns:
+        dict: {success, message_id, error}
+    """
+    from models.account import Account
+    
+    client = None
+    try:
+        # Get target account's Telegram ID or username
+        target_account = Account.query.get(target_account_id)
+        if not target_account:
+            return {"success": False, "message_id": None, "error": "Target account not found"}
+        
+        # We need either telegram_id or username to send a message
+        target_identifier = target_account.telegram_id or target_account.username
+        if not target_identifier:
+            return {"success": False, "message_id": None, "error": "Target account has no Telegram ID or username"}
+        
+        client = get_telethon_client(account_id)
+        await client.connect()
+        
+        # Get target user entity
+        if target_account.telegram_id:
+            user = await client.get_entity(int(target_account.telegram_id))
+        else:
+            user = await client.get_entity(target_account.username)
+        
+        # Send message
+        message = await client.send_message(user, message_text)
+        
+        return {"success": True, "message_id": message.id, "error": None}
+        
+    except Exception as e:
+        return {"success": False, "message_id": None, "error": str(e)}
+    finally:
+        if client and client.is_connected():
+            await client.disconnect()
+

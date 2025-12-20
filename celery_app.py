@@ -79,6 +79,18 @@ celery.conf.beat_schedule = {
         "task": "workers.parser_worker.cleanup_old_parse_jobs",
         "schedule": crontab(day_of_week=0, hour=3, minute=0),
     },
+    
+    # Schedule daily warmup activities (every day at 8 AM)
+    "schedule-daily-warmup": {
+        "task": "workers.warmup_worker.schedule_daily_warmup",
+        "schedule": crontab(hour=8, minute=0),
+    },
+    
+    # Update warmup day counters (every day at midnight)
+    "update-warmup-counters": {
+        "task": "workers.warmup_worker.update_warmup_day_counters",
+        "schedule": crontab(hour=0, minute=1),
+    },
 }
 
 # Import tasks
@@ -87,7 +99,8 @@ celery.autodiscover_tasks([
     "workers.dm_worker", 
     "workers.parser_worker",
     "workers.maintenance_workers",
-    "workers.campaign_scheduler"
+    "workers.campaign_scheduler",
+    "workers.warmup_worker"
 ])
 
 if __name__ == "__main__":

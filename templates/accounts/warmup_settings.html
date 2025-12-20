@@ -1,0 +1,244 @@
+{% extends "base.html" %}
+
+{% block title %}Warmup Settings - {{ account.phone }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h4 class="mb-1">
+                🔥 Warmup Settings
+            </h4>
+            <p class="text-muted mb-0">
+                Account: <strong>{{ account.phone }}</strong>
+                {% if account.username %}(@{{ account.username }}){% endif %}
+            </p>
+        </div>
+        <div>
+            <a href="{{ url_for('accounts.detail', account_id=account.id) }}" class="btn btn-outline-secondary">
+                ← Back to Account
+            </a>
+        </div>
+    </div>
+
+    <!-- Status Banner -->
+    <div class="row mb-4">
+        <div class="col-12">
+            {% if account.status == 'warming_up' %}
+            <div class="alert alert-info d-flex justify-content-between align-items-center">
+                <div>
+                    <strong>🔥 Warmup Phase</strong> - Day {{ account.warm_up_days_completed + 1 }}/7
+                    <div class="progress mt-2" style="width: 200px; height: 8px;">
+                        <div class="progress-bar bg-info" style="width: {{ (account.warm_up_days_completed / 7) * 100 }}%"></div>
+                    </div>
+                </div>
+                <span class="badge bg-info">Warming Up</span>
+            </div>
+            {% elif account.status == 'active' %}
+            <div class="alert alert-success d-flex justify-content-between align-items-center">
+                <div>
+                    <strong>✅ Active</strong> - Background activity is running
+                </div>
+                <form action="{{ url_for('accounts.pause_warmup', account_id=account.id) }}" method="POST" class="d-inline">
+                    <button type="submit" class="btn btn-sm btn-warning">⏸️ Pause Activity</button>
+                </form>
+            </div>
+            {% elif account.status == 'paused' %}
+            <div class="alert alert-warning d-flex justify-content-between align-items-center">
+                <div>
+                    <strong>⏸️ Paused</strong> - Background activity is stopped
+                </div>
+                <form action="{{ url_for('accounts.resume_warmup', account_id=account.id) }}" method="POST" class="d-inline">
+                    <button type="submit" class="btn btn-sm btn-success">▶️ Resume Activity</button>
+                </form>
+            </div>
+            {% else %}
+            <div class="alert alert-secondary">
+                <strong>Status:</strong> {{ account.status }}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Channels Section -->
+        <div class="col-md-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">📖 Channels for Reading</h5>
+                </div>
+                <div class="card-body">
+                    <!-- Add Channel Form -->
+                    <form action="{{ url_for('accounts.add_warmup_channel', account_id=account.id) }}" method="POST" class="mb-3">
+                        <div class="input-group">
+                            <span class="input-group-text">@</span>
+                            <input type="text" name="channel_username" class="form-control" placeholder="channel_username" required>
+                            <button type="submit" class="btn btn-primary">Add</button>
+                        </div>
+                    </form>
+
+                    <!-- Add Theme Form -->
+                    {% if themes %}
+                    <form action="{{ url_for('accounts.add_warmup_theme', account_id=account.id) }}" method="POST" class="mb-3">
+                        <div class="input-group">
+                            <select name="theme_id" class="form-select">
+                                <option value="">Select theme...</option>
+                                {% for theme in themes %}
+                                <option value="{{ theme.id }}">{{ theme.display_name }}</option>
+                                {% endfor %}
+                            </select>
+                            <button type="submit" class="btn btn-outline-primary">Add Theme</button>
+                        </div>
+                    </form>
+                    {% endif %}
+
+                    <hr>
+
+                    <!-- Channel List -->
+                    {% if warmup_channels %}
+                    <div class="list-group list-group-flush" style="max-height: 300px; overflow-y: auto;">
+                        {% for channel in warmup_channels %}
+                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>@{{ channel.channel_username }}</strong>
+                                {% if channel.source != 'manual' %}
+                                <span class="badge bg-secondary ms-2">{{ channel.source }}</span>
+                                {% endif %}
+                                {% if channel.last_read_at %}
+                                <br><small class="text-muted">Last read: {{ channel.last_read_at.strftime('%d.%m %H:%M') }}</small>
+                                {% endif %}
+                            </div>
+                            <form action="{{ url_for('accounts.remove_warmup_channel', account_id=account.id, channel_id=channel.id) }}" method="POST">
+                                <button type="submit" class="btn btn-sm btn-outline-danger">×</button>
+                            </form>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="text-muted text-center mb-0">No channels added</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Conversation Pairs Section -->
+        <div class="col-md-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">💬 Conversation Pairs</h5>
+                </div>
+                <div class="card-body">
+                    <!-- Add Pair Form -->
+                    {% if other_accounts %}
+                    <form action="{{ url_for('accounts.add_conversation_pair', account_id=account.id) }}" method="POST" class="mb-3">
+                        <div class="input-group">
+                            <select name="partner_id" class="form-select">
+                                <option value="">Select partner account...</option>
+                                {% for acc in other_accounts %}
+                                <option value="{{ acc.id }}">{{ acc.phone }} {% if acc.username %}(@{{ acc.username }}){% endif %}</option>
+                                {% endfor %}
+                            </select>
+                            <button type="submit" class="btn btn-success">Add Pair</button>
+                        </div>
+                    </form>
+                    {% else %}
+                    <p class="text-muted mb-3">No other active accounts available for pairing</p>
+                    {% endif %}
+
+                    <hr>
+
+                    <!-- Pairs List -->
+                    {% if conversation_partners %}
+                    <div class="list-group list-group-flush">
+                        {% for pair in conversation_partners %}
+                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>{{ pair.partner.phone }}</strong>
+                                {% if pair.partner.username %}
+                                <span class="text-muted">(@{{ pair.partner.username }})</span>
+                                {% endif %}
+                                <br>
+                                <small class="text-muted">
+                                    Conversations: {{ pair.conversation_count }}
+                                    {% if pair.last_conversation %}
+                                    | Last: {{ pair.last_conversation.strftime('%d.%m %H:%M') }}
+                                    {% endif %}
+                                </small>
+                            </div>
+                            <form action="{{ url_for('accounts.remove_conversation_pair', account_id=account.id, pair_id=pair.pair_id) }}" method="POST">
+                                <button type="submit" class="btn btn-sm btn-outline-danger">×</button>
+                            </form>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="text-muted text-center mb-0">No conversation pairs configured</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Activity -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">📊 Recent Activity</h5>
+                </div>
+                <div class="card-body">
+                    {% if recent_activities %}
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Time</th>
+                                    <th>Action</th>
+                                    <th>Target</th>
+                                    <th>Status</th>
+                                    <th>Details</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for activity in recent_activities %}
+                                <tr>
+                                    <td>{{ activity.timestamp.strftime('%d.%m %H:%M') }}</td>
+                                    <td>
+                                        {% if activity.action_type == 'read_posts' %}
+                                        📖 Read Posts
+                                        {% elif activity.action_type == 'react' %}
+                                        👍 React
+                                        {% elif activity.action_type == 'conversation' %}
+                                        💬 Conversation
+                                        {% elif activity.action_type == 'conversation_reply' %}
+                                        💬 Reply
+                                        {% else %}
+                                        {{ activity.action_type }}
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ activity.target or '-' }}</td>
+                                    <td>
+                                        {% if activity.status == 'success' %}
+                                        <span class="badge bg-success">Success</span>
+                                        {% elif activity.status == 'failed' %}
+                                        <span class="badge bg-danger">Failed</span>
+                                        {% else %}
+                                        <span class="badge bg-secondary">{{ activity.status }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td><small>{{ activity.details or '-' }}</small></td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p class="text-muted text-center mb-0">No activity recorded yet</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
