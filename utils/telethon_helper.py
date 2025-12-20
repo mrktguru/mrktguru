@@ -99,7 +99,7 @@ async def verify_session(account_id):
             await client.disconnect()
 
 
-async def send_invite(account_id, channel_username, target_user_id):
+async def send_invite(account_id, channel_username, target_user_id=None, target_username=None):
     """Send invite to user with detailed error handling"""
     from telethon.errors import (
         UserPrivacyRestrictedError,
@@ -124,8 +124,27 @@ async def send_invite(account_id, channel_username, target_user_id):
         # Get channel entity
         channel = await client.get_entity(channel_username)
         
-        # Get user entity
-        user = await client.get_entity(target_user_id)
+        # Get user entity (try user_id first, fallback to username)
+        if target_user_id:
+            try:
+                user = await client.get_entity(int(target_user_id))
+            except Exception as e:
+                print(f"Failed to get user by ID {target_user_id}: {e}, trying username")
+                if target_username:
+                    try:
+                        user = await client.get_entity(target_username)
+                    except Exception as e2:
+                        return {"status": "error", "error": f"Failed to resolve user: {e2}", "error_type": "user_not_found"}
+                else:
+                    return {"status": "error", "error": f"Invalid user ID: {e}", "error_type": "user_not_found"}
+        elif target_username:
+            try:
+                user = await client.get_entity(target_username)
+            except Exception as e:
+                print(f"Failed to get user by username {target_username}: {e}")
+                return {"status": "error", "error": f"User not found: {e}", "error_type": "user_not_found"}
+        else:
+            return {"status": "error", "error": "No user_id or username provided", "error_type": "missing_user_info"}
         
         # Invite to channel (supergroup)
         await client(InviteToChannelRequest(

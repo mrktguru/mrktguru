@@ -77,7 +77,19 @@ def run_invite_campaign(self, campaign_id):
         # Send invite
         print(f"[Campaign {campaign_id}] Inviting {target.username} using {account.phone}")
         # Extract username from channel URL
+        if not campaign.channel:
+            print("ERROR: Campaign has no channel assigned!")
+            campaign.status = "paused"
+            db.session.commit()
+            return {"status": "error", "message": "No channel assigned"}
+        
         channel_username = campaign.channel.username
+        if not channel_username:
+            print("ERROR: Channel has no username!")
+            campaign.status = "paused"
+            db.session.commit()
+            return {"status": "error", "message": "Channel username is empty"}
+            
         if "t.me/" in channel_username:
             channel_username = channel_username.split("t.me/")[-1]
         
@@ -85,7 +97,8 @@ def run_invite_campaign(self, campaign_id):
         result = asyncio.run(send_invite(
             account.id,
             channel_username,
-            target.user_id
+            target_user_id=target.user_id,
+            target_username=target.username
         ))
                 
         # Log result
