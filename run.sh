@@ -11,7 +11,7 @@ fi
 
 # Start Flask app in background
 echo "Starting Flask app..."
-python app.py &
+python3 app.py &
 FLASK_PID=$!
 
 # Start Celery worker
