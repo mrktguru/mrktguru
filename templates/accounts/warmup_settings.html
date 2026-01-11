@@ -122,7 +122,7 @@
                                 {% endif %}
                             </div>
                             <form
-                                action="{{ url_for('accounts.remove_subscription', account_id=account.id, subscription_id=channel.id) }}"
+                                action="{{ url_for('accounts.remove_subscription', account_id=account.id, sub_id=channel.id) }}"
                                 method="POST">
                                 <button type="submit" class="btn btn-sm btn-outline-danger">×</button>
                             </form>

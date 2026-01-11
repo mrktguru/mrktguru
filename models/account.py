@@ -27,6 +27,7 @@ class Account(db.Model):
     username = db.Column(db.String(255))
     bio = db.Column(db.Text)
     photo_url = db.Column(db.String(500))
+    last_sync_at = db.Column(db.DateTime)  # Last time synced from Telegram
     
     # Relationships
     proxy = db.relationship('Proxy', backref=db.backref('accounts', lazy='dynamic'))

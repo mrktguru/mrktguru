@@ -71,6 +71,16 @@
                             <i class="bi bi-check-circle"></i> Verify Session
                         </button>
                     </form>
+
+                    <form method="POST" action="{{ url_for('accounts.sync_from_telegram', account_id=account.id) }}">
+                        <button type="submit" class="btn btn-outline-primary w-100"
+                            title="Sync profile data from Telegram (cooldown: 5 min)">
+                            <i class="bi bi-arrow-repeat"></i> Sync from Telegram
+                            {% if account.last_sync_at %}
+                            <br><small class="text-muted">Last: {{ account.last_sync_at.strftime('%H:%M') }}</small>
+                            {% endif %}
+                        </button>
+                    </form>
                 </div>
             </div>
         </div>
