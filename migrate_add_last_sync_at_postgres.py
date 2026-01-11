@@ -7,8 +7,27 @@ Run this on the server: python3 migrate_add_last_sync_at_postgres.py
 import os
 import sys
 
+def load_env():
+    """Load .env file if it exists"""
+    env_path = '.env'
+    if os.path.exists(env_path):
+        print(f"📄 Loading environment from {env_path}")
+        with open(env_path) as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith('#') and '=' in line:
+                    key, value = line.split('=', 1)
+                    # Remove quotes if present
+                    value = value.strip().strip('"').strip("'")
+                    os.environ[key.strip()] = value
+        return True
+    return False
+
 def migrate():
     """Add last_sync_at column to accounts table in PostgreSQL"""
+    
+    # Try to load .env file
+    load_env()
     
     try:
         import psycopg2
@@ -22,10 +41,16 @@ def migrate():
     
     if not db_url:
         print("❌ DATABASE_URL environment variable not set")
-        print("Please set it or provide connection details manually")
+        print("\nPlease either:")
+        print("  1. Create a .env file with DATABASE_URL")
+        print("  2. Export DATABASE_URL in your shell")
+        print("  3. Use the SQL file directly: psql <connection> -f migrations/add_last_sync_at_postgres.sql")
+        print("\nExample DATABASE_URL format:")
+        print("  postgresql://user:password@localhost:5432/database_name")
         return False
     
     print(f"📁 Connecting to database...")
+    print(f"   URL: {db_url.split('@')[0].split('://')[0]}://***@{db_url.split('@')[1] if '@' in db_url else '***'}")
     
     try:
         # Parse PostgreSQL URL
@@ -77,3 +102,4 @@ def migrate():
 if __name__ == "__main__":
     success = migrate()
     sys.exit(0 if success else 1)
+
