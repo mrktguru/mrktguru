@@ -1,0 +1,12 @@
+[Unit]
+Description=MrktGuru Celery Beat Scheduler
+After=network.target redis-server.service
+
+[Service]
+User=root
+WorkingDirectory=/root/mrktguru
+ExecStart=/usr/bin/python3 -m celery -A celery_app beat --loglevel=info
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

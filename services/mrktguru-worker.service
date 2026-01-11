@@ -1,0 +1,13 @@
+[Unit]
+Description=MrktGuru Celery Worker
+After=network.target redis-server.service
+
+[Service]
+User=root
+WorkingDirectory=/root/mrktguru
+# Using concurrency=1 to avoid OOM killer
+ExecStart=/usr/bin/python3 -m celery -A celery_app worker --loglevel=info --concurrency=1
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
