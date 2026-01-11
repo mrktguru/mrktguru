@@ -57,121 +57,151 @@
         </div>
     </div>
     <div class="card-body p-0">
-        <div class="table-responsive">
-            <table class="table table-hover mb-0" id="accountsTable">
-                <thead>
-                    <tr>
-                        <th>Phone</th>
-                        <th>Status</th>
-                        <th>Health</th>
-                        <th>Proxy</th>
-                        <th>Device</th>
-                        <th>Sent Today</th>
-                        <th>Warm-up</th>
-                        <th>Last Activity</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for account in accounts %}
-                    <tr>
-                        <td>
-                            <a href="{{ url_for('accounts.detail', account_id=account.id) }}">
-                                {{ account.phone }}
+        <!-- Removed nested table-responsive to allow full page scroll -->
+        <table class="table table-hover mb-0" id="accountsTable">
+            <thead>
+                <tr>
+                    <th>Phone</th>
+                    <th>Status</th>
+                    <th>Health</th>
+                    <th>Proxy</th>
+                    <th>Device</th>
+                    <th>Sent Today</th>
+                    <th>Warm-up</th>
+                    <th>Last Activity</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for account in accounts %}
+                <tr>
+                    <td>
+                        <a href="{{ url_for('accounts.detail', account_id=account.id) }}">
+                            {{ account.phone }}
+                        </a>
+                    </td>
+                    <td>
+                        {% if account.status == 'active' %}
+                        <span class="badge bg-success">{{ account.status }}</span>
+                        {% elif account.status == 'warming_up' %}
+                        <span class="badge bg-warning">{{ account.status }}</span>
+                        {% elif account.status == 'cooldown' %}
+                        <span class="badge bg-info">{{ account.status }}</span>
+                        {% elif account.status == 'banned' %}
+                        <span class="badge bg-danger">{{ account.status }}</span>
+                        {% else %}
+                        <span class="badge bg-secondary">{{ account.status }}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div class="progress" style="height: 20px;">
+                            <div class="progress-bar {% if account.health_score >= 70 %}bg-success{% elif account.health_score >= 40 %}bg-warning{% else %}bg-danger{% endif %}"
+                                style="width: {{ account.health_score }}%">
+                                {{ account.health_score }}%
+                            </div>
+                        </div>
+                    </td>
+                    <td>
+                        {% if account.proxy %}
+                        <span class="badge bg-primary" title="{{ account.proxy.host }}:{{ account.proxy.port }}">
+                            {{ account.proxy.type }}
+                        </span>
+                        {% else %}
+                        <span class="text-muted">No proxy</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if account.device_profile %}
+                        <small title="{{ account.device_profile.device_model }}">
+                            {{ account.device_profile.device_model[:20] }}...
+                        </small>
+                        {% else %}
+                        <span class="text-muted">-</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <small>
+                            <i class="bi bi-envelope"></i> {{ account.messages_sent_today }}<br>
+                            <i class="bi bi-person-plus"></i> {{ account.invites_sent_today }}
+                        </small>
+                    </td>
+                    <td>{{ account.warm_up_days_completed }}/7 days</td>
+                    <td>
+                        {% if account.last_activity %}
+                        <small>{{ account.last_activity.strftime('%Y-%m-%d %H:%M') }}</small>
+                        {% else %}
+                        <span class="text-muted">Never</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div class="btn-group btn-group-sm">
+                            <a href="{{ url_for('accounts.detail', account_id=account.id) }}"
+                                class="btn btn-sm btn-outline-primary" title="Details">
+                                <i class="bi bi-eye"></i>
                             </a>
-                        </td>
-                        <td>
-                            {% if account.status == 'active' %}
-                                <span class="badge bg-success">{{ account.status }}</span>
-                            {% elif account.status == 'warming_up' %}
-                                <span class="badge bg-warning">{{ account.status }}</span>
-                            {% elif account.status == 'cooldown' %}
-                                <span class="badge bg-info">{{ account.status }}</span>
-                            {% elif account.status == 'banned' %}
-                                <span class="badge bg-danger">{{ account.status }}</span>
-                            {% else %}
-                                <span class="badge bg-secondary">{{ account.status }}</span>
-                            {% endif %}
-                        </td>
-                        <td>
-                            <div class="progress" style="height: 20px;">
-                                <div class="progress-bar {% if account.health_score >= 70 %}bg-success{% elif account.health_score >= 40 %}bg-warning{% else %}bg-danger{% endif %}" 
-                                     style="width: {{ account.health_score }}%">
-                                    {{ account.health_score }}%
-                                </div>
-                            </div>
-                        </td>
-                        <td>
-                            {% if account.proxy %}
-                                <span class="badge bg-primary" title="{{ account.proxy.host }}:{{ account.proxy.port }}">
-                                    {{ account.proxy.type }}
-                                </span>
-                            {% else %}
-                                <span class="text-muted">No proxy</span>
-                            {% endif %}
-                        </td>
-                        <td>
-                            {% if account.device_profile %}
-                                <small title="{{ account.device_profile.device_model }}">
-                                    {{ account.device_profile.device_model[:20] }}...
-                                </small>
-                            {% else %}
-                                <span class="text-muted">-</span>
-                            {% endif %}
-                        </td>
-                        <td>
-                            <small>
-                                <i class="bi bi-envelope"></i> {{ account.messages_sent_today }}<br>
-                                <i class="bi bi-person-plus"></i> {{ account.invites_sent_today }}
-                            </small>
-                        </td>
-                        <td>{{ account.warm_up_days_completed }}/7 days</td>
-                        <td>
-                            {% if account.last_activity %}
-                                <small>{{ account.last_activity.strftime('%Y-%m-%d %H:%M') }}</small>
-                            {% else %}
-                                <span class="text-muted">Never</span>
-                            {% endif %}
-                        </td>
-                        <td>
-                            <div class="btn-group btn-group-sm">
-                                <a href="{{ url_for('accounts.detail', account_id=account.id) }}" 
-                                   class="btn btn-sm btn-outline-primary" title="Details">
-                                    <i class="bi bi-eye"></i>
-                                </a>
-                                <form method="POST" action="{{ url_for('accounts.verify', account_id=account.id) }}" style="display: inline;">
-                                    <button type="submit" class="btn btn-sm btn-outline-success" title="Verify Session">
-                                        <i class="bi bi-check-circle"></i>
-                                    </button>
-                                </form>
-                                <form method="POST" action="{{ url_for('accounts.delete', account_id=account.id) }}" 
-                                      onsubmit="return confirm('Delete this account?')" style="display: inline;">
-                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">
-                                        <i class="bi bi-trash"></i>
-                                    </button>
-                                </form>
-                            </div>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
+                            <form method="POST" action="{{ url_for('accounts.verify', account_id=account.id) }}"
+                                style="display: inline;">
+                                <button type="submit" class="btn btn-sm btn-outline-success" title="Verify Session">
+                                    <i class="bi bi-check-circle"></i>
+                                </button>
+                            </form>
+                            <form method="POST" action="{{ url_for('accounts.delete', account_id=account.id) }}"
+                                onsubmit="return confirm('Delete this account?')" style="display: inline;">
+                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
+
+    <!-- Pagination controls -->
+    {% if pagination and pagination.pages > 1 %}
+    <div class="card-footer">
+        <nav aria-label="Page navigation">
+            <ul class="pagination justify-content-center mb-0">
+                <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+                    <a class="page-link"
+                        href="{{ url_for('accounts.list_accounts', page=pagination.prev_num) }}">Previous</a>
+                </li>
+
+                {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                {% if page_num %}
+                <li class="page-item {% if page_num == pagination.page %}active{% endif %}">
+                    <a class="page-link" href="{{ url_for('accounts.list_accounts', page=page_num) }}">{{ page_num
+                        }}</a>
+                </li>
+                {% else %}
+                <li class="page-item disabled"><span class="page-link">...</span></li>
+                {% endif %}
+                {% endfor %}
+
+                <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+                    <a class="page-link"
+                        href="{{ url_for('accounts.list_accounts', page=pagination.next_num) }}">Next</a>
+                </li>
+            </ul>
+        </nav>
+    </div>
+    {% endif %}
 </div>
 
 {% endblock %}
 
 {% block extra_js %}
 <script>
-$(document).ready(function() {
-    // Search functionality
-    $('#searchAccount').on('keyup', function() {
-        var value = $(this).val().toLowerCase();
-        $('#accountsTable tbody tr').filter(function() {
-            $(this).toggle($(this).text().toLowerCase().indexOf(value) > -1);
+    $(document).ready(function () {
+        // Search functionality
+        $('#searchAccount').on('keyup', function () {
+            var value = $(this).val().toLowerCase();
+            $('#accountsTable tbody tr').filter(function () {
+                $(this).toggle($(this).text().toLowerCase().indexOf(value) > -1);
+            });
         });
     });
-});
 </script>
 {% endblock %}

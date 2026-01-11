@@ -188,8 +188,9 @@
             </div>
             <div class="card-body">
                 <div class="progress mb-2" style="height: 25px;">
-                    <div class="progress-bar" style="width: {{ (account.warm_up_days_completed / 7 * 100)|int }}%">
-                        {{ account.warm_up_days_completed }}/7 days
+                    <div class="progress-bar"
+                        style="width: {{ ((account.warm_up_days_completed or 0) / 7 * 100)|int }}%">
+                        {{ account.warm_up_days_completed or 0 }}/7 days
                     </div>
                 </div>
                 {% if account.warm_up_days_completed < 7 %} <small class="text-muted">

@@ -18,9 +18,22 @@ accounts_bp = Blueprint("accounts", __name__)
 @login_required
 def list_accounts():
     """List all accounts"""
-    accounts = Account.query.order_by(Account.created_at.desc()).all()
+    page = request.args.get('page', 1, type=int)
+    per_page = 50
+    
+    pagination = Account.query.order_by(Account.created_at.desc()).paginate(
+        page=page, per_page=per_page, error_out=False
+    )
+    
+    accounts = pagination.items
     proxies = Proxy.query.filter_by(status="active").all()
-    return render_template("accounts/list.html", accounts=accounts, proxies=proxies)
+    
+    return render_template(
+        "accounts/list.html", 
+        accounts=accounts, 
+        proxies=proxies,
+        pagination=pagination
+    )
 
 
 @accounts_bp.route("/upload", methods=["GET", "POST"])
