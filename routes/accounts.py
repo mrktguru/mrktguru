@@ -693,13 +693,15 @@ def update_profile(account_id):
 @login_required
 def warmup_settings(account_id):
     """View warmup settings for account"""
-    from models.warmup import AccountWarmupChannel, ConversationPair, WarmupActivity, WarmupChannelTheme
+    from models.warmup import ConversationPair, WarmupActivity, WarmupChannelTheme
+    from models.account import AccountSubscription
     
     account = Account.query.get_or_404(account_id)
     
-    # Get warmup channels
-    warmup_channels = AccountWarmupChannel.query.filter_by(
-        account_id=account_id
+    # Get subscriptions (these are used for warmup reading)
+    warmup_channels = AccountSubscription.query.filter_by(
+        account_id=account_id,
+        is_active=True
     ).all()
     
     # Get conversation pairs

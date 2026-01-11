@@ -30,7 +30,8 @@
                 <div>
                     <strong>🔥 Warmup Phase</strong> - Day {{ account.warm_up_days_completed + 1 }}/7
                     <div class="progress mt-2" style="width: 200px; height: 8px;">
-                        <div class="progress-bar bg-info" style="width: {{ (account.warm_up_days_completed / 7) * 100 }}%"></div>
+                        <div class="progress-bar bg-info"
+                            style="width: {{ (account.warm_up_days_completed / 7) * 100 }}%"></div>
                     </div>
                 </div>
                 <span class="badge bg-info">Warming Up</span>
@@ -40,7 +41,8 @@
                 <div>
                     <strong>✅ Active</strong> - Background activity is running
                 </div>
-                <form action="{{ url_for('accounts.pause_warmup', account_id=account.id) }}" method="POST" class="d-inline">
+                <form action="{{ url_for('accounts.pause_warmup', account_id=account.id) }}" method="POST"
+                    class="d-inline">
                     <button type="submit" class="btn btn-sm btn-warning">⏸️ Pause Activity</button>
                 </form>
             </div>
@@ -49,7 +51,8 @@
                 <div>
                     <strong>⏸️ Paused</strong> - Background activity is stopped
                 </div>
-                <form action="{{ url_for('accounts.resume_warmup', account_id=account.id) }}" method="POST" class="d-inline">
+                <form action="{{ url_for('accounts.resume_warmup', account_id=account.id) }}" method="POST"
+                    class="d-inline">
                     <button type="submit" class="btn btn-sm btn-success">▶️ Resume Activity</button>
                 </form>
             </div>
@@ -70,17 +73,20 @@
                 </div>
                 <div class="card-body">
                     <!-- Add Channel Form -->
-                    <form action="{{ url_for('accounts.add_warmup_channel', account_id=account.id) }}" method="POST" class="mb-3">
+                    <form action="{{ url_for('accounts.add_warmup_channel', account_id=account.id) }}" method="POST"
+                        class="mb-3">
                         <div class="input-group">
                             <span class="input-group-text">@</span>
-                            <input type="text" name="channel_username" class="form-control" placeholder="channel_username" required>
+                            <input type="text" name="channel_username" class="form-control"
+                                placeholder="channel_username" required>
                             <button type="submit" class="btn btn-primary">Add</button>
                         </div>
                     </form>
 
                     <!-- Add Theme Form -->
                     {% if themes %}
-                    <form action="{{ url_for('accounts.add_warmup_theme', account_id=account.id) }}" method="POST" class="mb-3">
+                    <form action="{{ url_for('accounts.add_warmup_theme', account_id=account.id) }}" method="POST"
+                        class="mb-3">
                         <div class="input-group">
                             <select name="theme_id" class="form-select">
                                 <option value="">Select theme...</option>
@@ -102,14 +108,22 @@
                         <div class="list-group-item d-flex justify-content-between align-items-center">
                             <div>
                                 <strong>@{{ channel.channel_username }}</strong>
-                                {% if channel.source != 'manual' %}
-                                <span class="badge bg-secondary ms-2">{{ channel.source }}</span>
+                                {% if channel.subscription_source != 'manual' %}
+                                <span class="badge bg-secondary ms-2">{{ channel.subscription_source }}</span>
                                 {% endif %}
-                                {% if channel.last_read_at %}
-                                <br><small class="text-muted">Last read: {{ channel.last_read_at.strftime('%d.%m %H:%M') }}</small>
+                                {% if channel.subscribed_at %}
+                                <br><small class="text-muted">Subscribed: {{ channel.subscribed_at.strftime('%d.%m
+                                    %H:%M') }}</small>
+                                {% endif %}
+                                {% if channel.status %}
+                                <span
+                                    class="badge bg-{{ 'success' if channel.status == 'active' else 'warning' }} ms-2">{{
+                                    channel.status }}</span>
                                 {% endif %}
                             </div>
-                            <form action="{{ url_for('accounts.remove_warmup_channel', account_id=account.id, channel_id=channel.id) }}" method="POST">
+                            <form
+                                action="{{ url_for('accounts.remove_subscription', account_id=account.id, subscription_id=channel.id) }}"
+                                method="POST">
                                 <button type="submit" class="btn btn-sm btn-outline-danger">×</button>
                             </form>
                         </div>
@@ -131,12 +145,14 @@
                 <div class="card-body">
                     <!-- Add Pair Form -->
                     {% if other_accounts %}
-                    <form action="{{ url_for('accounts.add_conversation_pair', account_id=account.id) }}" method="POST" class="mb-3">
+                    <form action="{{ url_for('accounts.add_conversation_pair', account_id=account.id) }}" method="POST"
+                        class="mb-3">
                         <div class="input-group">
                             <select name="partner_id" class="form-select">
                                 <option value="">Select partner account...</option>
                                 {% for acc in other_accounts %}
-                                <option value="{{ acc.id }}">{{ acc.phone }} {% if acc.username %}(@{{ acc.username }}){% endif %}</option>
+                                <option value="{{ acc.id }}">{{ acc.phone }} {% if acc.username %}(@{{ acc.username
+                                    }}){% endif %}</option>
                                 {% endfor %}
                             </select>
                             <button type="submit" class="btn btn-success">Add Pair</button>
@@ -166,7 +182,9 @@
                                     {% endif %}
                                 </small>
                             </div>
-                            <form action="{{ url_for('accounts.remove_conversation_pair', account_id=account.id, pair_id=pair.pair_id) }}" method="POST">
+                            <form
+                                action="{{ url_for('accounts.remove_conversation_pair', account_id=account.id, pair_id=pair.pair_id) }}"
+                                method="POST">
                                 <button type="submit" class="btn btn-sm btn-outline-danger">×</button>
                             </form>
                         </div>
