@@ -193,8 +193,8 @@
                         {{ account.warm_up_days_completed or 0 }}/7 days
                     </div>
                 </div>
-                {% if account.warm_up_days_completed < 7 %} <small class="text-muted">
-                    {{ 7 - account.warm_up_days_completed }} days remaining
+                {% if (account.warm_up_days_completed or 0) < 7 %} <small class="text-muted">
+                    {{ 7 - (account.warm_up_days_completed or 0) }} days remaining
                     </small>
                     {% else %}
                     <small class="text-success">✓ Warm-up completed</small>
