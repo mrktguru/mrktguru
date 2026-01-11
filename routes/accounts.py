@@ -170,9 +170,25 @@ def verify(account_id):
     """Verify account session, fetch user info, and import existing subscriptions"""
     from utils.telethon_helper import get_telethon_client
     from models.account import AccountSubscription
+    from utils.activity_logger import ActivityLogger
     import asyncio
+    import time
     
     account = Account.query.get_or_404(account_id)
+    logger = ActivityLogger(account_id)
+    
+    # Log verification start
+    proxy_info = None
+    if account.proxy:
+        proxy_info = f"{account.proxy.host}:{account.proxy.port} ({account.proxy.type})"
+    
+    logger.log(
+        action_type='verification_start',
+        status='pending',
+        description='Starting account verification',
+        proxy_used=proxy_info,
+        category='system'
+    )
     
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
@@ -295,11 +311,32 @@ def verify(account_id):
                     account.health_score = 100
                     print(f"✅ Account {account_id} re-verified, status: active")
             
+            # Log successful verification
+            logger.log(
+                action_type='verification',
+                status='success',
+                description=f"Account verified: {account.first_name} (@{account.username or 'no username'})",
+                details=f"Telegram ID: {account.telegram_id}, Subscriptions imported: {subscriptions_found}, Status: {account.status}",
+                proxy_used=proxy_info,
+                category='system'
+            )
+            
             return True, account.first_name, account.username or "no username", subscriptions_found
             
         except Exception as e:
             account.status = "error"
             account.health_score = 0
+            
+            # Log verification failure
+            logger.log(
+                action_type='verification',
+                status='failed',
+                description='Account verification failed',
+                error_message=str(e),
+                proxy_used=proxy_info,
+                category='system'
+            )
+            
             return False, None, str(e), 0
             
         finally:
@@ -489,16 +526,43 @@ def delete(account_id):
 @login_required
 def assign_proxy(account_id):
     """Assign proxy to account"""
+    from utils.activity_logger import ActivityLogger
+    from models.proxy import Proxy
+    
     account = Account.query.get_or_404(account_id)
+    logger = ActivityLogger(account_id)
     proxy_id = request.form.get("proxy_id")
     
     if proxy_id:
+        proxy = Proxy.query.get(int(proxy_id))
         account.proxy_id = int(proxy_id)
         db.session.commit()
+        
+        # Log proxy assignment
+        logger.log(
+            action_type='assign_proxy',
+            status='success',
+            description=f"Proxy assigned: {proxy.host}:{proxy.port}",
+            details=f"Type: {proxy.type}, IP: {proxy.current_ip or 'Unknown'}",
+            proxy_used=f"{proxy.host}:{proxy.port}",
+            category='system'
+        )
+        
         flash("Proxy assigned", "success")
     else:
+        old_proxy = account.proxy
         account.proxy_id = None
         db.session.commit()
+        
+        # Log proxy removal
+        logger.log(
+            action_type='remove_proxy',
+            status='success',
+            description='Proxy removed from account',
+            details=f"Previous proxy: {old_proxy.host}:{old_proxy.port}" if old_proxy else None,
+            category='system'
+        )
+        
         flash("Proxy removed", "info")
     
     return redirect(url_for("accounts.detail", account_id=account_id))
@@ -510,9 +574,11 @@ def add_subscription(account_id):
     """Add channel subscription - actually joins the channel/group"""
     from utils.telethon_helper import get_telethon_client
     from telethon.tl.functions.channels import JoinChannelRequest
+    from utils.activity_logger import ActivityLogger
     import asyncio
     
     account = Account.query.get_or_404(account_id)
+    logger = ActivityLogger(account_id)
     channel_input = request.form.get("channel_username", "").strip()
     notes = request.form.get("notes", "").strip()
     
@@ -539,6 +605,15 @@ def add_subscription(account_id):
     if existing:
         flash(f"Already subscribed to @{channel_username}", "warning")
         return redirect(url_for("accounts.detail", account_id=account_id))
+    
+    # Log join attempt
+    logger.log(
+        action_type='join_group_attempt',
+        status='pending',
+        target=f"@{channel_username}",
+        description=f"Attempting to join @{channel_username}",
+        category='manual'
+    )
     
     # Create new event loop
     loop = asyncio.new_event_loop()
@@ -590,13 +665,37 @@ def add_subscription(account_id):
     try:
         subscription_status, message = loop.run_until_complete(join_channel())
         
+        # Log result
         if subscription_status == "active":
+            logger.log(
+                action_type='join_group',
+                status='success',
+                target=f"@{channel_username}",
+                description=f"Successfully joined @{channel_username}",
+                category='manual'
+            )
             flash(message, "success")
         else:
+            logger.log(
+                action_type='join_group',
+                status='failed',
+                target=f"@{channel_username}",
+                description=f"Failed to join @{channel_username}",
+                error_message=message,
+                category='manual'
+            )
             flash(message, "warning")
             
     except Exception as e:
         subscription_status = "failed"
+        logger.log(
+            action_type='join_group',
+            status='failed',
+            target=f"@{channel_username}",
+            description=f"Error joining @{channel_username}",
+            error_message=str(e),
+            category='manual'
+        )
         flash(f"Error: {str(e)}", "error")
     finally:
         # Cancel all pending tasks
