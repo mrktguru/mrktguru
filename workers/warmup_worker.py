@@ -60,6 +60,11 @@ def run_warmup_activity(self, account_id):
             logger.error(f"Account {account_id} not found")
             return {"error": "Account not found"}
         
+        # Check if warmup is enabled for this account
+        if not account.warmup_enabled:
+            logger.info(f"Account {account_id} has warmup disabled, skipping")
+            return {"skipped": True, "reason": "Warmup not enabled"}
+        
         # Check if account is eligible for warmup
         if account.status not in ['warming_up', 'active']:
             logger.info(f"Account {account_id} status is {account.status}, skipping warmup")
@@ -310,9 +315,10 @@ def schedule_daily_warmup():
     from models.account import Account
     
     with app.app_context():
-        # Get all accounts eligible for warmup (warming_up or active, not paused)
+        # Get all accounts eligible for warmup (warming_up or active, not paused, and warmup enabled)
         accounts = Account.query.filter(
-            Account.status.in_(['warming_up', 'active'])
+            Account.status.in_(['warming_up', 'active']),
+            Account.warmup_enabled == True
         ).all()
         
         scheduled = 0

@@ -22,6 +22,36 @@
         </div>
     </div>
 
+    <!-- Warmup Control Banner -->
+    <div class="row mb-3">
+        <div class="col-12">
+            {% if account.warmup_enabled %}
+            <div class="alert alert-success d-flex justify-content-between align-items-center">
+                <div>
+                    <strong>🟢 Automatic Warmup: ENABLED</strong>
+                    <br><small class="text-muted">Warmup worker will automatically run activities for this
+                        account</small>
+                </div>
+                <form action="{{ url_for('accounts.disable_warmup', account_id=account.id) }}" method="POST"
+                    class="d-inline">
+                    <button type="submit" class="btn btn-sm btn-danger">🛑 Disable Warmup</button>
+                </form>
+            </div>
+            {% else %}
+            <div class="alert alert-warning d-flex justify-content-between align-items-center">
+                <div>
+                    <strong>🔴 Automatic Warmup: DISABLED</strong>
+                    <br><small class="text-muted">No automatic warmup activities will run. Click to enable.</small>
+                </div>
+                <form action="{{ url_for('accounts.enable_warmup', account_id=account.id) }}" method="POST"
+                    class="d-inline">
+                    <button type="submit" class="btn btn-sm btn-success">✅ Enable Warmup</button>
+                </form>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
     <!-- Status Banner -->
     <div class="row mb-4">
         <div class="col-12">

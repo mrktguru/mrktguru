@@ -15,6 +15,7 @@ class Account(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_activity = db.Column(db.DateTime)
     warm_up_days_completed = db.Column(db.Integer, default=0)
+    warmup_enabled = db.Column(db.Boolean, default=False)  # Manual control for warmup activation
     messages_sent_today = db.Column(db.Integer, default=0)
     invites_sent_today = db.Column(db.Integer, default=0)
     cooldown_until = db.Column(db.DateTime)

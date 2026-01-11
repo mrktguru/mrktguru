@@ -985,3 +985,30 @@ def resume_warmup(account_id):
     
     return redirect(url_for("accounts.warmup_settings", account_id=account_id))
 
+
+
+@accounts_bp.route("/<int:account_id>/warmup/enable", methods=["POST"])
+@login_required
+def enable_warmup(account_id):
+    """Enable automatic warmup for account"""
+    account = Account.query.get_or_404(account_id)
+    
+    account.warmup_enabled = True
+    db.session.commit()
+    
+    flash("✅ Automatic warmup enabled! Worker will now run activities for this account.", "success")
+    return redirect(url_for("accounts.warmup_settings", account_id=account_id))
+
+
+@accounts_bp.route("/<int:account_id>/warmup/disable", methods=["POST"])
+@login_required
+def disable_warmup(account_id):
+    """Disable automatic warmup for account"""
+    account = Account.query.get_or_404(account_id)
+    
+    account.warmup_enabled = False
+    db.session.commit()
+    
+    flash("🛑 Automatic warmup disabled. No automatic activities will run.", "warning")
+    return redirect(url_for("accounts.warmup_settings", account_id=account_id))
+
