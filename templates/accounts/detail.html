@@ -81,6 +81,11 @@
                             {% endif %}
                         </button>
                     </form>
+
+                    <a href="{{ url_for('accounts.activity_logs', account_id=account.id) }}"
+                        class="btn btn-outline-info w-100">
+                        <i class="bi bi-list-ul"></i> View Activity Logs
+                    </a>
                 </div>
             </div>
         </div>

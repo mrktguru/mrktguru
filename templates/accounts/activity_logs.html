@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+
+{% block title %}Activity Logs - {{ account.phone }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h4 class="mb-1">
+                📋 Activity Logs
+            </h4>
+            <p class="text-muted mb-0">
+                Account: <strong>{{ account.phone }}</strong>
+                {% if account.username %}(@{{ account.username }}){% endif %}
+            </p>
+        </div>
+        <div>
+            <a href="{{ url_for('accounts.detail', account_id=account.id) }}" class="btn btn-outline-secondary">
+                ← Back to Account
+            </a>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="GET" class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label">Action Type</label>
+                    <select name="action_type" class="form-select">
+                        <option value="">All Types</option>
+                        {% for type in action_types %}
+                        <option value="{{ type }}" {% if current_filters.action_type==type %}selected{% endif %}>
+                            {{ type }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Category</label>
+                    <select name="category" class="form-select">
+                        <option value="">All Categories</option>
+                        {% for cat in categories %}
+                        <option value="{{ cat }}" {% if current_filters.category==cat %}selected{% endif %}>
+                            {{ cat }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Status</label>
+                    <select name="status" class="form-select">
+                        <option value="">All Statuses</option>
+                        <option value="success" {% if current_filters.status=='success' %}selected{% endif %}>Success
+                        </option>
+                        <option value="failed" {% if current_filters.status=='failed' %}selected{% endif %}>Failed
+                        </option>
+                        <option value="pending" {% if current_filters.status=='pending' %}selected{% endif %}>Pending
+                        </option>
+                        <option value="skipped" {% if current_filters.status=='skipped' %}selected{% endif %}>Skipped
+                        </option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Limit</label>
+                    <select name="limit" class="form-select">
+                        <option value="50" {% if current_filters.limit==50 %}selected{% endif %}>50</option>
+                        <option value="100" {% if current_filters.limit==100 %}selected{% endif %}>100</option>
+                        <option value="200" {% if current_filters.limit==200 %}selected{% endif %}>200</option>
+                        <option value="500" {% if current_filters.limit==500 %}selected{% endif %}>500</option>
+                    </select>
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary w-100">Filter</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Logs Table -->
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0">Activity History ({{ logs|length }} entries)</h5>
+        </div>
+        <div class="card-body p-0">
+            {% if logs %}
+            <div class="table-responsive">
+                <table class="table table-hover table-sm mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width: 140px;">Timestamp</th>
+                            <th style="width: 120px;">Action</th>
+                            <th style="width: 100px;">Category</th>
+                            <th style="width: 80px;">Status</th>
+                            <th>Description</th>
+                            <th style="width: 200px;">Target</th>
+                            <th style="width: 100px;">Duration</th>
+                            <th style="width: 150px;">Proxy</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for log in logs %}
+                        <tr
+                            class="{% if log.status == 'failed' %}table-danger{% elif log.status == 'success' %}{% elif log.status == 'pending' %}table-warning{% endif %}">
+                            <td>
+                                <small>{{ log.timestamp.strftime('%d.%m.%Y %H:%M:%S') }}</small>
+                            </td>
+                            <td>
+                                <span class="badge bg-secondary">{{ log.action_type }}</span>
+                            </td>
+                            <td>
+                                {% if log.action_category == 'system' %}
+                                <span class="badge bg-info">{{ log.action_category }}</span>
+                                {% elif log.action_category == 'warmup' %}
+                                <span class="badge bg-warning">{{ log.action_category }}</span>
+                                {% elif log.action_category == 'campaign' %}
+                                <span class="badge bg-primary">{{ log.action_category }}</span>
+                                {% elif log.action_category == 'manual' %}
+                                <span class="badge bg-secondary">{{ log.action_category }}</span>
+                                {% elif log.action_category == 'profile' %}
+                                <span class="badge bg-success">{{ log.action_category }}</span>
+                                {% else %}
+                                <span class="badge bg-light text-dark">{{ log.action_category }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if log.status == 'success' %}
+                                <span class="badge bg-success">✓ {{ log.status }}</span>
+                                {% elif log.status == 'failed' %}
+                                <span class="badge bg-danger">✗ {{ log.status }}</span>
+                                {% elif log.status == 'pending' %}
+                                <span class="badge bg-warning">⏳ {{ log.status }}</span>
+                                {% elif log.status == 'skipped' %}
+                                <span class="badge bg-secondary">⏭ {{ log.status }}</span>
+                                {% else %}
+                                <span class="badge bg-light text-dark">{{ log.status }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {{ log.description or '-' }}
+                                {% if log.error_message %}
+                                <br><small class="text-danger">Error: {{ log.error_message }}</small>
+                                {% endif %}
+                                {% if log.details %}
+                                <br><small class="text-muted">{{ log.details }}</small>
+                                {% endif %}
+                            </td>
+                            <td><small>{{ log.target or '-' }}</small></td>
+                            <td>
+                                {% if log.duration_ms %}
+                                <small>{{ log.duration_ms }}ms</small>
+                                {% else %}
+                                <small class="text-muted">-</small>
+                                {% endif %}
+                            </td>
+                            <td><small>{{ log.proxy_used or '-' }}</small></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center py-5">
+                <p class="text-muted mb-0">No activity logs found</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Legend -->
+    <div class="card mt-3">
+        <div class="card-body">
+            <h6>Categories:</h6>
+            <span class="badge bg-info me-2">system</span> System actions (verification, login, sync)
+            <span class="badge bg-warning me-2 ms-3">warmup</span> Warmup activities (read, react, join)
+            <span class="badge bg-primary me-2 ms-3">campaign</span> Campaign actions (DM, invites)
+            <span class="badge bg-secondary me-2 ms-3">manual</span> Manual actions
+            <span class="badge bg-success me-2 ms-3">profile</span> Profile updates
+        </div>
+    </div>
+</div>
+{% endblock %}

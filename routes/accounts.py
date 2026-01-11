@@ -1012,3 +1012,51 @@ def disable_warmup(account_id):
     flash("🛑 Automatic warmup disabled. No automatic activities will run.", "warning")
     return redirect(url_for("accounts.warmup_settings", account_id=account_id))
 
+
+
+@accounts_bp.route("/<int:account_id>/activity-logs")
+@login_required
+def activity_logs(account_id):
+    """View activity logs for account"""
+    from models.activity_log import AccountActivityLog
+    
+    account = Account.query.get_or_404(account_id)
+    
+    # Get filter parameters
+    action_type = request.args.get("action_type")
+    category = request.args.get("category")
+    status = request.args.get("status")
+    limit = int(request.args.get("limit", 100))
+    
+    # Build query
+    query = AccountActivityLog.query.filter_by(account_id=account_id)
+    
+    if action_type:
+        query = query.filter_by(action_type=action_type)
+    if category:
+        query = query.filter_by(action_category=category)
+    if status:
+        query = query.filter_by(status=status)
+    
+    # Get logs
+    logs = query.order_by(AccountActivityLog.timestamp.desc()).limit(limit).all()
+    
+    # Get unique action types and categories for filters
+    all_logs = AccountActivityLog.query.filter_by(account_id=account_id).all()
+    action_types = sorted(set(log.action_type for log in all_logs if log.action_type))
+    categories = sorted(set(log.action_category for log in all_logs if log.action_category))
+    
+    return render_template(
+        "accounts/activity_logs.html",
+        account=account,
+        logs=logs,
+        action_types=action_types,
+        categories=categories,
+        current_filters={
+            "action_type": action_type,
+            "category": category,
+            "status": status,
+            "limit": limit
+        }
+    )
+
