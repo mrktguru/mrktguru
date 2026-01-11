@@ -4,12 +4,27 @@ Celery Application Configuration
 from celery import Celery
 from celery.schedules import crontab
 import os
+import sys
+
+# Ensure project root is in python path
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+# List of modules that contain tasks
+TASK_MODULES = [
+    "workers.invite_worker",
+    "workers.dm_worker", 
+    "workers.parser_worker",
+    "workers.maintenance_workers",
+    "workers.campaign_scheduler",
+    "workers.warmup_worker"
+]
 
 # Initialize Celery
 celery = Celery(
     "telegram_system",
     broker=os.getenv("REDIS_URL", "redis://localhost:6379/0"),
-    backend=os.getenv("REDIS_URL", "redis://localhost:6379/0")
+    backend=os.getenv("REDIS_URL", "redis://localhost:6379/0"),
+    include=TASK_MODULES
 )
 
 # Configuration
@@ -92,16 +107,6 @@ celery.conf.beat_schedule = {
         "schedule": crontab(hour=0, minute=1),
     },
 }
-
-# Import tasks
-celery.autodiscover_tasks([
-    "workers.invite_worker",
-    "workers.dm_worker", 
-    "workers.parser_worker",
-    "workers.maintenance_workers",
-    "workers.campaign_scheduler",
-    "workers.warmup_worker"
-])
 
 if __name__ == "__main__":
     celery.start()

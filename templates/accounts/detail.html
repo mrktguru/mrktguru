@@ -23,21 +23,21 @@
                     <dt class="col-sm-5">Status:</dt>
                     <dd class="col-sm-7">
                         {% if account.status == 'active' %}
-                            <span class="badge bg-success">{{ account.status }}</span>
+                        <span class="badge bg-success">{{ account.status }}</span>
                         {% elif account.status == 'warming_up' %}
-                            <span class="badge bg-warning">{{ account.status }}</span>
+                        <span class="badge bg-warning">{{ account.status }}</span>
                         {% elif account.status == 'cooldown' %}
-                            <span class="badge bg-info">{{ account.status }}</span>
+                        <span class="badge bg-info">{{ account.status }}</span>
                         {% else %}
-                            <span class="badge bg-danger">{{ account.status }}</span>
+                        <span class="badge bg-danger">{{ account.status }}</span>
                         {% endif %}
                     </dd>
 
                     <dt class="col-sm-5">Health:</dt>
                     <dd class="col-sm-7">
                         <div class="progress">
-                            <div class="progress-bar {% if account.health_score >= 70 %}bg-success{% elif account.health_score >= 40 %}bg-warning{% else %}bg-danger{% endif %}" 
-                                 style="width: {{ account.health_score }}%">
+                            <div class="progress-bar {% if account.health_score >= 70 %}bg-success{% elif account.health_score >= 40 %}bg-warning{% else %}bg-danger{% endif %}"
+                                style="width: {{ account.health_score }}%">
                                 {{ account.health_score }}%
                             </div>
                         </div>
@@ -49,18 +49,18 @@
                     <dt class="col-sm-5">Last Activity:</dt>
                     <dd class="col-sm-7">
                         {% if account.last_activity %}
-                            {{ account.last_activity.strftime('%Y-%m-%d %H:%M') }}
+                        {{ account.last_activity.strftime('%Y-%m-%d %H:%M') }}
                         {% else %}
-                            <span class="text-muted">Never</span>
+                        <span class="text-muted">Never</span>
                         {% endif %}
                     </dd>
 
                     <dt class="col-sm-5">Cooldown Until:</dt>
                     <dd class="col-sm-7">
                         {% if account.cooldown_until %}
-                            {{ account.cooldown_until.strftime('%Y-%m-%d %H:%M') }}
+                        {{ account.cooldown_until.strftime('%Y-%m-%d %H:%M') }}
                         {% else %}
-                            <span class="text-muted">-</span>
+                        <span class="text-muted">-</span>
                         {% endif %}
                     </dd>
                 </dl>
@@ -95,89 +95,94 @@
 
         <div class="card mb-3">
             <div class="card-header">
-        <!-- Telegram User Info Card - Insert after Account Status card -->
-        <div class="card mb-3">
-            <div class="card-header">
-                <h5 class="mb-0"><i class="bi bi-telegram"></i> Telegram User Info</h5>
-            </div>
-            <div class="card-body">
-                {% if account.telegram_id %}
-                    <div class="row mb-3">
-                        <div class="col-md-4 text-center">
-                            {% if account.photo_url and account.photo_url != "photo_available" %}
-                                <img src="/{{ account.photo_url }}" 
-                                     class="rounded-circle mb-2" width="100" height="100" style="object-fit: cover;">
-                            {% else %}
-                                <div class="bg-secondary rounded-circle d-inline-flex align-items-center justify-content-center" 
-                                     style="width: 100px; height: 100px;">
+                <!-- Telegram User Info Card - Insert after Account Status card -->
+                <div class="card mb-3">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="bi bi-telegram"></i> Telegram User Info</h5>
+                    </div>
+                    <div class="card-body">
+                        {% if account.telegram_id %}
+                        <div class="row mb-3">
+                            <div class="col-md-4 text-center">
+                                {% if account.photo_url and account.photo_url != "photo_available" %}
+                                <img src="/{{ account.photo_url }}" class="rounded-circle mb-2" width="100" height="100"
+                                    style="object-fit: cover;">
+                                {% else %}
+                                <div class="bg-secondary rounded-circle d-inline-flex align-items-center justify-content-center"
+                                    style="width: 100px; height: 100px;">
                                     <i class="bi bi-person-fill text-white" style="font-size: 3rem;"></i>
                                 </div>
-                            {% endif %}
-                        </div>
-                        <div class="col-md-8">
-                            <dl class="row mb-0">
-                                <dt class="col-sm-4">ID:</dt>
-                                <dd class="col-sm-8"><code>{{ account.telegram_id }}</code></dd>
-                                
-                                <dt class="col-sm-4">Name:</dt>
-                                <dd class="col-sm-8">
-                                    {{ account.first_name }}
-                                    {% if account.last_name %}{{ account.last_name }}{% endif %}
-                                </dd>
-                                
-                                <dt class="col-sm-4">Username:</dt>
-                                <dd class="col-sm-8">
-                                    {% if account.username %}
+                                {% endif %}
+                            </div>
+                            <div class="col-md-8">
+                                <dl class="row mb-0">
+                                    <dt class="col-sm-4">ID:</dt>
+                                    <dd class="col-sm-8"><code>{{ account.telegram_id }}</code></dd>
+
+                                    <dt class="col-sm-4">Name:</dt>
+                                    <dd class="col-sm-8">
+                                        {{ account.first_name }}
+                                        {% if account.last_name %}{{ account.last_name }}{% endif %}
+                                    </dd>
+
+                                    <dt class="col-sm-4">Username:</dt>
+                                    <dd class="col-sm-8">
+                                        {% if account.username %}
                                         @{{ account.username }}
-                                    {% else %}
+                                        {% else %}
                                         <span class="text-muted">No username</span>
-                                    {% endif %}
-                                </dd>
-                                
-                                <dt class="col-sm-4">Bio:</dt>
-                                <dd class="col-sm-8">
-                                    {% if account.bio %}
+                                        {% endif %}
+                                    </dd>
+
+                                    <dt class="col-sm-4">Bio:</dt>
+                                    <dd class="col-sm-8">
+                                        {% if account.bio %}
                                         {{ account.bio }}
-                                    {% else %}
+                                        {% else %}
                                         <span class="text-muted">No bio</span>
-                                    {% endif %}
-                                </dd>
-                            </dl>
+                                        {% endif %}
+                                    </dd>
+                                </dl>
+                            </div>
                         </div>
+
+                        <!-- Edit Profile Form -->
+                        <button class="btn btn-sm btn-outline-primary" data-bs-toggle="collapse"
+                            data-bs-target="#editProfile">
+                            <i class="bi bi-pencil"></i> Edit Profile
+                        </button>
+
+                        <div class="collapse mt-3" id="editProfile">
+                            <form method="POST" action="{{ url_for(" accounts.update_profile", account_id=account.id)
+                                }}" enctype="multipart/form-data">
+                                <div class="mb-2">
+                                    <label class="form-label">Username</label>
+                                    <input type="text" name="username" class="form-control"
+                                        value="{{ account.username or "" }}" placeholder="username (without @)">
+                                    <small class="text-muted">Enter without @ symbol</small>
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label">Bio</label>
+                                    <textarea name="bio" class="form-control" rows="3"
+                                        placeholder="About me">{{ account.bio or "" }}</textarea>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Profile Photo</label>
+                                    <input type="file" name="photo" class="form-control" accept="image/*">
+                                </div>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="bi bi-save"></i> Save Changes
+                                </button>
+                            </form>
+                        </div>
+                        {% else %}
+                        <div class="alert alert-info mb-0">
+                            <i class="bi bi-info-circle"></i> Click "Verify Session" button above to load Telegram user
+                            info
+                        </div>
+                        {% endif %}
                     </div>
-                    
-                    <!-- Edit Profile Form -->
-                    <button class="btn btn-sm btn-outline-primary" data-bs-toggle="collapse" data-bs-target="#editProfile">
-                        <i class="bi bi-pencil"></i> Edit Profile
-                    </button>
-                    
-                    <div class="collapse mt-3" id="editProfile">
-                        <form method="POST" action="{{ url_for("accounts.update_profile", account_id=account.id) }}" enctype="multipart/form-data">
-                            <div class="mb-2">
-                                <label class="form-label">Username</label>
-                                <input type="text" name="username" class="form-control" value="{{ account.username or "" }}" placeholder="username (without @)">
-                                <small class="text-muted">Enter without @ symbol</small>
-                            </div>
-                            <div class="mb-2">
-                                <label class="form-label">Bio</label>
-                                <textarea name="bio" class="form-control" rows="3" placeholder="About me">{{ account.bio or "" }}</textarea>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Profile Photo</label>
-                                <input type="file" name="photo" class="form-control" accept="image/*">
-                            </div>
-                            <button type="submit" class="btn btn-primary">
-                                <i class="bi bi-save"></i> Save Changes
-                            </button>
-                        </form>
-                    </div>
-                {% else %}
-                    <div class="alert alert-info mb-0">
-                        <i class="bi bi-info-circle"></i> Click "Verify Session" button above to load Telegram user info
-                    </div>
-                {% endif %}
-            </div>
-        </div>
+                </div>
 
                 <h5 class="mb-0">Warm-up Progress</h5>
             </div>
@@ -187,13 +192,12 @@
                         {{ account.warm_up_days_completed }}/7 days
                     </div>
                 </div>
-                {% if account.warm_up_days_completed < 7 %}
-                    <small class="text-muted">
-                        {{ 7 - account.warm_up_days_completed }} days remaining
+                {% if account.warm_up_days_completed < 7 %} <small class="text-muted">
+                    {{ 7 - account.warm_up_days_completed }} days remaining
                     </small>
-                {% else %}
+                    {% else %}
                     <small class="text-success">✓ Warm-up completed</small>
-                {% endif %}
+                    {% endif %}
             </div>
         </div>
     </div>
@@ -216,7 +220,8 @@
                     <dd class="col-sm-8">{{ account.device_profile.app_version }}</dd>
 
                     <dt class="col-sm-4">Language:</dt>
-                    <dd class="col-sm-8">{{ account.device_profile.lang_code }} / {{ account.device_profile.system_lang_code }}</dd>
+                    <dd class="col-sm-8">{{ account.device_profile.lang_code }} / {{
+                        account.device_profile.system_lang_code }}</dd>
                 </dl>
                 {% else %}
                 <p class="text-muted">No device profile</p>
@@ -235,7 +240,7 @@
                             <select class="form-select" name="proxy_id">
                                 <option value="">No proxy</option>
                                 {% for proxy in proxies %}
-                                <option value="{{ proxy.id }}" {% if account.proxy_id == proxy.id %}selected{% endif %}>
+                                <option value="{{ proxy.id }}" {% if account.proxy_id==proxy.id %}selected{% endif %}>
                                     {{ proxy.type }}://{{ proxy.host }}:{{ proxy.port }}
                                     {% if proxy.current_ip %}({{ proxy.current_ip }}){% endif %}
                                 </option>
@@ -290,13 +295,15 @@
                                 <td><span class="badge bg-secondary">{{ sub.subscription_source }}</span></td>
                                 <td>
                                     {% if sub.is_active %}
-                                        <span class="badge bg-success">Active</span>
+                                    <span class="badge bg-success">Active</span>
                                     {% else %}
-                                        <span class="badge bg-secondary">Inactive</span>
+                                    <span class="badge bg-secondary">Inactive</span>
                                     {% endif %}
                                 </td>
                                 <td>
-                                    <form method="POST" action="{{ url_for('accounts.remove_subscription', account_id=account.id, sub_id=sub.id) }}" style="display: inline;">
+                                    <form method="POST"
+                                        action="{{ url_for('accounts.remove_subscription', account_id=account.id, sub_id=sub.id) }}"
+                                        style="display: inline;">
                                         <button type="submit" class="btn btn-sm btn-outline-danger">
                                             <i class="bi bi-trash"></i>
                                         </button>
@@ -313,14 +320,100 @@
             </div>
         </div>
 
+        <!-- Conversation Pairs (Warmup) -->
+        <div class="card mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center bg-success text-white">
+                <h5 class="mb-0">💬 Conversation Pairs</h5>
+                <button class="btn btn-sm btn-light" data-bs-toggle="modal" data-bs-target="#addPairModal">
+                    <i class="bi bi-plus"></i> Add Pair
+                </button>
+            </div>
+            <div class="card-body">
+                {% if conversation_partners %}
+                <div class="list-group list-group-flush">
+                    {% for pair in conversation_partners %}
+                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>{{ pair.partner.phone }}</strong>
+                            {% if pair.partner.username %}
+                            <span class="text-muted">(@{{ pair.partner.username }})</span>
+                            {% endif %}
+                            <br>
+                            <small class="text-muted">
+                                Conversations: {{ pair.conversation_count }}
+                                {% if pair.last_conversation %}
+                                | Last: {{ pair.last_conversation.strftime('%d.%m %H:%M') }}
+                                {% endif %}
+                            </small>
+                        </div>
+                        <form
+                            action="{{ url_for('accounts.remove_conversation_pair', account_id=account.id, pair_id=pair.pair_id) }}"
+                            method="POST">
+                            <button type="submit" class="btn btn-sm btn-outline-danger">×</button>
+                        </form>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-muted mb-0">No conversation pairs. Add pairs for warmup messaging between accounts.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Recent Warmup Activity -->
+        {% if recent_activities %}
+        <div class="card mb-3">
+            <div class="card-header">
+                <h5 class="mb-0">📊 Recent Warmup Activity</h5>
+            </div>
+            <div class="card-body" style="max-height: 200px; overflow-y: auto;">
+                <table class="table table-sm table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>Time</th>
+                            <th>Action</th>
+                            <th>Target</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for activity in recent_activities %}
+                        <tr>
+                            <td><small>{{ activity.timestamp.strftime('%d.%m %H:%M') }}</small></td>
+                            <td>
+                                {% if activity.action_type == 'read_posts' %}📖
+                                {% elif activity.action_type == 'react' %}👍
+                                {% elif activity.action_type == 'conversation' %}💬
+                                {% elif activity.action_type == 'conversation_reply' %}↩️
+                                {% else %}⚡{% endif %}
+                                {{ activity.action_type }}
+                            </td>
+                            <td><small>{{ activity.target or '-' }}</small></td>
+                            <td>
+                                {% if activity.status == 'success' %}
+                                <span class="badge bg-success">OK</span>
+                                {% elif activity.status == 'failed' %}
+                                <span class="badge bg-danger">Fail</span>
+                                {% else %}
+                                <span class="badge bg-secondary">{{ activity.status }}</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+
         <div class="card">
             <div class="card-header bg-danger text-white">
                 <h5 class="mb-0">Danger Zone</h5>
             </div>
             <div class="card-body">
                 <p>Once you delete an account, there is no going back. The session file will also be removed.</p>
-                <form method="POST" action="{{ url_for('accounts.delete', account_id=account.id) }}" 
-                      onsubmit="return confirm('Are you sure you want to delete this account? This action cannot be undone.')">
+                <form method="POST" action="{{ url_for('accounts.delete', account_id=account.id) }}"
+                    onsubmit="return confirm('Are you sure you want to delete this account? This action cannot be undone.')">
                     <button type="submit" class="btn btn-danger">
                         <i class="bi bi-trash"></i> Delete Account
                     </button>
@@ -342,8 +435,8 @@
                 <div class="modal-body">
                     <div class="mb-3">
                         <label for="channel_username" class="form-label">Channel Username</label>
-                        <input type="text" class="form-control" id="channel_username" name="channel_username" 
-                               placeholder="username or @username" required>
+                        <input type="text" class="form-control" id="channel_username" name="channel_username"
+                            placeholder="username or @username" required>
                     </div>
                     <div class="mb-3">
                         <label for="notes" class="form-label">Notes (optional)</label>
@@ -353,6 +446,40 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                     <button type="submit" class="btn btn-primary">Add Subscription</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Add Pair Modal -->
+<div class="modal fade" id="addPairModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Add Conversation Pair</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('accounts.add_conversation_pair', account_id=account.id) }}">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="partner_id" class="form-label">Select Partner Account</label>
+                        <select class="form-select" id="partner_id" name="partner_id" required>
+                            <option value="">Choose an account...</option>
+                            {% for other in other_accounts %}
+                            <option value="{{ other.id }}">
+                                {{ other.phone }}
+                                {% if other.username %}(@{{ other.username }}){% endif %}
+                                [{{ other.status }}]
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">Both accounts must be in 'warming_up' or 'active' status.</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Create Pair</button>
                 </div>
             </form>
         </div>

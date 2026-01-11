@@ -46,8 +46,8 @@ def run_warmup_activity(self, account_id):
         account_id: Account ID to run warmup for
     """
     from app import app
-    from models.account import Account
-    from models.warmup import WarmupActivity, AccountWarmupChannel, ConversationPair
+    from models.account import Account, AccountSubscription
+    from models.warmup import WarmupActivity, ConversationPair
     from utils.telethon_helper import (
         read_channel_posts,
         react_to_post,
@@ -75,8 +75,8 @@ def run_warmup_activity(self, account_id):
         
         actions_performed = []
         
-        # Get warmup channels for this account
-        warmup_channels = AccountWarmupChannel.query.filter_by(
+        # Get warmup channels (using AccountSubscription)
+        warmup_channels = AccountSubscription.query.filter_by(
             account_id=account_id,
             is_active=True
         ).all()
@@ -161,8 +161,8 @@ def run_warmup_activity(self, account_id):
                         'status': 'success' if react_result['success'] else 'failed'
                     })
                 
-                # Update last read timestamp
-                channel_record.last_read_at = datetime.utcnow()
+                # Update last read timestamp - skipping for Subscription model for now
+                pass
                 
             except Exception as e:
                 logger.error(f"Error reading channel {channel}: {e}")
