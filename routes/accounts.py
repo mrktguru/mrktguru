@@ -8,6 +8,7 @@ from utils.telethon_helper import verify_session
 import os
 from werkzeug.utils import secure_filename
 import asyncio
+import random
 
 import nest_asyncio
 nest_asyncio.apply()
@@ -201,66 +202,98 @@ def verify(account_id):
                 if hasattr(me, "photo") and me.photo:
                     account.photo_url = "photo_available"
             
+            # Add delay after getting user info (human-like behavior)
+            await asyncio.sleep(random.uniform(1.5, 3.0))
+            
             # Get existing subscriptions from Telegram
+            # IMPORTANT: Skip for new accounts to avoid spam detection
             try:
                 from telethon.tl.types import Channel
                 
-                dialogs = await client.get_dialogs()
-                
-                for dialog in dialogs:
-                    entity = dialog.entity
+                # Only import dialogs if account has previous activity
+                # For new accounts, this is too aggressive and can trigger bans
+                if account.status not in [None, 'new', 'error']:
+                    print(f"📥 Importing existing dialogs for account {account_id}")
+                    dialogs = await client.get_dialogs()
                     
-                    # Check if it is a channel or megagroup
-                    if isinstance(entity, Channel):
-                        channel_username = getattr(entity, "username", None)
-                        channel_title = getattr(entity, "title", "Unknown")
+                    for dialog in dialogs:
+                        entity = dialog.entity
                         
-                        if not channel_username:
-                            continue
-                        
-                        # Check if already in our database
-                        existing = AccountSubscription.query.filter_by(
-                            account_id=account_id,
-                            channel_username=channel_username
-                        ).first()
-                        
-                        if not existing:
-                            # Add to subscriptions
-                            subscription = AccountSubscription(
+                        # Check if it is a channel or megagroup
+                        if isinstance(entity, Channel):
+                            channel_username = getattr(entity, "username", None)
+                            channel_title = getattr(entity, "title", "Unknown")
+                            
+                            if not channel_username:
+                                continue
+                            
+                            # Check if already in our database
+                            existing = AccountSubscription.query.filter_by(
                                 account_id=account_id,
-                                channel_username=channel_username,
-                                status="active",
-                                subscription_source="imported",
-                                notes=f"Auto-imported: {channel_title}"
-                            )
-                            db.session.add(subscription)
-                            subscriptions_found += 1
+                                channel_username=channel_username
+                            ).first()
+                            
+                            if not existing:
+                                # Add to subscriptions
+                                subscription = AccountSubscription(
+                                    account_id=account_id,
+                                    channel_username=channel_username,
+                                    status="active",
+                                    subscription_source="imported",
+                                    notes=f"Auto-imported: {channel_title}"
+                                )
+                                db.session.add(subscription)
+                                subscriptions_found += 1
+                else:
+                    print(f"⏭️  Skipping dialog import for new account {account_id} (anti-ban measure)")
                             
             except Exception as subs_err:
                 print(f"Error fetching subscriptions: {subs_err}")
             
+            # Add delay before spam-block test
+            await asyncio.sleep(random.uniform(2.0, 4.0))
+            
             # Check if account can access channels (spam-block test)
-            can_access_channels = False
-            try:
-                # Try to find a known public CHANNEL (not user profile)
-                # Using @telegram channel as test
-                test_entity = await client.get_entity("@telegram")
-                # Also check if it is actually a channel
-                from telethon.tl.types import Channel
-                if isinstance(test_entity, Channel):
-                    can_access_channels = True
-            except Exception as test_err:
-                # If cannot find @telegram, account is spam-blocked
-                print(f"Spam-block test failed: {test_err}")
-                pass
+            # Skip for brand new accounts to avoid triggering spam detection
+            can_access_channels = True  # Assume OK for new accounts
+            skip_spam_test = account.status in [None, 'new', 'error']
+            
+            if not skip_spam_test:
+                can_access_channels = False
+                try:
+                    # Try to find a known public CHANNEL (not user profile)
+                    # Using @telegram channel as test
+                    print(f"🔍 Running spam-block test for account {account_id}")
+                    test_entity = await client.get_entity("@telegram")
+                    # Also check if it is actually a channel
+                    from telethon.tl.types import Channel
+                    if isinstance(test_entity, Channel):
+                        can_access_channels = True
+                        print(f"✅ Spam-block test passed for account {account_id}")
+                except Exception as test_err:
+                    # If cannot find @telegram, account is spam-blocked
+                    print(f"❌ Spam-block test failed for account {account_id}: {test_err}")
+                    pass
+            else:
+                print(f"⏭️  Skipping spam-block test for new account {account_id} (anti-ban measure)")
             
             if not can_access_channels:
                 account.status = "spam-block"
                 account.health_score = 30
                 account.notes = "WARNING: Account cannot search/join channels. Possible spam-block."
             else:
-                account.status = "active"
-                account.health_score = 100
+                # Set appropriate status based on account state
+                if account.status in [None, 'new', 'error']:
+                    # New account - start with warming_up phase
+                    account.status = "warming_up"
+                    account.health_score = 70
+                    account.warm_up_days_completed = 0
+                    print(f"🔥 Account {account_id} set to warming_up status")
+                else:
+                    # Re-verification of existing account - keep it active
+                    account.status = "active"
+                    account.health_score = 100
+                    print(f"✅ Account {account_id} re-verified, status: active")
             
             return True, account.first_name, account.username or "no username", subscriptions_found
             

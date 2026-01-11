@@ -46,6 +46,7 @@ def get_telethon_client(account_id, proxy=None):
             "username": account.proxy.username,
             "password": account.proxy.password,
         }
+        print(f"✅ Using proxy for account {account_id}: {account.proxy.host}:{account.proxy.port} (type: {account.proxy.type})")
     
     # Create client
     client = TelegramClient(
