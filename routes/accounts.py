@@ -303,6 +303,100 @@ def verify(account_id):
     return redirect(url_for("accounts.detail", account_id=account_id))
 
 
+@accounts_bp.route("/<int:account_id>/sync-from-telegram", methods=["POST"])
+@login_required
+def sync_from_telegram(account_id):
+    """Sync profile data from Telegram (with rate limiting)"""
+    from utils.telethon_helper import get_telethon_client
+    from datetime import datetime, timedelta
+    import asyncio
+    
+    account = Account.query.get_or_404(account_id)
+    
+    # Check cooldown (5 minutes)
+    COOLDOWN_MINUTES = 5
+    if account.last_sync_at:
+        time_since_sync = datetime.utcnow() - account.last_sync_at
+        if time_since_sync < timedelta(minutes=COOLDOWN_MINUTES):
+            remaining = COOLDOWN_MINUTES - int(time_since_sync.total_seconds() / 60)
+            flash(f"⏱️ Please wait {remaining} more minute(s) before syncing again (cooldown: {COOLDOWN_MINUTES} min)", "warning")
+            return redirect(url_for("accounts.detail", account_id=account_id))
+    
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    
+    async def sync_profile():
+        client = None
+        try:
+            client = get_telethon_client(account_id)
+            await client.connect()
+            
+            # Get user info
+            me = await client.get_me()
+            
+            # Update fields
+            account.telegram_id = me.id if hasattr(me, "id") else account.telegram_id
+            account.first_name = getattr(me, "first_name", None) or account.first_name
+            account.last_name = getattr(me, "last_name", None)
+            account.username = getattr(me, "username", None)
+            
+            # Get bio (about)
+            try:
+                full_user = await client.get_entity(me)
+                if hasattr(full_user, 'about'):
+                    account.bio = full_user.about
+            except:
+                pass
+            
+            # Try to download profile photo
+            try:
+                if hasattr(me, "photo") and me.photo:
+                    photo_path = f"uploads/photos/{account.phone}_profile.jpg"
+                    os.makedirs("uploads/photos", exist_ok=True)
+                    await client.download_profile_photo(me, file=photo_path)
+                    account.photo_url = photo_path
+            except Exception as photo_err:
+                if hasattr(me, "photo") and me.photo:
+                    account.photo_url = "photo_available"
+            
+            # Update sync timestamp
+            account.last_sync_at = datetime.utcnow()
+            
+            return True, account.first_name
+            
+        except Exception as e:
+            return False, str(e)
+            
+        finally:
+            if client and client.is_connected():
+                await client.disconnect()
+                await asyncio.sleep(0.1)
+    
+    try:
+        success, info = loop.run_until_complete(sync_profile())
+        db.session.commit()
+        
+        if success:
+            flash(f"✅ Profile synced from Telegram: {info}", "success")
+        else:
+            flash(f"❌ Sync failed: {info}", "error")
+            
+    except Exception as e:
+        flash(f"Error: {str(e)}", "error")
+    finally:
+        pending = asyncio.all_tasks(loop)
+        for task in pending:
+            task.cancel()
+        try:
+            loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+        except:
+            pass
+        loop.close()
+    
+    return redirect(url_for("accounts.detail", account_id=account_id))
+
+
+
 @accounts_bp.route("/<int:account_id>/delete", methods=["POST"])
 @login_required
 def delete(account_id):
@@ -325,6 +419,11 @@ def delete(account_id):
         
         # Delete DM messages
         db.session.execute(db.text("DELETE FROM dm_messages WHERE account_id = :aid"), {"aid": account_id})
+        
+        # Delete warmup-related records
+        db.session.execute(db.text("DELETE FROM account_warmup_channels WHERE account_id = :aid"), {"aid": account_id})
+        db.session.execute(db.text("DELETE FROM warmup_activities WHERE account_id = :aid"), {"aid": account_id})
+        db.session.execute(db.text("DELETE FROM conversation_pairs WHERE account_a_id = :aid OR account_b_id = :aid"), {"aid": account_id})
         
         # Delete session file and journal if exist
         if os.path.exists(account.session_file_path):
