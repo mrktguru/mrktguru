@@ -512,16 +512,17 @@ def remove_subscription(account_id, sub_id):
 @login_required
 def update_profile(account_id):
     """Update editable profile fields"""
+    from utils.telethon_helper import update_telegram_profile, update_telegram_photo
+    import asyncio
+    
     account = Account.query.get_or_404(account_id)
     
-    # Update editable fields
-    if "username" in request.form:
-        account.username = request.form["username"].strip().lstrip("@")
+    # Collect updates
+    username = request.form.get("username", "").strip().lstrip("@") if "username" in request.form else None
+    bio = request.form.get("bio", "").strip() if "bio" in request.form else None
     
-    if "bio" in request.form:
-        account.bio = request.form["bio"].strip()
-    
-    # Handle photo upload
+    # Handle photo upload first (save locally)
+    photo_file = None
     if "photo" in request.files:
         photo = request.files["photo"]
         if photo and photo.filename:
@@ -529,10 +530,61 @@ def update_profile(account_id):
             photo_path = os.path.join("uploads/photos", filename)
             os.makedirs("uploads/photos", exist_ok=True)
             photo.save(photo_path)
-            account.photo_url = photo_path
+            photo_file = photo_path
     
-    db.session.commit()
-    flash("Profile updated successfully", "success")
+    # Create new event loop for async operations
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    
+    try:
+        # Update profile info (username, bio)
+        if username or bio:
+            result = loop.run_until_complete(update_telegram_profile(
+                account_id,
+                username=username if username else None,
+                bio=bio if bio else None
+            ))
+            
+            if not result['success']:
+                flash(f"Failed to update Telegram profile: {result['error']}", "error")
+                return redirect(url_for("accounts.detail", account_id=account_id))
+            
+            # Update local database only if Telegram update succeeded
+            if username:
+                account.username = username
+            if bio:
+                account.bio = bio
+            
+            flash(f"Profile updated in Telegram: {', '.join(result['updated_fields'])}", "success")
+        
+        # Update photo
+        if photo_file:
+            photo_result = loop.run_until_complete(update_telegram_photo(
+                account_id,
+                photo_file
+            ))
+            
+            if photo_result['success']:
+                account.photo_url = photo_file
+                flash("Profile photo updated in Telegram", "success")
+            else:
+                flash(f"Failed to update photo: {photo_result['error']}", "error")
+        
+        db.session.commit()
+        
+    except Exception as e:
+        flash(f"Error updating profile: {str(e)}", "error")
+    finally:
+        # Cleanup event loop
+        pending = asyncio.all_tasks(loop)
+        for task in pending:
+            task.cancel()
+        try:
+            loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+        except:
+            pass
+        loop.close()
+    
     return redirect(url_for("accounts.detail", account_id=account_id))
 
 

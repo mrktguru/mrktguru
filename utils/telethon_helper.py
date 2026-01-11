@@ -637,3 +637,92 @@ async def send_conversation_message(account_id, target_account_id, message_text)
         if client and client.is_connected():
             await client.disconnect()
 
+
+async def update_telegram_profile(account_id, username=None, bio=None, first_name=None, last_name=None):
+    """
+    Update Telegram profile information
+    
+    Args:
+        account_id: Account ID
+        username: New username (without @)
+        bio: New bio/about text
+        first_name: New first name
+        last_name: New last name
+    
+    Returns:
+        dict: {success, updated_fields, error}
+    """
+    from telethon.tl.functions.account import UpdateProfileRequest, UpdateUsernameRequest
+    
+    client = None
+    updated_fields = []
+    
+    try:
+        client = get_telethon_client(account_id)
+        await client.connect()
+        
+        # Update username (separate request)
+        if username is not None:
+            try:
+                await client(UpdateUsernameRequest(username=username))
+                updated_fields.append('username')
+            except Exception as e:
+                error_msg = str(e)
+                if "USERNAME_OCCUPIED" in error_msg:
+                    return {"success": False, "updated_fields": [], "error": "Username already taken"}
+                elif "USERNAME_INVALID" in error_msg:
+                    return {"success": False, "updated_fields": [], "error": "Invalid username format"}
+                raise
+        
+        # Update profile (first_name, last_name, bio)
+        profile_updates = {}
+        if first_name is not None:
+            profile_updates['first_name'] = first_name
+        if last_name is not None:
+            profile_updates['last_name'] = last_name
+        if bio is not None:
+            profile_updates['about'] = bio
+        
+        if profile_updates:
+            await client(UpdateProfileRequest(**profile_updates))
+            updated_fields.extend(profile_updates.keys())
+        
+        return {"success": True, "updated_fields": updated_fields, "error": None}
+        
+    except Exception as e:
+        return {"success": False, "updated_fields": updated_fields, "error": str(e)}
+    finally:
+        if client and client.is_connected():
+            await client.disconnect()
+
+
+async def update_telegram_photo(account_id, photo_path):
+    """
+    Update Telegram profile photo
+    
+    Args:
+        account_id: Account ID
+        photo_path: Path to photo file
+    
+    Returns:
+        dict: {success, error}
+    """
+    from telethon.tl.functions.photos import UploadProfilePhotoRequest
+    
+    client = None
+    try:
+        client = get_telethon_client(account_id)
+        await client.connect()
+        
+        # Upload photo
+        file = await client.upload_file(photo_path)
+        await client(UploadProfilePhotoRequest(file=file))
+        
+        return {"success": True, "error": None}
+        
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+    finally:
+        if client and client.is_connected():
+            await client.disconnect()
+
