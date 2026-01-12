@@ -189,25 +189,6 @@ def upload():
                 
                 # 🧹 Clean session file (Anti-Ban)
                 # Removes "Telethon" traces and sets correct device info in SQLite
-                print(f"DEBUG: Attempting to clean session file: {final_path} with profile {device}", flush=True)
-                try:
-                    cleaned = validator.clean_session_file(final_path, device)
-                    print(f"DEBUG: Session cleaning result: {cleaned}", flush=True)
-                    if cleaned:
-                        logger.log(
-                            action_type='clean_session',
-                            status='success',
-                            description='Session file signatures cleaned',
-                            details=f"Device: {device['device_model']} ({device.get('client_type', 'unknown')})",
-                            category='system'
-                        )
-                    else:
-                        print("DEBUG: Clean session returned False", flush=True)
-                except Exception as clean_err:
-                    print(f"Warning: Failed to clean session file: {clean_err}", flush=True)
-                    import traceback
-                    traceback.print_exc()
-                
                 # 📝 Log upload
                 logger = ActivityLogger(account.id)
                 logger.log(
@@ -217,6 +198,21 @@ def upload():
                     details=f"File: {filename}, Size: {validation['size']} bytes, Age: {metadata.get('estimated_age', 'unknown')}",
                     category='system'
                 )
+                
+                # 🧹 Clean session file (Anti-Ban)
+                # Removes "Telethon" traces and sets correct device info in SQLite
+                try:
+                    cleaned = validator.clean_session_file(final_path, device)
+                    if cleaned:
+                        logger.log(
+                            action_type='clean_session',
+                            status='success',
+                            description='Session file signatures cleaned',
+                            details=f"Device: {device['device_model']} ({device.get('client_type', 'unknown')})",
+                            category='system'
+                        )
+                except Exception as clean_err:
+                    print(f"Warning: Failed to clean session file: {clean_err}")
                 
                 # 📝 Log proxy assignment if assigned
                 if assigned_proxy_id:
