@@ -41,6 +41,8 @@ def list_accounts():
 @login_required
 def upload():
     """Upload session files"""
+    from models.proxy import Proxy  # Import at top for both GET and POST
+    
     if request.method == "POST":
         from utils.activity_logger import ActivityLogger
         
@@ -55,7 +57,6 @@ def upload():
         specific_proxy_id = request.form.get("specific_proxy")
         
         # Get available proxies for round-robin/random
-        from models.proxy import Proxy
         available_proxies = Proxy.query.filter_by(status='active').all()
         proxy_index = 0  # For round-robin
         
