@@ -82,20 +82,53 @@ async def connect_client(account_id):
 
 async def verify_session(account_id):
     """
-    Verify that session is valid
+    Verify that session is valid using safe strategy
     
     Returns:
-        dict: {"success": bool, "user": User object or None, "error": str}
+        dict: {"success": bool, "user": dict, "error": str, "wait": int}
     """
+    from telethon.errors import FloodWaitError
+    from models.account import Account
+    from database import db
+    import asyncio
+    import random
+    import os
+    
     client = None
     try:
         client = get_telethon_client(account_id)
         await client.connect()
+        
+        # Step 1: minimal verification
         me = await client.get_me()
+        
+        user_data = {
+            "id": me.id,
+            "first_name": me.first_name,
+            "last_name": me.last_name,
+            "username": me.username,
+            "photo": False
+        }
+        
+        # Basic photo check
+        if hasattr(me, "photo") and me.photo:
+            user_data["photo"] = True
+            
+        # Random delay for safety
+        await asyncio.sleep(random.uniform(2, 5))
+        
         return {
             "success": True,
-            "user": me,
+            "user": user_data,
             "error": None
+        }
+        
+    except FloodWaitError as e:
+        return {
+            "success": False,
+            "user": None,
+            "error": f"FloodWait: {e.seconds}s",
+            "wait": e.seconds
         }
     except Exception as e:
         return {

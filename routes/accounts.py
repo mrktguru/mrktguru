@@ -294,13 +294,9 @@ def detail(account_id):
 @login_required
 def verify(account_id):
     """Verify account safe strategy"""
-    from utils.telethon_helper import get_telethon_client
     from utils.activity_logger import ActivityLogger
-    from telethon.errors import FloodWaitError
     from datetime import datetime
     import asyncio
-    import random
-    import json
     
     account = Account.query.get_or_404(account_id)
     
@@ -321,83 +317,64 @@ def verify(account_id):
         db.session.rollback()
     
     logger = ActivityLogger(account_id)
+    
+    # Log start
     logger.log(
         action_type='verification_start',
         status='pending',
         description='Starting risk-based verification',
         category='system'
     )
-    
-    # Determine strategy based on age
-    age_category = 'new'
-    if hasattr(account, 'session_metadata') and account.session_metadata:
-        try:
-            meta = json.loads(account.session_metadata) if isinstance(account.session_metadata, str) else account.session_metadata
-            if isinstance(meta, dict):
-                age_category = meta.get('estimated_age', 'new')
-        except:
-            pass
             
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     
-    async def safe_verify():
-        client = None
-        try:
-            client = get_telethon_client(account_id)
-            await client.connect()
-            
-            # Step 1: minimal verification
-            me = await client.get_me()
-            account.telegram_id = me.id
-            account.first_name = me.first_name
-            account.last_name = me.last_name
-            account.username = me.username
+    try:
+        # Run verification in helper
+        from utils.telethon_helper import verify_session
+        result = loop.run_until_complete(verify_session(account_id))
+        
+        if result['success']:
+            # Update account info
+            user = result['user']
+            account.telegram_id = user['id']
+            account.first_name = user['first_name']
+            account.last_name = user['last_name']
+            account.username = user['username']
             account.status = 'active'
             
-            # Basic photo check (no download yet for new accounts)
-            if hasattr(me, "photo") and me.photo:
+            if user['photo']:
                 account.photo_url = "photo_available"
-            
-            # Random delay
-            await asyncio.sleep(random.uniform(2, 5))
-            
-            return {"success": True}
-            
-        except FloodWaitError as e:
-            return {"success": False, "error": f"FloodWait: {e.seconds}s", "wait": e.seconds}
-        except Exception as e:
-            return {"success": False, "error": str(e)}
-        finally:
-            if client and client.is_connected():
-                await client.disconnect()
                 
-    # Run loop
-    try:
-        result = loop.run_until_complete(safe_verify())
+            if hasattr(Account, 'verified'):
+                try:
+                    account.verified = True
+                except:
+                    pass
+            
+            db.session.commit()
+            flash("Account verified successfully", "success")
+            logger.log(action_type='verification_success', status='success', description='Verification passed, active status set')
+            
+        else:
+            # Handle failure
+            if "FloodWait" in str(result.get('error')):
+                account.status = 'flood_wait'
+                wait_time = result.get('wait', 0)
+                flash(f"Telegram FloodWait limit. Please wait {wait_time} seconds.", "error")
+                logger.log(action_type='verification_failed', status='error', description=f"FloodWait: {wait_time}s", category='system')
+            else:
+                account.status = 'error'
+                flash(f"Verification failed: {result.get('error')}", "error")
+                logger.log(action_type='verification_failed', status='error', description=f"Error: {result.get('error')}", category='system')
+            
+            db.session.commit()
+            
+    except Exception as e:
+        flash(f"System Error: {str(e)}", "error")
+        logger.log(action_type='verification_error', status='error', description=f"System Error: {str(e)}", category='system')
     finally:
         loop.close()
-    
-    if result['success']:
-        if hasattr(Account, 'verified'):
-            try:
-                account.verified = True
-            except:
-                pass
-        db.session.commit()
-        flash("Account verified successfully", "success")
-        logger.log(action_type='verification_success', status='success', description='Verification passed, active status set')
-    else:
-        if "FloodWait" in str(result.get('error')):
-            account.status = 'flood_wait'
-            wait_time = result.get('wait', 0)
-            flash(f"Telegram FloodWait limit. Please wait {wait_time} seconds.", "error")
-            logger.log(action_type='verification_failed', status='error', description=f"FloodWait: {wait_time}s", category='system')
-        else:
-            account.status = 'error'
-            flash(f"Verification failed: {result.get('error')}", "error")
-            logger.log(action_type='verification_failed', status='error', description=f"Error: {result.get('error')}", category='system')
-        db.session.commit()
         
     return redirect(url_for('accounts.detail', account_id=account_id))
     
