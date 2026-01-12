@@ -42,11 +42,22 @@ def list_accounts():
 def upload():
     """Upload session files"""
     if request.method == "POST":
+        from utils.activity_logger import ActivityLogger
+        
         files = request.files.getlist("session_files")
         
         if not files or files[0].filename == "":
             flash("No files selected", "error")
             return redirect(url_for("accounts.upload"))
+        
+        # Get proxy settings from form
+        proxy_mode = request.form.get("proxy_mode", "none")
+        specific_proxy_id = request.form.get("specific_proxy")
+        
+        # Get available proxies for round-robin/random
+        from models.proxy import Proxy
+        available_proxies = Proxy.query.filter_by(status='active').all()
+        proxy_index = 0  # For round-robin
         
         uploaded = 0
         skipped = 0
@@ -70,15 +81,40 @@ def upload():
                     os.makedirs("uploads/sessions", exist_ok=True)
                     file.save(filepath)
                     
+                    # Determine proxy for this account
+                    assigned_proxy_id = None
+                    if proxy_mode == "specific" and specific_proxy_id:
+                        assigned_proxy_id = int(specific_proxy_id)
+                    elif proxy_mode == "round_robin" and available_proxies:
+                        assigned_proxy_id = available_proxies[proxy_index % len(available_proxies)].id
+                        proxy_index += 1
+                    elif proxy_mode == "random" and available_proxies:
+                        import random
+                        assigned_proxy_id = random.choice(available_proxies).id
+                    
                     # Create account
                     account = Account(
                         phone=phone,
                         session_file_path=filepath,
                         status="pending",
-                        health_score=100
+                        health_score=100,
+                        proxy_id=assigned_proxy_id  # Assign proxy here!
                     )
                     db.session.add(account)
                     db.session.flush()
+                    
+                    # Log proxy assignment if assigned
+                    if assigned_proxy_id:
+                        logger = ActivityLogger(account.id)
+                        proxy = Proxy.query.get(assigned_proxy_id)
+                        logger.log(
+                            action_type='assign_proxy',
+                            status='success',
+                            description=f"Proxy auto-assigned during upload: {proxy.host}:{proxy.port}",
+                            details=f"Mode: {proxy_mode}, Type: {proxy.type}",
+                            proxy_used=f"{proxy.host}:{proxy.port}",
+                            category='system'
+                        )
                     
                     # Create device profile
                     device = generate_device_profile()
