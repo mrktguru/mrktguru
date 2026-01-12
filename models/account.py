@@ -31,7 +31,7 @@ class Account(db.Model):
     last_sync_at = db.Column(db.DateTime)  # Last time synced from Telegram
     
     # Verification & Metadata
-    metadata = db.Column(db.JSON)
+    session_metadata = db.Column(db.JSON)
     last_verification_attempt = db.Column(db.DateTime)
     verified = db.Column(db.Boolean, default=False)
     

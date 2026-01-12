@@ -21,14 +21,14 @@ def migrate():
         
         try:
             with db.engine.connect() as conn:
-                # Add metadata column
+                # Add session_metadata column
                 try:
-                    conn.execute(text("SELECT metadata FROM accounts LIMIT 1"))
-                    print("✅ Column 'metadata' already exists.")
+                    conn.execute(text("SELECT session_metadata FROM accounts LIMIT 1"))
+                    print("✅ Column 'session_metadata' already exists.")
                 except Exception:
-                    print("➕ Adding 'metadata' column...")
+                    print("➕ Adding 'session_metadata' column...")
                     col_type = "JSON" if not is_sqlite else "TEXT"
-                    conn.execute(text(f"ALTER TABLE accounts ADD COLUMN metadata {col_type}"))
+                    conn.execute(text(f"ALTER TABLE accounts ADD COLUMN session_metadata {col_type}"))
                 
                 # Add last_verification_attempt column
                 try:

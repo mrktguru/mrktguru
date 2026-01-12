@@ -166,7 +166,8 @@ def upload():
                     status="pending",  # Not verified yet
                     health_score=100,
                     proxy_id=assigned_proxy_id,
-                    created_at=datetime.now()
+                    created_at=datetime.now(),
+                    session_metadata=metadata
                 )
                 db.session.add(account)
                 db.session.flush()  # Get account ID
@@ -328,9 +329,9 @@ def verify(account_id):
     
     # Determine strategy based on age
     age_category = 'new'
-    if hasattr(account, 'metadata') and account.metadata:
+    if hasattr(account, 'session_metadata') and account.session_metadata:
         try:
-            meta = json.loads(account.metadata) if isinstance(account.metadata, str) else account.metadata
+            meta = json.loads(account.session_metadata) if isinstance(account.session_metadata, str) else account.session_metadata
             if isinstance(meta, dict):
                 age_category = meta.get('estimated_age', 'new')
         except:
