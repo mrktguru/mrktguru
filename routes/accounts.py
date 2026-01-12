@@ -358,11 +358,25 @@ def verify(account_id):
             
         else:
             # Handle failure
-            if "FloodWait" in str(result.get('error')):
+            error_type = result.get('error_type', 'generic_error')
+            
+            if error_type == 'flood_wait':
                 account.status = 'flood_wait'
                 wait_time = result.get('wait', 0)
                 flash(f"Telegram FloodWait limit. Please wait {wait_time} seconds.", "error")
                 logger.log(action_type='verification_failed', status='error', description=f"FloodWait: {wait_time}s", category='system')
+                
+            elif error_type == 'banned':
+                account.status = 'banned'
+                account.health_score = 0
+                flash(f"Account is BANNED by Telegram: {result.get('error')}", "error")
+                logger.log(action_type='verification_failed', status='error', description=f"ACCOUNT BANNED: {result.get('error')}", category='system')
+                
+            elif error_type == 'invalid_session':
+                account.status = 'error'
+                flash(f"Session Invalid: {result.get('error')}", "error")
+                logger.log(action_type='verification_failed', status='error', description=f"Invalid Session: {result.get('error')}", category='system')
+                
             else:
                 account.status = 'error'
                 flash(f"Verification failed: {result.get('error')}", "error")

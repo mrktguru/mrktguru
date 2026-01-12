@@ -87,7 +87,12 @@ async def verify_session(account_id):
     Returns:
         dict: {"success": bool, "user": dict, "error": str, "wait": int}
     """
-    from telethon.errors import FloodWaitError
+    from telethon.errors import (
+        FloodWaitError, 
+        UserDeactivatedError, 
+        UserDeactivatedBanError,
+        AuthKeyError
+    )
     from models.account import Account
     from database import db
     import asyncio
@@ -128,13 +133,29 @@ async def verify_session(account_id):
             "success": False,
             "user": None,
             "error": f"FloodWait: {e.seconds}s",
-            "wait": e.seconds
+            "wait": e.seconds,
+            "error_type": "flood_wait"
+        }
+    except (UserDeactivatedError, UserDeactivatedBanError) as e:
+        return {
+            "success": False,
+            "user": None,
+            "error": "Account is banned/deactivated by Telegram",
+            "error_type": "banned"
+        }
+    except AuthKeyError as e:
+        return {
+            "success": False,
+            "user": None,
+            "error": "Session is invalid (AuthKeyError)",
+            "error_type": "invalid_session"
         }
     except Exception as e:
         return {
             "success": False,
             "user": None,
-            "error": str(e)
+            "error": str(e),
+            "error_type": "generic_error"
         }
     finally:
         if client and client.is_connected():
