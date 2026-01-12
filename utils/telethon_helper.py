@@ -8,6 +8,23 @@ from telethon.tl.functions.messages import AddChatUserRequest
 # DO NOT store active clients - always create fresh ones
 _active_clients = {}
 
+# Official App APIs (to avoid "Automated" flags)
+# Using these makes the client look like the official app
+OFFICIAL_APIS = {
+    'ios': {
+        'api_id': 6,
+        'api_hash': "eb06d4abfb49dc3eeb1aeb98ae0f581e"
+    },
+    'android': {
+        'api_id': 4,
+        'api_hash': "014b35b6184100b085b0d0572f9b5103"
+    },
+    'desktop': {
+        'api_id': 2040,
+        'api_hash': "b18441a1ff607e10a989891a54616e98"
+    }
+}
+
 
 def get_telethon_client(account_id, proxy=None):
     """
@@ -27,6 +44,16 @@ def get_telethon_client(account_id, proxy=None):
     
     # Get device profile
     device = account.device_profile
+    
+    # Select API ID/HASH based on client type
+    client_type = getattr(device, 'client_type', 'desktop') if device else 'desktop'
+    
+    # Default to config if unknown or if user explicitly wants to use own credentials (optional logic)
+    # But for anti-ban, we prioritize official keys
+    api_creds = OFFICIAL_APIS.get(client_type, OFFICIAL_APIS['desktop'])
+    
+    api_id = api_creds['api_id']
+    api_hash = api_creds['api_hash']
     
     # Build proxy dict for Telethon
     proxy_dict = None
@@ -55,8 +82,8 @@ def get_telethon_client(account_id, proxy=None):
     # Create client with safer timeouts
     client = TelegramClient(
         account.session_file_path,
-        Config.TG_API_ID,
-        Config.TG_API_HASH,
+        api_id,
+        api_hash,
         device_model=device.device_model if device else "Desktop",
         system_version=device.system_version if device else "Windows 10",
         app_version=device.app_version if device else "1.0",
@@ -66,7 +93,9 @@ def get_telethon_client(account_id, proxy=None):
         # Enhanced timeouts for stability
         connection_retries=3,
         flood_sleep_threshold=60,  # Auto-sleep on floods up to 60s
-        request_retries=3
+        request_retries=3,
+        base_logger=None, # Disable internal logs as suggested
+        catch_up=False    # Don't sync history as suggested
     )
     
     return client

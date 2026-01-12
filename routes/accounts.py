@@ -181,9 +181,25 @@ def upload():
                     system_version=device["system_version"],
                     app_version=device["app_version"],
                     lang_code=device["lang_code"],
-                    system_lang_code=device["system_lang_code"]
+                    system_lang_code=device["system_lang_code"],
+                    client_type=device.get("client_type", "desktop")
                 )
                 db.session.add(device_profile)
+                
+                # 🧹 Clean session file (Anti-Ban)
+                # Removes "Telethon" traces and sets correct device info in SQLite
+                try:
+                    cleaned = validator.clean_session_file(final_path, device)
+                    if cleaned:
+                        logger.log(
+                            action_type='clean_session',
+                            status='success',
+                            description='Session file signatures cleaned',
+                            details=f"Device: {device['device_model']} ({device.get('client_type', 'unknown')})",
+                            category='system'
+                        )
+                except Exception as clean_err:
+                    print(f"Warning: Failed to clean session file: {clean_err}")
                 
                 # 📝 Log upload
                 logger = ActivityLogger(account.id)

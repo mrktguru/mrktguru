@@ -93,12 +93,18 @@ def generate_device_profile(region='RU'):
     
     lang_code, system_lang_code = lang_codes.get(region, ('en', 'en-US'))
     
+    # Determine client type
+    client_type = 'android'
+    if 'iPhone' in device_model or 'iPad' in device_model:
+        client_type = 'ios'
+    
     return {
         'device_model': device_model,
         'system_version': system_version,
         'app_version': app_version,
         'lang_code': lang_code,
         'system_lang_code': system_lang_code,
+        'client_type': client_type
     }
 
 

@@ -55,6 +55,7 @@ class DeviceProfile(db.Model):
     app_version = db.Column(db.String(50), nullable=False)
     lang_code = db.Column(db.String(10), default='ru')
     system_lang_code = db.Column(db.String(10), default='ru-RU')
+    client_type = db.Column(db.String(20), default='desktop')  # desktop/ios/android
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     def __repr__(self):

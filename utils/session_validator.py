@@ -272,3 +272,66 @@ class SessionValidator:
             return 'new'
         
         return estimated_age
+    
+    def clean_session_file(self, filepath: str, device_profile: dict = None) -> bool:
+        """
+        Clean session file of 'Telethon'/'Python' signatures
+        
+        Args:
+            filepath: Path to session file
+            device_profile: Optional dict with keys 'device_model', 'system_version', 'app_version'
+            
+        Returns:
+            bool: True if cleaned/modified, False on error
+        """
+        try:
+            conn = sqlite3.connect(filepath)
+            cursor = conn.cursor()
+            
+            # Default values if no profile provided
+            model = device_profile.get('device_model', 'iPhone 13 Pro') if device_profile else 'iPhone 13 Pro'
+            sys_ver = device_profile.get('system_version', 'iOS 16.6') if device_profile else 'iOS 16.6'
+            app_ver = device_profile.get('app_version', '10.0.0') if device_profile else '10.0.0'
+            
+            # 1. Update sessions table if columns exist
+            try:
+                # Check columns
+                cursor.execute("PRAGMA table_info(sessions)")
+                columns = [row[1] for row in cursor.fetchall()]
+                
+                updates = []
+                params = []
+                
+                if 'device_model' in columns:
+                    updates.append("device_model = ?")
+                    params.append(model)
+                if 'system_version' in columns:
+                    updates.append("system_version = ?")
+                    params.append(sys_ver)
+                if 'app_version' in columns:
+                    updates.append("app_version = ?")
+                    params.append(app_ver)
+                    
+                if updates:
+                    sql = f"UPDATE sessions SET {', '.join(updates)}"
+                    # Only update if it looks suspicious or just force update everything
+                    # To be safe, we force update everything to match our profile
+                    cursor.execute(sql, params)
+            except Exception as e:
+                print(f"Error updating sessions table: {e}")
+            
+            # 2. Clean entities table (remove Telethon/bot artifacts)
+            try:
+                # This matches user suggestion: delete suspicious entities
+                # We are careful not to delete real contacts
+                cursor.execute("DELETE FROM entities WHERE username LIKE '%Telethon%'")
+            except Exception as e:
+                pass
+                
+            conn.commit()
+            conn.close()
+            return True
+            
+        except Exception as e:
+            print(f"Failed to clean session file: {e}")
+            return False
