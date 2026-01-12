@@ -20,6 +20,10 @@ def get_telethon_client(account_id, proxy=None):
     account = Account.query.get(account_id)
     if not account:
         raise ValueError(f"Account {account_id} not found")
+        
+    # Check if session file exists
+    if not os.path.exists(account.session_file_path):
+        raise FileNotFoundError(f"Session file not found at {account.session_file_path}")
     
     # Get device profile
     device = account.device_profile
@@ -48,7 +52,7 @@ def get_telethon_client(account_id, proxy=None):
         }
         print(f"✅ Using proxy for account {account_id}: {account.proxy.host}:{account.proxy.port} (type: {account.proxy.type})")
     
-    # Create client
+    # Create client with safer timeouts
     client = TelegramClient(
         account.session_file_path,
         Config.TG_API_ID,
@@ -58,7 +62,11 @@ def get_telethon_client(account_id, proxy=None):
         app_version=device.app_version if device else "1.0",
         lang_code=device.lang_code if device else "en",
         system_lang_code=device.system_lang_code if device else "en-US",
-        proxy=proxy_dict
+        proxy=proxy_dict,
+        # Enhanced timeouts for stability
+        connection_retries=3,
+        flood_sleep_threshold=60,  # Auto-sleep on floods up to 60s
+        request_retries=3
     )
     
     return client

@@ -40,11 +40,14 @@ def list_accounts():
 @accounts_bp.route("/upload", methods=["GET", "POST"])
 @login_required
 def upload():
-    """Upload session files"""
-    from models.proxy import Proxy  # Import at top for both GET and POST
+    """Upload and validate session files with safety checks"""
+    from models.proxy import Proxy
     
     if request.method == "POST":
         from utils.activity_logger import ActivityLogger
+        from utils.session_validator import SessionValidator
+        import shutil
+        import json
         
         files = request.files.getlist("session_files")
         
@@ -52,104 +55,185 @@ def upload():
             flash("No files selected", "error")
             return redirect(url_for("accounts.upload"))
         
-        # Get region from form
-        region = request.form.get("region", "US")  # Default to US
-        
-        # Get proxy settings from form
+        # Get form parameters
+        region = request.form.get("region", "US")
         proxy_mode = request.form.get("proxy_mode", "none")
         specific_proxy_id = request.form.get("specific_proxy")
         
-        # Get available proxies for round-robin/random
+        # Get available proxies
         available_proxies = Proxy.query.filter_by(status='active').all()
-        proxy_index = 0  # For round-robin
+        proxy_index = 0
         
+        # Counters
         uploaded = 0
         skipped = 0
+        quarantined = 0
         errors = []
         
+        # Initialize validator
+        validator = SessionValidator()
+        
         for file in files:
-            if file and file.filename.endswith(".session"):
-                try:
-                    filename = secure_filename(file.filename)
-                    phone = filename.replace(".session", "")
+            if not file or not file.filename:
+                continue
+            
+            if not file.filename.endswith(".session"):
+                errors.append(f"{file.filename}: Not a .session file")
+                continue
+            
+            temp_path = None
+            
+            try:
+                filename = secure_filename(file.filename)
+                phone = filename.replace(".session", "")
+                
+                # 🔍 Check 1: Duplicate account
+                existing = Account.query.filter_by(phone=phone).first()
+                if existing:
+                    errors.append(f"{phone}: Account already exists")
+                    skipped += 1
+                    continue
+                
+                # 📁 Save to temp folder first
+                temp_dir = "uploads/temp_sessions"
+                os.makedirs(temp_dir, exist_ok=True)
+                temp_path = os.path.join(temp_dir, filename)
+                file.save(temp_path)
+                
+                # 🔍 Check 2: Validate file
+                validation = validator.validate_session_file(temp_path)
+                
+                if not validation['valid']:
+                    os.remove(temp_path)
+                    error_msg = validation.get('error', 'Unknown error')
+                    errors.append(f"{filename}: Invalid session - {error_msg}")
+                    continue
+                
+                # 📊 Extract metadata
+                metadata = validator.extract_metadata(temp_path)
+                
+                # ⚠️ Check 3: Suspicious session?
+                if metadata.get('suspicious', False):
+                    # Move to quarantine
+                    quarantine_dir = "uploads/quarantine"
+                    os.makedirs(quarantine_dir, exist_ok=True)
+                    quarantine_path = os.path.join(quarantine_dir, filename)
+                    shutil.move(temp_path, quarantine_path)
                     
-                    # Check if account already exists
-                    existing = Account.query.filter_by(phone=phone).first()
-                    if existing:
-                        errors.append(f"{phone}: Account already exists (delete it first)")
-                        skipped += 1
-                        continue
-                    
-                    # Save file
-                    filepath = os.path.join("uploads/sessions", filename)
-                    os.makedirs("uploads/sessions", exist_ok=True)
-                    file.save(filepath)
-                    
-                    # Determine proxy for this account
-                    assigned_proxy_id = None
-                    if proxy_mode == "specific" and specific_proxy_id:
-                        assigned_proxy_id = int(specific_proxy_id)
-                    elif proxy_mode == "round_robin" and available_proxies:
-                        assigned_proxy_id = available_proxies[proxy_index % len(available_proxies)].id
-                        proxy_index += 1
-                    elif proxy_mode == "random" and available_proxies:
-                        import random
-                        assigned_proxy_id = random.choice(available_proxies).id
-                    
-                    # Create account
-                    account = Account(
-                        phone=phone,
-                        session_file_path=filepath,
-                        status="pending",
-                        health_score=100,
-                        proxy_id=assigned_proxy_id  # Assign proxy here!
+                    reasons = ', '.join(metadata.get('suspicious_reasons', []))
+                    errors.append(f"{filename}: Suspicious session ({reasons}) - moved to quarantine")
+                    quarantined += 1
+                    continue
+                
+                # 📂 Create structured folder for account
+                account_dir = f"uploads/sessions/{phone}"
+                os.makedirs(account_dir, exist_ok=True)
+                
+                final_path = os.path.join(account_dir, f"{phone}.session")
+                
+                # 🔄 Move from temp to final location
+                shutil.move(temp_path, final_path)
+                temp_path = None  # Clear so cleanup doesn't try to remove it
+                
+                # 📝 Save metadata.json
+                metadata_path = os.path.join(account_dir, "metadata.json")
+                with open(metadata_path, 'w') as f:
+                    json.dump({
+                        "uploaded_at": datetime.now().isoformat(),
+                        "original_filename": file.filename,
+                        "file_size": validation['size'],
+                        "format": validation['format'],
+                        "validation": validation,
+                        "metadata": metadata,
+                        "region": region
+                    }, f, indent=2)
+                
+                # 🔧 Determine proxy assignment
+                assigned_proxy_id = None
+                if proxy_mode == "specific" and specific_proxy_id:
+                    assigned_proxy_id = int(specific_proxy_id)
+                elif proxy_mode == "round_robin" and available_proxies:
+                    assigned_proxy_id = available_proxies[proxy_index % len(available_proxies)].id
+                    proxy_index += 1
+                elif proxy_mode == "random" and available_proxies:
+                    import random
+                    assigned_proxy_id = random.choice(available_proxies).id
+                
+                # 💾 Create account in database
+                account = Account(
+                    phone=phone,
+                    session_file_path=final_path,
+                    status="pending",  # Not verified yet
+                    health_score=100,
+                    proxy_id=assigned_proxy_id,
+                    created_at=datetime.now()
+                )
+                db.session.add(account)
+                db.session.flush()  # Get account ID
+                
+                # 📱 Create device profile
+                device = generate_device_profile(region=region)
+                device_profile = DeviceProfile(
+                    account_id=account.id,
+                    device_model=device["device_model"],
+                    system_version=device["system_version"],
+                    app_version=device["app_version"],
+                    lang_code=device["lang_code"],
+                    system_lang_code=device["system_lang_code"]
+                )
+                db.session.add(device_profile)
+                
+                # 📝 Log upload
+                logger = ActivityLogger(account.id)
+                logger.log(
+                    action_type='upload_session',
+                    status='success',
+                    description=f'Session file uploaded and validated',
+                    details=f"File: {filename}, Size: {validation['size']} bytes, Age: {metadata.get('estimated_age', 'unknown')}",
+                    category='system'
+                )
+                
+                # 📝 Log proxy assignment if assigned
+                if assigned_proxy_id:
+                    proxy = Proxy.query.get(assigned_proxy_id)
+                    logger.log(
+                        action_type='assign_proxy',
+                        status='success',
+                        description=f"Proxy auto-assigned during upload: {proxy.host}:{proxy.port}",
+                        details=f"Mode: {proxy_mode}, Type: {proxy.type}",
+                        proxy_used=f"{proxy.host}:{proxy.port}",
+                        category='system'
                     )
-                    db.session.add(account)
-                    db.session.flush()
-                    
-                    # Log proxy assignment if assigned
-                    if assigned_proxy_id:
-                        logger = ActivityLogger(account.id)
-                        proxy = Proxy.query.get(assigned_proxy_id)
-                        logger.log(
-                            action_type='assign_proxy',
-                            status='success',
-                            description=f"Proxy auto-assigned during upload: {proxy.host}:{proxy.port}",
-                            details=f"Mode: {proxy_mode}, Type: {proxy.type}",
-                            proxy_used=f"{proxy.host}:{proxy.port}",
-                            category='system'
-                        )
-                    
-                    # Create device profile with selected region
-                    device = generate_device_profile(region=region)
-                    device_profile = DeviceProfile(
-                        account_id=account.id,
-                        device_model=device["device_model"],
-                        system_version=device["system_version"],
-                        app_version=device["app_version"],
-                        lang_code=device["lang_code"],
-                        system_lang_code=device["system_lang_code"]
-                    )
-                    db.session.add(device_profile)
-                    
-                    uploaded += 1
-                    
-                except Exception as e:
-                    errors.append(f"{file.filename}: {str(e)}")
+                
+                uploaded += 1
+                
+            except Exception as e:
+                # Cleanup temp file on error
+                if temp_path and os.path.exists(temp_path):
+                    try:
+                        os.remove(temp_path)
+                    except:
+                        pass
+                errors.append(f"{file.filename}: {str(e)}")
         
         db.session.commit()
         
         # Show notifications
         if uploaded > 0:
-            flash(f"Successfully uploaded {uploaded} session file(s)", "success")
+            flash(f"✅ Successfully uploaded {uploaded} session file(s)", "success")
         if skipped > 0:
-            flash(f"Skipped {skipped} duplicate account(s)", "warning")
-        for error in errors:
-            flash(error, "error")
+            flash(f"⚠️ Skipped {skipped} duplicate account(s)", "warning")
+        if quarantined > 0:
+            flash(f"🔒 Quarantined {quarantined} suspicious file(s)", "warning")
+        for error in errors[:10]:  # Show first 10 errors
+            flash(f"❌ {error}", "error")
+        if len(errors) > 10:
+            flash(f"... and {len(errors) - 10} more errors", "error")
         
         return redirect(url_for("accounts.list_accounts"))
     
-    proxies = Proxy.query.filter_by(status="active").all()
+    # GET request - show upload form
+    proxies = Proxy.query.filter_by(status='active').all()
     return render_template("accounts/upload.html", proxies=proxies)
 
 
@@ -207,212 +291,114 @@ def detail(account_id):
 @accounts_bp.route("/<int:account_id>/verify", methods=["POST"])
 @login_required
 def verify(account_id):
-    """Verify account session, fetch user info, and import existing subscriptions"""
+    """Verify account safe strategy"""
     from utils.telethon_helper import get_telethon_client
-    from models.account import AccountSubscription
     from utils.activity_logger import ActivityLogger
+    from telethon.errors import FloodWaitError
+    from datetime import datetime
     import asyncio
-    import time
+    import random
+    import json
     
     account = Account.query.get_or_404(account_id)
+    
+    # 1. Cooldown check (5 minutes)
+    if hasattr(account, 'last_verification_attempt') and account.last_verification_attempt:
+        seconds_since = (datetime.now() - account.last_verification_attempt).total_seconds()
+        if seconds_since < 300: # 5 minutes
+            mins_left = int((300 - seconds_since) / 60)
+            flash(f"Please wait {mins_left + 1} minutes before retrying verification", "warning")
+            return redirect(url_for('accounts.detail', account_id=account_id))
+            
+    # Update attempt time
+    try:
+        if hasattr(Account, 'last_verification_attempt'):
+             account.last_verification_attempt = datetime.now()
+             db.session.commit()
+    except:
+        db.session.rollback()
+    
     logger = ActivityLogger(account_id)
-    
-    # Log verification start
-    proxy_info = None
-    if account.proxy:
-        proxy_info = f"{account.proxy.host}:{account.proxy.port} ({account.proxy.type})"
-    
     logger.log(
         action_type='verification_start',
         status='pending',
-        description='Starting account verification',
-        proxy_used=proxy_info,
+        description='Starting risk-based verification',
         category='system'
     )
     
+    # Determine strategy based on age
+    age_category = 'new'
+    if hasattr(account, 'metadata') and account.metadata:
+        try:
+            meta = json.loads(account.metadata) if isinstance(account.metadata, str) else account.metadata
+            if isinstance(meta, dict):
+                age_category = meta.get('estimated_age', 'new')
+        except:
+            pass
+            
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     
-    async def verify_and_fetch():
+    async def safe_verify():
         client = None
-        subscriptions_found = 0
         try:
             client = get_telethon_client(account_id)
             await client.connect()
             
-            # Get user info
+            # Step 1: minimal verification
             me = await client.get_me()
-            account.telegram_id = me.id if hasattr(me, "id") else None
-            account.first_name = getattr(me, "first_name", None) or "User"
-            account.last_name = getattr(me, "last_name", None)
-            account.username = getattr(me, "username", None)
+            account.telegram_id = me.id
+            account.first_name = me.first_name
+            account.last_name = me.last_name
+            account.username = me.username
+            account.status = 'active'
             
-            # Try to download profile photo
-            try:
-                if hasattr(me, "photo") and me.photo:
-                    photo_path = f"uploads/photos/{account.phone}_profile.jpg"
-                    os.makedirs("uploads/photos", exist_ok=True)
-                    await client.download_profile_photo(me, file=photo_path)
-                    account.photo_url = photo_path
-            except Exception as photo_err:
-                if hasattr(me, "photo") and me.photo:
-                    account.photo_url = "photo_available"
+            # Basic photo check (no download yet for new accounts)
+            if hasattr(me, "photo") and me.photo:
+                account.photo_url = "photo_available"
             
-            # Add delay after getting user info (human-like behavior)
-            await asyncio.sleep(random.uniform(1.5, 3.0))
+            # Random delay
+            await asyncio.sleep(random.uniform(2, 5))
             
-            # Get existing subscriptions from Telegram
-            # IMPORTANT: Skip for new accounts to avoid spam detection
-            try:
-                from telethon.tl.types import Channel
-                
-                # Only import dialogs if account has previous activity
-                # For new accounts, this is too aggressive and can trigger bans
-                if account.status not in [None, 'new', 'error']:
-                    print(f"📥 Importing existing dialogs for account {account_id}")
-                    dialogs = await client.get_dialogs()
-                    
-                    for dialog in dialogs:
-                        entity = dialog.entity
-                        
-                        # Check if it is a channel or megagroup
-                        if isinstance(entity, Channel):
-                            channel_username = getattr(entity, "username", None)
-                            channel_title = getattr(entity, "title", "Unknown")
-                            
-                            if not channel_username:
-                                continue
-                            
-                            # Check if already in our database
-                            existing = AccountSubscription.query.filter_by(
-                                account_id=account_id,
-                                channel_username=channel_username
-                            ).first()
-                            
-                            if not existing:
-                                # Add to subscriptions
-                                subscription = AccountSubscription(
-                                    account_id=account_id,
-                                    channel_username=channel_username,
-                                    status="active",
-                                    subscription_source="imported",
-                                    notes=f"Auto-imported: {channel_title}"
-                                )
-                                db.session.add(subscription)
-                                subscriptions_found += 1
-                else:
-                    print(f"⏭️  Skipping dialog import for new account {account_id} (anti-ban measure)")
-                            
-            except Exception as subs_err:
-                print(f"Error fetching subscriptions: {subs_err}")
+            return {"success": True}
             
-            # Add delay before spam-block test
-            await asyncio.sleep(random.uniform(2.0, 4.0))
-            
-            # Check if account can access channels (spam-block test)
-            # Skip for brand new accounts to avoid triggering spam detection
-            can_access_channels = True  # Assume OK for new accounts
-            skip_spam_test = account.status in [None, 'new', 'error']
-            
-            if not skip_spam_test:
-                can_access_channels = False
-                try:
-                    # Try to find a known public CHANNEL (not user profile)
-                    # Using @telegram channel as test
-                    print(f"🔍 Running spam-block test for account {account_id}")
-                    test_entity = await client.get_entity("@telegram")
-                    # Also check if it is actually a channel
-                    from telethon.tl.types import Channel
-                    if isinstance(test_entity, Channel):
-                        can_access_channels = True
-                        print(f"✅ Spam-block test passed for account {account_id}")
-                except Exception as test_err:
-                    # If cannot find @telegram, account is spam-blocked
-                    print(f"❌ Spam-block test failed for account {account_id}: {test_err}")
-                    pass
-            else:
-                print(f"⏭️  Skipping spam-block test for new account {account_id} (anti-ban measure)")
-            
-            if not can_access_channels:
-                account.status = "spam-block"
-                account.health_score = 30
-                account.notes = "WARNING: Account cannot search/join channels. Possible spam-block."
-            else:
-                # Set appropriate status based on account state
-                if account.status in [None, 'new', 'error']:
-                    # New account - start with warming_up phase
-                    account.status = "warming_up"
-                    account.health_score = 70
-                    account.warm_up_days_completed = 0
-                    print(f"🔥 Account {account_id} set to warming_up status")
-                else:
-                    # Re-verification of existing account - keep it active
-                    account.status = "active"
-                    account.health_score = 100
-                    print(f"✅ Account {account_id} re-verified, status: active")
-            
-            # Log successful verification
-            logger.log(
-                action_type='verification',
-                status='success',
-                description=f"Account verified: {account.first_name} (@{account.username or 'no username'})",
-                details=f"Telegram ID: {account.telegram_id}, Subscriptions imported: {subscriptions_found}, Status: {account.status}",
-                proxy_used=proxy_info,
-                category='system'
-            )
-            
-            return True, account.first_name, account.username or "no username", subscriptions_found
-            
+        except FloodWaitError as e:
+            return {"success": False, "error": f"FloodWait: {e.seconds}s", "wait": e.seconds}
         except Exception as e:
-            account.status = "error"
-            account.health_score = 0
-            
-            # Log verification failure
-            logger.log(
-                action_type='verification',
-                status='failed',
-                description='Account verification failed',
-                error_message=str(e),
-                proxy_used=proxy_info,
-                category='system'
-            )
-            
-            return False, None, str(e), 0
-            
+            return {"success": False, "error": str(e)}
         finally:
             if client and client.is_connected():
                 await client.disconnect()
-                await asyncio.sleep(0.1)
-    
+                
+    # Run loop
     try:
-        success, first_name, info, subs_count = loop.run_until_complete(verify_and_fetch())
-        db.session.commit()
-        
-        if success:
-            msg = f"Session verified! User: {first_name} (@{info})"
-            if subs_count > 0:
-                msg += f". Imported {subs_count} existing subscriptions."
-            flash(msg, "success")
-        else:
-            flash(f"Verification failed: {info}", "error")
-            
-    except Exception as e:
-        account.status = "error"
-        db.session.commit()
-        flash(f"Error: {str(e)}", "error")
+        result = loop.run_until_complete(safe_verify())
     finally:
-        pending = asyncio.all_tasks(loop)
-        for task in pending:
-            task.cancel()
-        try:
-            loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
-        except:
-            pass
         loop.close()
     
-    return redirect(url_for("accounts.detail", account_id=account_id))
-
-
+    if result['success']:
+        if hasattr(Account, 'verified'):
+            try:
+                account.verified = True
+            except:
+                pass
+        db.session.commit()
+        flash("Account verified successfully", "success")
+        logger.log(action_type='verification_success', status='success', description='Verification passed, active status set')
+    else:
+        if "FloodWait" in str(result.get('error')):
+            account.status = 'flood_wait'
+            wait_time = result.get('wait', 0)
+            flash(f"Telegram FloodWait limit. Please wait {wait_time} seconds.", "error")
+            logger.log(action_type='verification_failed', status='error', description=f"FloodWait: {wait_time}s", category='system')
+        else:
+            account.status = 'error'
+            flash(f"Verification failed: {result.get('error')}", "error")
+            logger.log(action_type='verification_failed', status='error', description=f"Error: {result.get('error')}", category='system')
+        db.session.commit()
+        
+    return redirect(url_for('accounts.detail', account_id=account_id))
+    
 @accounts_bp.route("/<int:account_id>/sync-from-telegram", methods=["POST"])
 @login_required
 def sync_from_telegram(account_id):

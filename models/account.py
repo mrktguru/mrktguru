@@ -30,6 +30,11 @@ class Account(db.Model):
     photo_url = db.Column(db.String(500))
     last_sync_at = db.Column(db.DateTime)  # Last time synced from Telegram
     
+    # Verification & Metadata
+    metadata = db.Column(db.JSON)
+    last_verification_attempt = db.Column(db.DateTime)
+    verified = db.Column(db.Boolean, default=False)
+    
     # Relationships
     proxy = db.relationship('Proxy', backref=db.backref('accounts', lazy='dynamic'))
     device_profile = db.relationship('DeviceProfile', backref='account', uselist=False, cascade='all, delete-orphan')
