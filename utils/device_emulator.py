@@ -2,82 +2,42 @@ import random
 
 
 # Device profiles database
+# Device profiles database
+# STRICTLY iOS ONLY (High Trust Score logic)
+# "Telegram easier verifies iOS due to limited models and predictable behavior"
 DEVICE_PROFILES = {
     'RU': [
-        # iPhone models
-        ('iPhone 14 Pro', 'iOS 17.1', '10.2.1'),
-        ('iPhone 13 Pro', 'iOS 16.6', '10.1.3'),
-        ('iPhone 13', 'iOS 16.5', '10.1.2'),
-        ('iPhone 12 Pro Max', 'iOS 16.3', '10.0.5'),
-        ('iPhone 12', 'iOS 16.2', '10.0.4'),
-        ('iPhone 11 Pro', 'iOS 15.7', '9.8.2'),
-        ('iPhone 11', 'iOS 15.6', '9.8.1'),
-        ('iPhone XS Max', 'iOS 15.5', '9.7.5'),
-        ('iPhone XR', 'iOS 15.4', '9.7.4'),
-        
-        # Samsung models
-        ('Samsung Galaxy S23 Ultra', 'Android 14', '10.2.2'),
-        ('Samsung Galaxy S22 Ultra', 'Android 13', '10.1.4'),
-        ('Samsung Galaxy S22', 'Android 13', '10.1.3'),
-        ('Samsung Galaxy S21 FE', 'Android 13', '10.0.6'),
-        ('Samsung Galaxy S21', 'Android 12', '10.0.5'),
-        ('Samsung Galaxy S20 Ultra', 'Android 12', '9.9.3'),
-        ('Samsung Galaxy Note 20', 'Android 12', '9.9.2'),
-        ('Samsung Galaxy A53', 'Android 13', '10.1.1'),
-        ('Samsung Galaxy A52', 'Android 12', '10.0.3'),
-        
-        # Xiaomi models
-        ('Xiaomi 13 Pro', 'Android 14', '10.2.3'),
-        ('Xiaomi 12 Pro', 'Android 13', '10.1.5'),
-        ('Xiaomi 12', 'Android 13', '10.1.4'),
-        ('Xiaomi Mi 11', 'Android 12', '10.0.7'),
-        ('Xiaomi Mi 10T Pro', 'Android 12', '10.0.6'),
-        ('Redmi Note 12 Pro', 'Android 13', '10.1.2'),
-        ('Redmi Note 11 Pro', 'Android 12', '10.0.4'),
-        ('POCO F4', 'Android 13', '10.1.3'),
-        
-        # Huawei models
-        ('Huawei P40 Pro', 'Android 12', '10.0.5'),
-        ('Huawei Mate 40 Pro', 'Android 12', '10.0.6'),
-        ('Honor 50', 'Android 11', '9.9.5'),
-        
-        # OnePlus models
-        ('OnePlus 11', 'Android 14', '10.2.1'),
-        ('OnePlus 10 Pro', 'Android 13', '10.1.4'),
-        ('OnePlus 9 Pro', 'Android 12', '10.0.5'),
-        ('OnePlus 8T', 'Android 12', '10.0.4'),
+        ('iPhone 15 Pro Max', 'iOS 17.2', '10.0.0'),
+        ('iPhone 15 Pro', 'iOS 17.2', '10.0.0'),
+        ('iPhone 14 Pro Max', 'iOS 17.2', '10.0.0'),
+        ('iPhone 14 Pro', 'iOS 17.2', '10.0.0'),
+        ('iPhone 13 Pro Max', 'iOS 17.2', '10.0.0'),
+        ('iPhone 13 Pro', 'iOS 17.2', '10.0.0'),
     ],
     
     'US': [
-        ('iPhone 14 Pro Max', 'iOS 17.2', '10.2.2'),
-        ('iPhone 14 Pro', 'iOS 17.1', '10.2.1'),
-        ('iPhone 13 Pro', 'iOS 16.6', '10.1.3'),
-        ('Samsung Galaxy S23 Ultra', 'Android 14', '10.2.2'),
-        ('Samsung Galaxy S22 Ultra', 'Android 13', '10.1.4'),
-        ('Google Pixel 8 Pro', 'Android 14', '10.2.3'),
-        ('Google Pixel 7 Pro', 'Android 14', '10.2.1'),
-        ('OnePlus 11', 'Android 14', '10.2.1'),
+        ('iPhone 15 Pro Max', 'iOS 17.2', '10.0.0'),
+        ('iPhone 15 Pro', 'iOS 17.2', '10.0.0'),
+        ('iPhone 14 Pro Max', 'iOS 17.2', '10.0.0'),
     ],
     
     'EU': [
-        ('iPhone 14 Pro', 'iOS 17.1', '10.2.1'),
-        ('Samsung Galaxy S23', 'Android 14', '10.2.2'),
-        ('Google Pixel 8', 'Android 14', '10.2.3'),
-        ('OnePlus 10 Pro', 'Android 13', '10.1.4'),
-        ('Xiaomi 13', 'Android 14', '10.2.3'),
+        ('iPhone 15 Pro Max', 'iOS 17.2', '10.0.0'),
+        ('iPhone 15 Pro', 'iOS 17.2', '10.0.0'),
+        ('iPhone 14 Pro Max', 'iOS 17.2', '10.0.0'),
     ]
 }
 
 
 def generate_device_profile(region='RU'):
     """
-    Generate realistic device profile
+    Generate realistic iOS device profile
     
     Args:
         region: Region code (RU, US, EU)
     
     Returns:
-        dict: {device_model, system_version, app_version, lang_code, system_lang_code}
+        dict: {device_model, system_version, app_version, lang_code, system_lang_code, client_type}
     """
     if region not in DEVICE_PROFILES:
         region = 'RU'
@@ -93,10 +53,8 @@ def generate_device_profile(region='RU'):
     
     lang_code, system_lang_code = lang_codes.get(region, ('en', 'en-US'))
     
-    # Determine client type
-    client_type = 'android'
-    if 'iPhone' in device_model or 'iPad' in device_model:
-        client_type = 'ios'
+    # ALWAYS iOS
+    client_type = 'ios'
     
     return {
         'device_model': device_model,

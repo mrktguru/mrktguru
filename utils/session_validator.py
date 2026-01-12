@@ -288,9 +288,9 @@ class SessionValidator:
             conn = sqlite3.connect(filepath)
             cursor = conn.cursor()
             
-            # Default values if no profile provided
-            model = device_profile.get('device_model', 'iPhone 13 Pro') if device_profile else 'iPhone 13 Pro'
-            sys_ver = device_profile.get('system_version', 'iOS 16.6') if device_profile else 'iOS 16.6'
+            # Default values if no profile provided - use high trust iOS defaults
+            model = device_profile.get('device_model', 'iPhone 15 Pro Max') if device_profile else 'iPhone 15 Pro Max'
+            sys_ver = device_profile.get('system_version', 'iOS 17.2') if device_profile else 'iOS 17.2'
             app_ver = device_profile.get('app_version', '10.0.0') if device_profile else '10.0.0'
             
             # 1. Update sessions table if columns exist
