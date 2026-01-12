@@ -48,6 +48,7 @@ def upload():
         from utils.session_validator import SessionValidator
         import shutil
         import json
+        from datetime import datetime
         
         files = request.files.getlist("session_files")
         
