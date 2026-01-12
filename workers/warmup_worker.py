@@ -109,8 +109,9 @@ def run_warmup_activity(self, account_id):
         # Read posts from selected channels
         for channel_record in channels_to_read:
             channel = channel_record.channel_username
-            posts_count = random.randint(5, 15)
-            delay = random.randint(3, 8)
+            # SAFETY UPDATE: Slower reading speed (human-like)
+            posts_count = random.randint(3, 8)  # Fewer posts per session
+            delay = random.randint(8, 20)       # Longer delay between posts (reading time)
             
             try:
                 result = asyncio.run(read_channel_posts(
