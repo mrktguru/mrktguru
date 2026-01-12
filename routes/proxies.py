@@ -105,6 +105,25 @@ def update(proxy_id):
     """Update proxy settings"""
     proxy = Proxy.query.get_or_404(proxy_id)
     
+    # Update proxy string if provided
+    proxy_string = request.form.get('proxy_string')
+    if proxy_string:
+        from utils.validators import validate_proxy
+        is_valid, result = validate_proxy(proxy_string)
+        if is_valid:
+            proxy.type = result['type']
+            proxy.host = result['host']
+            proxy.port = result['port']
+            proxy.username = result['username']
+            proxy.password = result['password']
+            
+            # Reset status to allow re-testing
+            proxy.status = 'active'
+            proxy.current_ip = None
+        else:
+            flash(f'Invalid proxy format: {result}', 'error')
+            return redirect(url_for('proxies.list_proxies'))
+
     if proxy.is_mobile:
         proxy.rotation_url = request.form.get('rotation_url')
         proxy.rotation_interval = int(request.form.get('rotation_interval', 1200))
@@ -112,7 +131,21 @@ def update(proxy_id):
     proxy.notes = request.form.get('notes')
     db.session.commit()
     
-    flash('Proxy updated', 'success')
+    # Auto-test if credentials changed
+    if proxy_string:
+        from utils.proxy_helper import test_proxy_connection
+        test_result = test_proxy_connection(proxy)
+        if test_result['success']:
+            proxy.current_ip = test_result['ip']
+            proxy.status = 'active'
+            db.session.commit()
+            flash(f'Proxy updated and verified. IP: {test_result["ip"]}', 'success')
+        else:
+            proxy.status = 'error'
+            db.session.commit()
+            flash(f'Proxy updated but connection failed: {test_result["error"]}', 'warning')
+    else:
+        flash('Proxy updated', 'success')
     return redirect(url_for('proxies.list_proxies'))
 
 
