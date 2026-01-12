@@ -52,6 +52,9 @@ def upload():
             flash("No files selected", "error")
             return redirect(url_for("accounts.upload"))
         
+        # Get region from form
+        region = request.form.get("region", "US")  # Default to US
+        
         # Get proxy settings from form
         proxy_mode = request.form.get("proxy_mode", "none")
         specific_proxy_id = request.form.get("specific_proxy")
@@ -117,8 +120,8 @@ def upload():
                             category='system'
                         )
                     
-                    # Create device profile
-                    device = generate_device_profile()
+                    # Create device profile with selected region
+                    device = generate_device_profile(region=region)
                     device_profile = DeviceProfile(
                         account_id=account.id,
                         device_model=device["device_model"],
