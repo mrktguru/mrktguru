@@ -10,7 +10,7 @@ class AccountActivityLog(db.Model):
     __tablename__ = 'account_activity_logs'
     
     id = db.Column(db.Integer, primary_key=True)
-    account_id = db.Column(db.Integer, db.ForeignKey('accounts.id'), nullable=False, index=True)
+    account_id = db.Column(db.Integer, db.ForeignKey('accounts.id', ondelete='CASCADE'), nullable=False, index=True)
     
     # Action details
     action_type = db.Column(db.String(50), nullable=False, index=True)
@@ -38,7 +38,7 @@ class AccountActivityLog(db.Model):
     duration_ms = db.Column(db.Integer)  # Action duration in milliseconds
     
     # Relationship
-    account = db.relationship('Account', backref=db.backref('activity_logs', lazy='dynamic', order_by='AccountActivityLog.timestamp.desc()'))
+    account = db.relationship('Account', backref=db.backref('activity_logs', lazy='dynamic', order_by='AccountActivityLog.timestamp.desc()', cascade='all, delete-orphan'))
     
     def __repr__(self):
         return f'<AccountActivityLog {self.action_type} for account {self.account_id} at {self.timestamp}>'
