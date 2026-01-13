@@ -100,26 +100,62 @@ class TDataParser:
             if hasattr(tdesk, 'mainAccount') and tdesk.mainAccount:
                 account = tdesk.mainAccount
                 
+                logger.info(f"Main account found. Attributes: {dir(account)}")
+                
                 # Auth key and DC info
-                if hasattr(account, 'authKey'):
+                if hasattr(account, 'authKey') and account.authKey:
                     auth_data['auth_key'] = account.authKey.key  # bytes
                     auth_data['auth_key_id'] = int.from_bytes(
                         account.authKey.key[-8:], 
                         byteorder='little', 
                         signed=False
                     )
+                    logger.info(f"Auth key extracted: {len(account.authKey.key)} bytes")
                 
+                # Try multiple ways to get DC ID
+                dc_id = None
                 if hasattr(account, 'mainDcId'):
-                    auth_data['main_dc_id'] = account.mainDcId
-                    auth_data['dc_id'] = account.mainDcId
+                    dc_id = account.mainDcId
+                    logger.info(f"DC ID from mainDcId: {dc_id}")
+                elif hasattr(account, 'dcId'):
+                    dc_id = account.dcId
+                    logger.info(f"DC ID from dcId: {dc_id}")
+                elif hasattr(account, 'dc_id'):
+                    dc_id = account.dc_id
+                    logger.info(f"DC ID from dc_id: {dc_id}")
                 
-                # User info
+                if dc_id:
+                    auth_data['main_dc_id'] = dc_id
+                    auth_data['dc_id'] = dc_id
+                else:
+                    logger.warning("DC ID not found in account")
+                
+                # Try multiple ways to get User ID
+                user_id = None
                 if hasattr(account, 'userId'):
-                    auth_data['user_id'] = account.userId
+                    user_id = account.userId
+                    logger.info(f"User ID from userId: {user_id}")
+                elif hasattr(account, 'user_id'):
+                    user_id = account.user_id
+                    logger.info(f"User ID from user_id: {user_id}")
+                elif hasattr(account, 'id'):
+                    user_id = account.id
+                    logger.info(f"User ID from id: {user_id}")
+                
+                if user_id:
+                    auth_data['user_id'] = user_id
+                else:
+                    logger.warning("User ID not found in account")
                 
                 # Phone (might not always be available)
                 if hasattr(account, 'phone'):
                     auth_data['phone'] = account.phone
+                    logger.info(f"Phone: {account.phone}")
+                elif hasattr(account, 'phoneNumber'):
+                    auth_data['phone'] = account.phoneNumber
+                    logger.info(f"Phone from phoneNumber: {account.phoneNumber}")
+            else:
+                logger.warning("mainAccount not found in TDesktop object")
             
             # Extract device info
             device_info = {}
@@ -127,22 +163,47 @@ class TDataParser:
                 account = tdesk.mainAccount
                 
                 # Try to get API info (this tells us original client type)
-                if hasattr(account, 'api'):
+                if hasattr(account, 'api') and account.api:
                     api = account.api
+                    logger.info(f"API object found. Attributes: {dir(api)}")
+                    
                     if hasattr(api, 'api_id'):
                         device_info['original_api_id'] = api.api_id
+                    elif hasattr(api, 'apiId'):
+                        device_info['original_api_id'] = api.apiId
+                    
                     if hasattr(api, 'api_hash'):
                         device_info['original_api_hash'] = api.api_hash
+                    elif hasattr(api, 'apiHash'):
+                        device_info['original_api_hash'] = api.apiHash
+                    
                     if hasattr(api, 'device_model'):
                         device_info['device_model'] = api.device_model
+                    elif hasattr(api, 'deviceModel'):
+                        device_info['device_model'] = api.deviceModel
+                    
                     if hasattr(api, 'system_version'):
                         device_info['system_version'] = api.system_version
+                    elif hasattr(api, 'systemVersion'):
+                        device_info['system_version'] = api.systemVersion
+                    
                     if hasattr(api, 'app_version'):
                         device_info['app_version'] = api.app_version
+                    elif hasattr(api, 'appVersion'):
+                        device_info['app_version'] = api.appVersion
+                    
                     if hasattr(api, 'lang_code'):
                         device_info['lang_code'] = api.lang_code
+                    elif hasattr(api, 'langCode'):
+                        device_info['lang_code'] = api.langCode
+                    
                     if hasattr(api, 'system_lang_code'):
                         device_info['system_lang_code'] = api.system_lang_code
+                    elif hasattr(api, 'systemLangCode'):
+                        device_info['system_lang_code'] = api.systemLangCode
+                else:
+                    logger.warning("API object not found in account")
+
             
             # Network settings
             network = {}
