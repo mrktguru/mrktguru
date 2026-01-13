@@ -271,6 +271,41 @@ def configure_tdata(account_id):
                 c.execute('CREATE TABLE IF NOT EXISTS version (version INTEGER PRIMARY KEY)')
                 c.execute('INSERT OR REPLACE INTO version VALUES (8)')  # Telethon session version
                 
+                # Create update_state table (required by Telethon)
+                c.execute('''
+                    CREATE TABLE IF NOT EXISTS update_state (
+                        id INTEGER PRIMARY KEY,
+                        pts INTEGER,
+                        qts INTEGER,
+                        date INTEGER,
+                        seq INTEGER
+                    )
+                ''')
+                
+                # Create entities table (required by Telethon)
+                c.execute('''
+                    CREATE TABLE IF NOT EXISTS entities (
+                        id INTEGER PRIMARY KEY,
+                        hash INTEGER NOT NULL,
+                        username TEXT,
+                        phone INTEGER,
+                        name TEXT,
+                        date INTEGER
+                    )
+                ''')
+                
+                # Create sent_files table (required by Telethon)
+                c.execute('''
+                    CREATE TABLE IF NOT EXISTS sent_files (
+                        md5_digest BLOB,
+                        file_size INTEGER,
+                        type INTEGER,
+                        id INTEGER,
+                        hash INTEGER,
+                        PRIMARY KEY (md5_digest, file_size, type)
+                    )
+                ''')
+                
                 # Insert DC and auth_key
                 c.execute('''
                     INSERT OR REPLACE INTO sessions (dc_id, server_address, port, auth_key, takeout_id)
