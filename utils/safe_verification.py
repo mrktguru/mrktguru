@@ -44,13 +44,10 @@ async def safe_self_check(client):
         # Random delay before sending
         await asyncio.sleep(random.uniform(1, 3))
         
-        # Get proper peer for Saved Messages
-        saved_messages = await client.get_input_entity('me')
-        
-        # Send message to Saved Messages
+        # Send message to Saved Messages using user ID
         check_time = datetime.now().strftime("%H:%M:%S")
         msg = await client.send_message(
-            saved_messages,
+            me.id,  # Use user ID for Saved Messages
             f'🔄 Check {check_time}'
         )
         
