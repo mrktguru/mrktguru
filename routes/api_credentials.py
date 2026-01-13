@@ -173,3 +173,48 @@ def decrypt_hash(credential_id):
         
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@api_credentials_bp.route("/settings/api-credentials/import-from-env", methods=["POST"])
+@login_required
+def import_from_env():
+    """Import API credentials from .env file"""
+    try:
+        from config import Config
+        
+        api_id = Config.TG_API_ID
+        api_hash = Config.TG_API_HASH
+        
+        if not api_id or not api_hash:
+            flash("⚠️ TG_API_ID or TG_API_HASH not found in .env file", "error")
+            return redirect(url_for("api_credentials.list_credentials"))
+        
+        # Check if already exists
+        existing = ApiCredential.query.filter_by(api_id=int(api_id)).first()
+        if existing:
+            flash(f"⚠️ API ID {api_id} already exists in manager", "warning")
+            return redirect(url_for("api_credentials.list_credentials"))
+        
+        # Encrypt and create
+        encrypted_hash = encrypt_api_hash(api_hash)
+        
+        credential = ApiCredential(
+            name=f"Personal API (from .env)",
+            api_id=int(api_id),
+            api_hash=encrypted_hash,
+            client_type="custom",
+            is_official=False,
+            is_default=True,  # Set as default since it's user's personal API
+            notes="Imported from .env configuration"
+        )
+        
+        db.session.add(credential)
+        db.session.commit()
+        
+        flash(f"✅ Successfully imported API ID {api_id} from .env and set as default", "success")
+        
+    except Exception as e:
+        db.session.rollback()
+        flash(f"❌ Error importing from .env: {str(e)}", "error")
+    
+    return redirect(url_for("api_credentials.list_credentials"))
