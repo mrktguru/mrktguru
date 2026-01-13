@@ -23,8 +23,28 @@
                     <h6 class="border-bottom pb-2">🔐 Authorization Data</h6>
                     <table class="table table-sm">
                         <tr>
+                            <td><strong>Auth Key:</strong></td>
+                            <td>
+                                {% if tdata.auth_key %}
+                                <code class="text-success" style="font-size: 10px; word-break: break-all;">
+                                    {{ tdata.auth_key.hex()[:64] }}...<br>
+                                    <small class="text-muted">(256 bytes, encrypted in DB)</small>
+                                </code>
+                                {% else %}
+                                <code class="text-muted">Not found</code>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
                             <td><strong>Auth Key ID:</strong></td>
-                            <td><code>{{ tdata.auth_key_id or 'N/A' }}</code></td>
+                            <td>
+                                {% if tdata.auth_key_id %}
+                                <code>{{ '%0x' % tdata.auth_key_id|int if tdata.auth_key_id else 'N/A' }}</code>
+                                <br><small class="text-muted">Decimal: {{ tdata.auth_key_id }}</small>
+                                {% else %}
+                                <code>N/A</code>
+                                {% endif %}
+                            </td>
                         </tr>
                         <tr>
                             <td><strong>DC ID:</strong></td>
