@@ -9,12 +9,16 @@ from models.api_credential import ApiCredential
 from models.proxy import Proxy
 from database import db
 from utils.tdata_parser import TDataParser
-from utils.encryption import encrypt_auth_key, encrypt_api_hash, decrypt_api_hash
+from utils.encryption import encrypt_auth_key, encrypt_api_hash, decrypt_api_hash, decrypt_auth_key
 from werkzeug.utils import secure_filename
+from config import Config
 import os
 import uuid
 import json
 from datetime import datetime
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 @login_required
