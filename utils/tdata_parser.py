@@ -100,6 +100,22 @@ class TDataParser:
             if hasattr(tdesk, 'mainAccount') and tdesk.mainAccount:
                 account = tdesk.mainAccount
                 
+                # Write debug to file
+                try:
+                    with open('/tmp/tdata_debug.txt', 'w') as f:
+                        f.write(f"=== TDATA DEBUG ===\n")
+                        f.write(f"Account type: {type(account)}\n")
+                        f.write(f"Account attributes:\n")
+                        for attr in dir(account):
+                            if not attr.startswith('_'):
+                                try:
+                                    value = getattr(account, attr)
+                                    f.write(f"  {attr}: {type(value)} = {value}\n")
+                                except:
+                                    f.write(f"  {attr}: <error reading>\n")
+                except Exception as e:
+                    logger.error(f"Failed to write debug file: {e}")
+                
                 print(f"[TDATA DEBUG] Main account found!")
                 print(f"[TDATA DEBUG] Account attributes: {dir(account)}")
                 print(f"[TDATA DEBUG] Account type: {type(account)}")
