@@ -18,6 +18,7 @@ class Proxy(db.Model):
     current_ip = db.Column(db.String(50))
     last_rotation = db.Column(db.DateTime)
     is_mobile = db.Column(db.Boolean, default=False)
+    country = db.Column(db.String(10))  # Extracted from username (e.g., __cr.us -> US)
     status = db.Column(db.String(20), default='active')  # active/inactive/error
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     notes = db.Column(db.Text)
