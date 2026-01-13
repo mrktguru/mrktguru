@@ -180,44 +180,6 @@ class TDataParser:
     
     
     @staticmethod
-    def convert_to_telethon(tdata_path: str, session_path: str, api_id: int, api_hash: str) -> bool:
-        """
-        Convert TData to Telethon session using opentele
-        
-        Args:
-            tdata_path: Path to tdata folder
-            session_path: Destination path for .session file
-            api_id: Telegram API ID to use
-            api_hash: Telegram API Hash to use
-            
-        Returns:
-            bool: Success status
-        """
-        try:
-            from opentele.td import TDesktop
-            from opentele.tl import TelegramClient
-            from opentele.api import API
-            
-            # Load TData
-            tdesk = TDesktop(tdata_path)
-            
-            # Create API object
-            api = API.TelegramDesktop  # Use Desktop API by default
-            # Or create custom API
-            # api = API(api_id=api_id, api_hash=api_hash)
-            
-            # Convert to Telethon
-            client = await tdesk.ToTelethon(session=session_path, flag=UseCurrentSession, api=api)
-            
-            logger.info(f"Successfully converted TData to Telethon session: {session_path}")
-            return True
-            
-        except Exception as e:
-            logger.error(f"Failed to convert TData to Telethon: {e}")
-            return False
-    
-    
-    @staticmethod
     def cleanup_temp(extract_dir: str):
         """
         Clean up temporary extraction directory
