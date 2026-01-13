@@ -44,10 +44,10 @@ async def safe_self_check(client):
         # Random delay before sending
         await asyncio.sleep(random.uniform(1, 3))
         
-        # Send message to Saved Messages
+        # Send message to Saved Messages (use me entity, not string)
         check_time = datetime.now().strftime("%H:%M:%S")
         msg = await client.send_message(
-            'me',
+            me,  # Use me entity instead of 'me' string
             f'🔄 Check {check_time}'
         )
         
