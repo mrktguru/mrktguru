@@ -141,6 +141,10 @@ async def safe_get_me(client, last_check_time=None):
         
         logger.info("Starting safe get_me verification")
         
+        # Connect client first
+        if not client.is_connected():
+            await client.connect()
+
         # Random delay BEFORE request (5-15 seconds)
         delay_before = random.uniform(5, 15)
         logger.info(f"Waiting {delay_before:.1f}s before get_me...")
