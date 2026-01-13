@@ -5,9 +5,14 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h1>Telegram Accounts</h1>
-    <a href="{{ url_for('accounts.upload') }}" class="btn btn-primary">
-        <i class="bi bi-upload"></i> Upload Sessions
-    </a>
+    <div class="btn-group">
+        <a href="{{ url_for('accounts.upload') }}" class="btn btn-primary">
+            <i class="bi bi-upload"></i> Upload Sessions
+        </a>
+        <a href="{{ url_for('accounts.upload_tdata') }}" class="btn btn-success">
+            <i class="bi bi-file-earmark-zip"></i> Upload TData
+        </a>
+    </div>
 </div>
 
 <div class="row mb-3">
