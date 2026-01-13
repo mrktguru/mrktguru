@@ -100,7 +100,9 @@ class TDataParser:
             if hasattr(tdesk, 'mainAccount') and tdesk.mainAccount:
                 account = tdesk.mainAccount
                 
-                logger.info(f"Main account found. Attributes: {dir(account)}")
+                print(f"[TDATA DEBUG] Main account found!")
+                print(f"[TDATA DEBUG] Account attributes: {dir(account)}")
+                print(f"[TDATA DEBUG] Account type: {type(account)}")
                 
                 # Auth key and DC info
                 if hasattr(account, 'authKey') and account.authKey:
@@ -110,41 +112,53 @@ class TDataParser:
                         byteorder='little', 
                         signed=False
                     )
-                    logger.info(f"Auth key extracted: {len(account.authKey.key)} bytes")
+                    print(f"[TDATA DEBUG] Auth key extracted: {len(account.authKey.key)} bytes")
                 
                 # Try multiple ways to get DC ID
                 dc_id = None
+                print(f"[TDATA DEBUG] Checking for DC ID...")
+                print(f"[TDATA DEBUG] Has mainDcId: {hasattr(account, 'mainDcId')}")
+                print(f"[TDATA DEBUG] Has dcId: {hasattr(account, 'dcId')}")
+                print(f"[TDATA DEBUG] Has dc_id: {hasattr(account, 'dc_id')}")
+                
                 if hasattr(account, 'mainDcId'):
                     dc_id = account.mainDcId
-                    logger.info(f"DC ID from mainDcId: {dc_id}")
+                    print(f"[TDATA DEBUG] DC ID from mainDcId: {dc_id}")
                 elif hasattr(account, 'dcId'):
                     dc_id = account.dcId
-                    logger.info(f"DC ID from dcId: {dc_id}")
+                    print(f"[TDATA DEBUG] DC ID from dcId: {dc_id}")
                 elif hasattr(account, 'dc_id'):
                     dc_id = account.dc_id
-                    logger.info(f"DC ID from dc_id: {dc_id}")
+                    print(f"[TDATA DEBUG] DC ID from dc_id: {dc_id}")
                 
                 if dc_id:
                     auth_data['main_dc_id'] = dc_id
                     auth_data['dc_id'] = dc_id
                 else:
+                    print(f"[TDATA DEBUG] DC ID not found in account")
                     logger.warning("DC ID not found in account")
                 
                 # Try multiple ways to get User ID
                 user_id = None
+                print(f"[TDATA DEBUG] Checking for User ID...")
+                print(f"[TDATA DEBUG] Has userId: {hasattr(account, 'userId')}")
+                print(f"[TDATA DEBUG] Has user_id: {hasattr(account, 'user_id')}")
+                print(f"[TDATA DEBUG] Has id: {hasattr(account, 'id')}")
+                
                 if hasattr(account, 'userId'):
                     user_id = account.userId
-                    logger.info(f"User ID from userId: {user_id}")
+                    print(f"[TDATA DEBUG] User ID from userId: {user_id}")
                 elif hasattr(account, 'user_id'):
                     user_id = account.user_id
-                    logger.info(f"User ID from user_id: {user_id}")
+                    print(f"[TDATA DEBUG] User ID from user_id: {user_id}")
                 elif hasattr(account, 'id'):
                     user_id = account.id
-                    logger.info(f"User ID from id: {user_id}")
+                    print(f"[TDATA DEBUG] User ID from id: {user_id}")
                 
                 if user_id:
                     auth_data['user_id'] = user_id
                 else:
+                    print(f"[TDATA DEBUG] User ID not found in account")
                     logger.warning("User ID not found in account")
                 
                 # Phone (might not always be available)
