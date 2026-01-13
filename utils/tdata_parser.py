@@ -197,16 +197,21 @@ class TDataParser:
                     api = account.api
                     logger.info(f"API object found. Attributes: {dir(api)}")
                     
+                    # API ID
                     if hasattr(api, 'api_id'):
                         device_info['original_api_id'] = api.api_id
                     elif hasattr(api, 'apiId'):
                         device_info['original_api_id'] = api.apiId
                     
+                    # API Hash - CRITICAL for adding to manager!
                     if hasattr(api, 'api_hash'):
                         device_info['original_api_hash'] = api.api_hash
+                        print(f"[TDATA DEBUG] API Hash extracted: {api.api_hash[:20]}...")
                     elif hasattr(api, 'apiHash'):
                         device_info['original_api_hash'] = api.apiHash
+                        print(f"[TDATA DEBUG] API Hash extracted: {api.apiHash[:20]}...")
                     
+                    # Device info
                     if hasattr(api, 'device_model'):
                         device_info['device_model'] = api.device_model
                     elif hasattr(api, 'deviceModel'):

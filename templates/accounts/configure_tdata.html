@@ -63,7 +63,8 @@
                         <tr>
                             <td><strong>Language:</strong></td>
                             <td><code>{{ tdata.lang_code or 'N/A' }}</code> /
-                                <code>{{ tdata.system_lang_code or 'N/A' }}</code></td>
+                                <code>{{ tdata.system_lang_code or 'N/A' }}</code>
+                            </td>
                         </tr>
                     </table>
 
@@ -81,7 +82,30 @@
                                 {% endif %}
                             </td>
                         </tr>
+                        <tr>
+                            <td><strong>Original API Hash:</strong></td>
+                            <td>
+                                {% if tdata.original_api_hash %}
+                                <code class="text-success">{{ tdata.original_api_hash[:20] }}...</code>
+                                {% else %}
+                                <code class="text-muted">Not found in TData</code>
+                                {% endif %}
+                            </td>
+                        </tr>
                     </table>
+
+                    {% if tdata.original_api_id and tdata.original_api_hash %}
+                    <div class="alert alert-info">
+                        <strong>💡 Tip:</strong> You can add this API to your API Manager for reuse.
+                        <form method="POST"
+                            action="{{ url_for('accounts.add_tdata_api_to_manager', account_id=account.id) }}"
+                            style="display:inline;">
+                            <button type="submit" class="btn btn-sm btn-primary mt-2">
+                                ➕ Add to API Manager
+                            </button>
+                        </form>
+                    </div>
+                    {% endif %}
 
                     <!-- Network Settings -->
                     {% if tdata.proxy_settings or tdata.connection_type %}
