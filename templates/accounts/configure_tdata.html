@@ -206,6 +206,58 @@
                     </div>
                 </div>
 
+                <!-- Device Fingerprint Override -->
+                <div class="card mb-3">
+                    <div class="card-header">
+                        <h5 class="mb-0">📱 Device Fingerprint Override</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="alert alert-warning">
+                            <small>⚠️ Leave blank to use original values from TData. Fill to override.</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Device Model</label>
+                            <input type="text" class="form-control" name="device_model_override"
+                                placeholder="{{ tdata.device_model or 'e.g., iPhone 13 Pro' }}">
+                            <small class="text-muted">Examples: iPhone 13 Pro, Desktop, Samsung Galaxy S21</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">System Version</label>
+                            <input type="text" class="form-control" name="system_version_override"
+                                placeholder="{{ tdata.system_version or 'e.g., iOS 15.4' }}">
+                            <small class="text-muted">Examples: iOS 15.4, Windows 10, Android 12</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">App Version</label>
+                            <input type="text" class="form-control" name="app_version_override"
+                                placeholder="{{ tdata.app_version or 'e.g., 8.4.1' }}">
+                            <small class="text-muted">Telegram app version</small>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Language Code</label>
+                                    <input type="text" class="form-control" name="lang_code_override"
+                                        placeholder="{{ tdata.lang_code or 'e.g., en' }}">
+                                    <small class="text-muted">e.g., en, ru, es</small>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">System Language</label>
+                                    <input type="text" class="form-control" name="system_lang_code_override"
+                                        placeholder="{{ tdata.system_lang_code or 'e.g., en-US' }}">
+                                    <small class="text-muted">e.g., en-US, ru-RU</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Manual Overrides (Advanced) -->
                 <div class="card mb-3">
                     <div class="card-header">

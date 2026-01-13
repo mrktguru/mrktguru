@@ -180,6 +180,13 @@ def configure_tdata(account_id):
             proxy_id = request.form.get('proxy_id')
             auth_key_manual = request.form.get('auth_key_manual')  # Optional override
             
+            # Device fingerprint overrides
+            device_model_override = request.form.get('device_model_override')
+            system_version_override = request.form.get('system_version_override')
+            app_version_override = request.form.get('app_version_override')
+            lang_code_override = request.form.get('lang_code_override')
+            system_lang_code_override = request.form.get('system_lang_code_override')
+            
             # Validate API credential selection
             if not api_credential_id:
                 flash("❌ Please select an API credential", "error")
@@ -189,6 +196,19 @@ def configure_tdata(account_id):
             account.api_credential_id = int(api_credential_id)
             if proxy_id:
                 account.proxy_id = int(proxy_id)
+            
+            # Apply device fingerprint overrides
+            tdata = account.tdata_metadata
+            if device_model_override:
+                tdata.device_model = device_model_override
+            if system_version_override:
+                tdata.system_version = system_version_override
+            if app_version_override:
+                tdata.app_version = app_version_override
+            if lang_code_override:
+                tdata.lang_code = lang_code_override
+            if system_lang_code_override:
+                tdata.system_lang_code = system_lang_code_override
             
             # Manual auth_key override (if provided)
             if auth_key_manual:
