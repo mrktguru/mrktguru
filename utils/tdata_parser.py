@@ -130,22 +130,22 @@ class TDataParser:
                     )
                     print(f"[TDATA DEBUG] Auth key extracted: {len(account.authKey.key)} bytes")
                 
-                # Try multiple ways to get DC ID
+                # Try multiple ways to get DC ID (opentele uses CamelCase!)
                 dc_id = None
                 print(f"[TDATA DEBUG] Checking for DC ID...")
+                print(f"[TDATA DEBUG] Has MainDcId: {hasattr(account, 'MainDcId')}")
                 print(f"[TDATA DEBUG] Has mainDcId: {hasattr(account, 'mainDcId')}")
                 print(f"[TDATA DEBUG] Has dcId: {hasattr(account, 'dcId')}")
-                print(f"[TDATA DEBUG] Has dc_id: {hasattr(account, 'dc_id')}")
                 
-                if hasattr(account, 'mainDcId'):
+                if hasattr(account, 'MainDcId'):  # opentele uses CamelCase!
+                    dc_id = int(account.MainDcId)  # Convert DcId enum to int
+                    print(f"[TDATA DEBUG] DC ID from MainDcId: {dc_id}")
+                elif hasattr(account, 'mainDcId'):
                     dc_id = account.mainDcId
                     print(f"[TDATA DEBUG] DC ID from mainDcId: {dc_id}")
                 elif hasattr(account, 'dcId'):
                     dc_id = account.dcId
                     print(f"[TDATA DEBUG] DC ID from dcId: {dc_id}")
-                elif hasattr(account, 'dc_id'):
-                    dc_id = account.dc_id
-                    print(f"[TDATA DEBUG] DC ID from dc_id: {dc_id}")
                 
                 if dc_id:
                     auth_data['main_dc_id'] = dc_id
@@ -154,19 +154,19 @@ class TDataParser:
                     print(f"[TDATA DEBUG] DC ID not found in account")
                     logger.warning("DC ID not found in account")
                 
-                # Try multiple ways to get User ID
+                # Try multiple ways to get User ID (opentele uses CamelCase!)
                 user_id = None
                 print(f"[TDATA DEBUG] Checking for User ID...")
+                print(f"[TDATA DEBUG] Has UserId: {hasattr(account, 'UserId')}")
                 print(f"[TDATA DEBUG] Has userId: {hasattr(account, 'userId')}")
-                print(f"[TDATA DEBUG] Has user_id: {hasattr(account, 'user_id')}")
                 print(f"[TDATA DEBUG] Has id: {hasattr(account, 'id')}")
                 
-                if hasattr(account, 'userId'):
+                if hasattr(account, 'UserId'):  # opentele uses CamelCase!
+                    user_id = account.UserId
+                    print(f"[TDATA DEBUG] User ID from UserId: {user_id}")
+                elif hasattr(account, 'userId'):
                     user_id = account.userId
                     print(f"[TDATA DEBUG] User ID from userId: {user_id}")
-                elif hasattr(account, 'user_id'):
-                    user_id = account.user_id
-                    print(f"[TDATA DEBUG] User ID from user_id: {user_id}")
                 elif hasattr(account, 'id'):
                     user_id = account.id
                     print(f"[TDATA DEBUG] User ID from id: {user_id}")
