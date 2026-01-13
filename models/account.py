@@ -35,10 +35,14 @@ class Account(db.Model):
     last_verification_attempt = db.Column(db.DateTime)
     verified = db.Column(db.Boolean, default=False)
     
+    # API Credentials (for TData import)
+    api_credential_id = db.Column(db.Integer, db.ForeignKey('api_credentials.id'))
+    
     # Relationships
     proxy = db.relationship('Proxy', backref=db.backref('accounts', lazy='dynamic'))
     device_profile = db.relationship('DeviceProfile', backref='account', uselist=False, cascade='all, delete-orphan')
     subscriptions = db.relationship('AccountSubscription', backref='account', lazy='dynamic', cascade='all, delete-orphan')
+    api_credential = db.relationship('ApiCredential', backref='accounts')
     
     def __repr__(self):
         return f'<Account {self.phone}>'
