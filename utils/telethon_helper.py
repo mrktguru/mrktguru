@@ -30,9 +30,12 @@ def get_telethon_client(account_id, proxy=None):
     """
     Get or create Telethon client for account
     Always creates a NEW client to avoid event loop conflicts
+    Uses TData metadata and selected API credentials if available
     """
     from models.account import Account
+    from models.api_credential import ApiCredential
     from database import db
+    from utils.encryption import decrypt_api_hash
     
     account = Account.query.get(account_id)
     if not account:
@@ -42,19 +45,68 @@ def get_telethon_client(account_id, proxy=None):
     if not os.path.exists(account.session_file_path):
         raise FileNotFoundError(f"Session file not found at {account.session_file_path}")
     
-    # Get device profile
-    device = account.device_profile
+    # ==================== API CREDENTIALS SELECTION ====================
+    # Priority: Selected API Credential > Original from TData > Config fallback
     
-    # Select API ID/HASH based on client type
-    client_type = getattr(device, 'client_type', 'desktop') if device else 'desktop'
+    if account.api_credential_id:
+        # Use selected API credential from manager
+        api_cred = ApiCredential.query.get(account.api_credential_id)
+        if api_cred:
+            api_id = api_cred.api_id
+            api_hash = decrypt_api_hash(api_cred.api_hash)
+            print(f"✅ Using selected API credential: {api_cred.name} (ID: {api_id})")
+        else:
+            # Fallback to config
+            api_id = Config.TG_API_ID
+            api_hash = Config.TG_API_HASH
+            print(f"⚠️ API credential not found, using config")
     
-    # Default to config if unknown or if user explicitly wants to use own credentials (optional logic)
-    # But for anti-ban, we prioritize official keys
-    api_creds = OFFICIAL_APIS.get(client_type, OFFICIAL_APIS['desktop'])
+    elif account.tdata_metadata and account.tdata_metadata.original_api_id:
+        # Use original API from TData
+        tdata = account.tdata_metadata
+        api_id = tdata.original_api_id
+        api_hash = decrypt_api_hash(tdata.original_api_hash) if tdata.original_api_hash else Config.TG_API_HASH
+        print(f"✅ Using original API from TData (ID: {api_id})")
     
-    api_id = api_creds['api_id']
-    api_hash = api_creds['api_hash']
+    else:
+        # Fallback to config
+        api_id = Config.TG_API_ID
+        api_hash = Config.TG_API_HASH
+        print(f"ℹ️ Using API from config (ID: {api_id})")
     
+    # ==================== DEVICE FINGERPRINT ====================
+    # Priority: TData exact fingerprint > DeviceProfile > Defaults
+    
+    if account.tdata_metadata:
+        # Use EXACT device info from TData
+        tdata = account.tdata_metadata
+        device_model = tdata.device_model or "Desktop"
+        system_version = tdata.system_version or "Windows 10"
+        app_version = tdata.app_version or "1.0"
+        lang_code = tdata.lang_code or "en"
+        system_lang_code = tdata.system_lang_code or "en-US"
+        print(f"✅ Using exact device fingerprint from TData: {device_model}")
+    
+    elif account.device_profile:
+        # Use device profile (for .session uploads)
+        device = account.device_profile
+        device_model = device.device_model
+        system_version = device.system_version
+        app_version = device.app_version
+        lang_code = device.lang_code
+        system_lang_code = device.system_lang_code
+        print(f"ℹ️ Using device profile: {device_model}")
+    
+    else:
+        # Fallback defaults
+        device_model = "Desktop"
+        system_version = "Windows 10"
+        app_version = "1.0"
+        lang_code = "en"
+        system_lang_code = "en-US"
+        print(f"⚠️ Using default device fingerprint")
+    
+    # ==================== PROXY CONFIGURATION ====================
     # Build proxy dict for Telethon
     proxy_dict = None
     if proxy:
