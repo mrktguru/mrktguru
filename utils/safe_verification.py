@@ -6,6 +6,7 @@ import asyncio
 import random
 from datetime import datetime, timedelta
 from telethon.errors import FloodWaitError, UserDeactivatedError, UserDeactivatedBanError, AuthKeyError
+from telethon.tl.types import InputPeerSelf
 import logging
 
 logger = logging.getLogger(__name__)
@@ -44,10 +45,10 @@ async def safe_self_check(client):
         # Random delay before sending
         await asyncio.sleep(random.uniform(1, 3))
         
-        # Send message to Saved Messages using user ID
+        # Send message to Saved Messages using InputPeerSelf
         check_time = datetime.now().strftime("%H:%M:%S")
         msg = await client.send_message(
-            me.id,  # Use user ID for Saved Messages
+            InputPeerSelf(),  # Proper peer for Saved Messages
             f'🔄 Check {check_time}'
         )
         
