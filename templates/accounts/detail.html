@@ -272,7 +272,8 @@
                                 <option value="">No proxy</option>
                                 {% for proxy in proxies %}
                                 <option value="{{ proxy.id }}" {% if account.proxy_id==proxy.id %}selected{% endif %}>
-                                    {{ proxy.type }}://{{ proxy.host }}:{{ proxy.port }}
+                                    {% if proxy.country %}🌍 {{ proxy.country }} - {% endif %}{{ proxy.type }}://{{
+                                    proxy.host }}:{{ proxy.port }}
                                     {% if proxy.current_ip %}({{ proxy.current_ip }}){% endif %}
                                 </option>
                                 {% endfor %}
@@ -289,6 +290,8 @@
                     <div class="d-flex justify-content-between align-items-start">
                         <div>
                             <strong>Current Proxy:</strong><br>
+                            {% if account.proxy.country %}<span class="badge bg-info">🌍 {{ account.proxy.country
+                                }}</span> {% endif %}
                             Type: {{ account.proxy.type }}<br>
                             Host: {{ account.proxy.host }}:{{ account.proxy.port }}<br>
                             IP: <span id="proxy-ip">{{ account.proxy.current_ip or 'Unknown' }}</span>
