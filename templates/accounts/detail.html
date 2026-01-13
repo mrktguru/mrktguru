@@ -66,18 +66,26 @@
                 </dl>
 
                 <div class="d-grid gap-2 mt-3">
-                    <!-- Safe Verification Dropdown -->
+                    <!-- Original Verify Session for TData setup -->
+                    <form method="POST" action="{{ url_for('accounts.verify', account_id=account.id) }}">
+                        <button type="submit" class="btn btn-success w-100">
+                            <i class="bi bi-check-circle"></i> Verify Session
+                        </button>
+                    </form>
+
+                    <!-- Safe Health Check Dropdown -->
                     <div class="btn-group w-100" role="group">
-                        <button type="button" class="btn btn-success dropdown-toggle w-100" data-bs-toggle="dropdown"
-                            aria-expanded="false">
-                            <i class="bi bi-shield-check"></i> Safe Verification
+                        <button type="button" class="btn btn-outline-success dropdown-toggle w-100"
+                            data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-heart-pulse"></i> Check Account Health
                         </button>
                         <ul class="dropdown-menu w-100">
                             <li>
-                                <h6 class="dropdown-header">Choose Verification Method</h6>
+                                <h6 class="dropdown-header">Choose Check Method</h6>
                             </li>
                             <li>
-                                <a class="dropdown-item" href="#" onclick="verifySafe('self_check'); return false;">
+                                <a class="dropdown-item" href="#"
+                                    onclick="checkAccountHealth('self_check'); return false;">
                                     <span class="badge bg-success me-2">⭐ Safest</span>
                                     <strong>Self-Check</strong>
                                     <br><small class="text-muted">Via Saved Messages • ~5-10s • Best for new
@@ -85,7 +93,8 @@
                                 </a>
                             </li>
                             <li>
-                                <a class="dropdown-item" href="#" onclick="verifySafe('public_channel'); return false;">
+                                <a class="dropdown-item" href="#"
+                                    onclick="checkAccountHealth('public_channel'); return false;">
                                     <span class="badge bg-info me-2">⭐ Safe</span>
                                     <strong>Public Channel</strong>
                                     <br><small class="text-muted">Read @telegram • ~3-5s • Daily checks</small>
@@ -95,7 +104,7 @@
                                 <hr class="dropdown-divider">
                             </li>
                             <li>
-                                <a class="dropdown-item" href="#" onclick="verifySafe('get_me'); return false;">
+                                <a class="dropdown-item" href="#" onclick="checkAccountHealth('get_me'); return false;">
                                     <span class="badge bg-warning me-2">⭐⭐ Moderate</span>
                                     <strong>Get Me</strong>
                                     <br><small class="text-muted">With delays • ~10-25s • Max 1 per 2-3h</small>
@@ -622,3 +631,86 @@
 </script>
 
 {% endblock %}
+<script>
+// Check Account Health Function (separate from verification)
+function checkAccountHealth(method) {
+    const accountId = {{ account.id }};
+    const methodNames = {
+        'self_check': 'Self-Check',
+        'public_channel': 'Public Channel',
+        'get_me': 'Get Me'
+    };
+    
+    // Show loading state
+    const btn = document.querySelector('.btn-outline-success.dropdown-toggle');
+    const originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Checking...';
+    
+    // Make AJAX request
+    fetch(`/accounts/${accountId}/verify-safe`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: `method=${method}`
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Success - show alert (NO reload, just health check)
+            const alert = document.createElement('div');
+            alert.className = 'alert alert-success alert-dismissible fade show mt-3';
+            alert.innerHTML = `
+                <strong>✅ Account is Alive!</strong> Check via ${methodNames[method]} successful.
+                <br><small>Duration: ${data.duration || 'N/A'} | User: @${data.user.username || 'N/A'}</small>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            btn.parentElement.parentElement.appendChild(alert);
+            
+            // Auto-dismiss after 10 seconds
+            setTimeout(() => alert.remove(), 10000);
+        } else {
+            // Error - show error message
+            const errorType = data.error_type || 'error';
+            let alertClass = 'alert-danger';
+            let icon = '❌';
+            
+            if (errorType === 'cooldown') {
+                alertClass = 'alert-warning';
+                icon = '⏱️';
+            } else if (errorType === 'flood_wait') {
+                alertClass = 'alert-warning';
+                icon = '⚠️';
+            }
+            
+            const alert = document.createElement('div');
+            alert.className = `alert ${alertClass} alert-dismissible fade show mt-3`;
+            alert.innerHTML = `
+                <strong>${icon} ${errorType === 'cooldown' ? 'Cooldown Active' : 'Error'}</strong> ${data.error}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            btn.parentElement.parentElement.appendChild(alert);
+            
+            // Auto-dismiss after 10 seconds
+            setTimeout(() => alert.remove(), 10000);
+        }
+    })
+    .catch(error => {
+        // Network error
+        const alert = document.createElement('div');
+        alert.className = 'alert alert-danger alert-dismissible fade show mt-3';
+        alert.innerHTML = `
+            <strong>❌ Network Error!</strong> ${error.message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        btn.parentElement.parentElement.appendChild(alert);
+        setTimeout(() => alert.remove(), 5000);
+    })
+    .finally(() => {
+        // Re-enable button
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+    });
+}
+</script>
