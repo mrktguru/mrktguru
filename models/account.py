@@ -38,11 +38,16 @@ class Account(db.Model):
     # API Credentials (for TData import)
     api_credential_id = db.Column(db.Integer, db.ForeignKey('api_credentials.id'))
     
+    # TData Import
+    source_type = db.Column(db.String(20), default='session')  # 'session' or 'tdata'
+    tdata_archive_path = db.Column(db.String(500))  # Path to original .zip
+    
     # Relationships
     proxy = db.relationship('Proxy', backref=db.backref('accounts', lazy='dynamic'))
     device_profile = db.relationship('DeviceProfile', backref='account', uselist=False, cascade='all, delete-orphan')
     subscriptions = db.relationship('AccountSubscription', backref='account', lazy='dynamic', cascade='all, delete-orphan')
     api_credential = db.relationship('ApiCredential', backref='accounts')
+    tdata_metadata = db.relationship('TDataMetadata', backref='account', uselist=False, cascade='all, delete-orphan')
     
     def __repr__(self):
         return f'<Account {self.phone}>'
