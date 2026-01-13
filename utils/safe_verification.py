@@ -34,6 +34,10 @@ async def safe_self_check(client):
     try:
         logger.info("Starting safe self-check verification")
         
+        # Connect client first
+        if not client.is_connected():
+            await client.connect()
+        
         # Get user info first
         me = await client.get_me()
         
@@ -231,6 +235,10 @@ async def check_via_public_channel(client, channel_username='telegram'):
         
         # Random delay before request
         await asyncio.sleep(random.uniform(1, 3))
+        
+        # Connect client first
+        if not client.is_connected():
+            await client.connect()
         
         # Get channel entity (no join required for public channels)
         channel = await client.get_entity(channel_username)
