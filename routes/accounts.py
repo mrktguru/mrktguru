@@ -1197,3 +1197,12 @@ def activity_logs(account_id):
         }
     )
 
+
+
+# ==================== TDATA ROUTES ====================
+# Import TData-specific routes
+from routes.tdata_routes import upload_tdata, configure_tdata
+
+# Register TData routes
+accounts_bp.add_url_rule('/upload-tdata', view_func=upload_tdata, methods=['GET', 'POST'])
+accounts_bp.add_url_rule('/<int:account_id>/configure-tdata', view_func=configure_tdata, methods=['GET', 'POST'])

@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block title %}Upload TData{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <h2>📦 Upload Telegram Desktop TData</h2>
+            <p class="text-muted">Upload TData archive (.zip) to extract account information</p>
+        </div>
+    </div>
+
+    <!-- Instructions -->
+    <div class="alert alert-info">
+        <h5>📋 Instructions:</h5>
+        <ol>
+            <li>Export your Telegram Desktop session as a <code>tdata</code> folder</li>
+            <li>Compress the <code>tdata</code> folder into a <code>.zip</code> archive</li>
+            <li>Upload the <code>.zip</code> file below</li>
+            <li>Review extracted metadata and configure API credentials</li>
+        </ol>
+    </div>
+
+    <!-- Upload Form -->
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
+            <div class="card">
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('accounts.upload_tdata') }}" enctype="multipart/form-data">
+                        <div class="mb-3">
+                            <label class="form-label">TData Archive (.zip) *</label>
+                            <input type="file" class="form-control" name="tdata_file" accept=".zip" required>
+                            <small class="text-muted">Maximum size: 50MB</small>
+                        </div>
+
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                📤 Upload & Extract TData
+                            </button>
+                            <a href="{{ url_for('accounts.list_accounts') }}" class="btn btn-outline-secondary">
+                                Cancel
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- What will be extracted -->
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <h5>🔍 What will be extracted:</h5>
+            <div class="row">
+                <div class="col-md-6">
+                    <ul>
+                        <li>✅ Authorization Key (auth_key)</li>
+                        <li>✅ Data Center ID (DC ID)</li>
+                        <li>✅ User ID & Phone Number</li>
+                        <li>✅ Original API ID/Hash</li>
+                    </ul>
+                </div>
+                <div class="col-md-6">
+                    <ul>
+                        <li>✅ Device Model & OS Version</li>
+                        <li>✅ App Version & Language Settings</li>
+                        <li>✅ Network & Proxy Settings</li>
+                        <li>✅ Session Metadata</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
