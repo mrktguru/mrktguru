@@ -631,8 +631,7 @@
 
     // Check Account Health
     function checkAccountHealth(method) {
-        const accountId = {{ account.id }
-    };
+        const accountId = {{ account.id }}
     const names = {% raw %}{ 'self_check': 'Self-Check', 'public_channel': 'Public Channel', 'get_me': 'Get Me' } {% endraw %};
     const btn = document.querySelector('.btn-outline-success.dropdown-toggle');
     const orig = btn.innerHTML;
