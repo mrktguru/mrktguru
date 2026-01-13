@@ -628,6 +628,47 @@
                 btn.innerHTML = originalText;
             });
     }
+
+    // Check Account Health
+    function checkAccountHealth(method) {
+        const accountId = {{ account.id }
+    };
+    const names = { 'self_check': 'Self-Check', 'public_channel': 'Public Channel', 'get_me': 'Get Me' };
+    const btn = document.querySelector('.btn-outline-success.dropdown-toggle');
+    const orig = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Checking...';
+
+    fetch(`/accounts/${accountId}/verify-safe`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `method=${method}`
+    })
+        .then(r => r.json())
+        .then(d => {
+            const a = document.createElement('div');
+            if (d.success) {
+                a.className = 'alert alert-success alert-dismissible fade show mt-3';
+                a.innerHTML = `<strong>✅ Alive!</strong> ${names[method]}<br><small>${d.duration}</small><button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
+            } else {
+                a.className = 'alert alert-warning alert-dismissible fade show mt-3';
+                a.innerHTML = `<strong>⚠️ Error</strong> ${d.error}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
+            }
+            btn.parentElement.parentElement.appendChild(a);
+            setTimeout(() => a.remove(), 10000);
+        })
+        .catch(e => {
+            const a = document.createElement('div');
+            a.className = 'alert alert-danger alert-dismissible fade show mt-3';
+            a.innerHTML = `<strong>❌</strong> ${e.message}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
+            btn.parentElement.parentElement.appendChild(a);
+            setTimeout(() => a.remove(), 5000);
+        })
+        .finally(() => {
+            btn.disabled = false;
+            btn.innerHTML = orig;
+        });
+    }
 </script>
 
 {% endblock %}
