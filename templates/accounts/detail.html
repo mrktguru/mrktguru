@@ -66,11 +66,43 @@
                 </dl>
 
                 <div class="d-grid gap-2 mt-3">
-                    <form method="POST" action="{{ url_for('accounts.verify', account_id=account.id) }}">
-                        <button type="submit" class="btn btn-success w-100">
-                            <i class="bi bi-check-circle"></i> Verify Session
+                    <!-- Safe Verification Dropdown -->
+                    <div class="btn-group w-100" role="group">
+                        <button type="button" class="btn btn-success dropdown-toggle w-100" data-bs-toggle="dropdown"
+                            aria-expanded="false">
+                            <i class="bi bi-shield-check"></i> Safe Verification
                         </button>
-                    </form>
+                        <ul class="dropdown-menu w-100">
+                            <li>
+                                <h6 class="dropdown-header">Choose Verification Method</h6>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="#" onclick="verifySafe('self_check'); return false;">
+                                    <span class="badge bg-success me-2">⭐ Safest</span>
+                                    <strong>Self-Check</strong>
+                                    <br><small class="text-muted">Via Saved Messages • ~5-10s • Best for new
+                                        accounts</small>
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="#" onclick="verifySafe('public_channel'); return false;">
+                                    <span class="badge bg-info me-2">⭐ Safe</span>
+                                    <strong>Public Channel</strong>
+                                    <br><small class="text-muted">Read @telegram • ~3-5s • Daily checks</small>
+                                </a>
+                            </li>
+                            <li>
+                                <hr class="dropdown-divider">
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="#" onclick="verifySafe('get_me'); return false;">
+                                    <span class="badge bg-warning me-2">⭐⭐ Moderate</span>
+                                    <strong>Get Me</strong>
+                                    <br><small class="text-muted">With delays • ~10-25s • Max 1 per 2-3h</small>
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
 
                     <form method="POST" action="{{ url_for('accounts.sync_from_telegram', account_id=account.id) }}">
                         <button type="submit" class="btn btn-outline-primary w-100"
