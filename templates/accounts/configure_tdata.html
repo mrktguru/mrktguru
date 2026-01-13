@@ -286,4 +286,39 @@
         </div>
     </div>
 </div>
+
+<script>
+    // Device Profile Selector
+    document.getElementById('deviceProfileSelector').addEventListener('change', function () {
+        const selectedValue = this.value;
+        const preview = document.getElementById('deviceProfilePreview');
+
+        if (selectedValue === '') {
+            // Use original from TData
+            preview.style.display = 'none';
+            document.getElementById('device_model_override').value = '';
+            document.getElementById('system_version_override').value = '';
+            document.getElementById('app_version_override').value = '';
+            document.getElementById('lang_code_override').value = '';
+            document.getElementById('system_lang_code_override').value = '';
+        } else {
+            // Parse JSON and populate fields
+            const profile = JSON.parse(selectedValue);
+
+            document.getElementById('device_model_override').value = profile.device_model;
+            document.getElementById('system_version_override').value = profile.system_version;
+            document.getElementById('app_version_override').value = profile.app_version;
+            document.getElementById('lang_code_override').value = profile.lang_code;
+            document.getElementById('system_lang_code_override').value = profile.system_lang_code;
+
+            // Show preview
+            document.getElementById('preview_device_model').textContent = profile.device_model;
+            document.getElementById('preview_system_version').textContent = profile.system_version;
+            document.getElementById('preview_app_version').textContent = profile.app_version;
+            document.getElementById('preview_lang_code').textContent = profile.lang_code;
+            document.getElementById('preview_system_lang_code').textContent = profile.system_lang_code;
+            preview.style.display = 'block';
+        }
+    });
+</script>
 {% endblock %}
