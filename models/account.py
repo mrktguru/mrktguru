@@ -35,6 +35,11 @@ class Account(db.Model):
     last_verification_attempt = db.Column(db.DateTime)
     verified = db.Column(db.Boolean, default=False)
     
+    # Safe Verification Tracking
+    last_verification_method = db.Column(db.String(50))  # 'self_check', 'get_me', 'public_channel'
+    last_verification_time = db.Column(db.DateTime)  # For cooldown enforcement
+    verification_count = db.Column(db.Integer, default=0)  # Total verifications
+    
     # API Credentials (for TData import)
     api_credential_id = db.Column(db.Integer, db.ForeignKey('api_credentials.id'))
     
