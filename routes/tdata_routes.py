@@ -9,7 +9,7 @@ from models.api_credential import ApiCredential
 from models.proxy import Proxy
 from database import db
 from utils.tdata_parser import TDataParser
-from utils.encryption import encrypt_auth_key, encrypt_api_hash
+from utils.encryption import encrypt_auth_key, encrypt_api_hash, decrypt_api_hash
 from werkzeug.utils import secure_filename
 import os
 import uuid
@@ -231,3 +231,61 @@ def configure_tdata(account_id):
         proxies=proxies,
         recommended_api_id=recommended_api_id
     )
+
+
+@login_required
+def add_tdata_api_to_manager(account_id):
+    """Add TData's original API to API Manager"""
+    account = Account.query.get_or_404(account_id)
+    
+    if not account.tdata_metadata:
+        flash("❌ No TData metadata found", "error")
+        return redirect(url_for('accounts.configure_tdata', account_id=account_id))
+    
+    tdata = account.tdata_metadata
+    
+    if not tdata.original_api_id or not tdata.original_api_hash:
+        flash("❌ Original API credentials not found in TData", "error")
+        return redirect(url_for('accounts.configure_tdata', account_id=account_id))
+    
+    try:
+        # Check if already exists
+        existing = ApiCredential.query.filter_by(api_id=tdata.original_api_id).first()
+        if existing:
+            flash(f"⚠️ API ID {tdata.original_api_id} already exists in manager", "warning")
+            return redirect(url_for('accounts.configure_tdata', account_id=account_id))
+        
+        # Decrypt from TData and re-encrypt for ApiCredential
+        api_hash_decrypted = decrypt_api_hash(tdata.original_api_hash)
+        api_hash_encrypted = encrypt_api_hash(api_hash_decrypted)
+        
+        # Determine client type
+        client_type = 'desktop'
+        if tdata.original_api_id == 6:
+            client_type = 'ios'
+        elif tdata.original_api_id == 4:
+            client_type = 'android'
+        elif tdata.original_api_id == 2040:
+            client_type = 'desktop'
+        
+        # Create credential
+        credential = ApiCredential(
+            name=f"From TData ({account.phone})",
+            api_id=tdata.original_api_id,
+            api_hash=api_hash_encrypted,
+            client_type=client_type,
+            is_official=False,
+            is_default=False,
+            notes=f"Extracted from TData archive on {datetime.now().strftime('%Y-%m-%d')}"
+        )
+        
+        db.session.add(credential)
+        db.session.commit()
+        
+        flash(f"✅ API ID {tdata.original_api_id} added to API Manager!", "success")
+        
+    except Exception as e:
+        db.session.rollback()
+        flash(f"❌ Error adding API to manager: {str(e)}", "error")
+    
+    return redirect(url_for('accounts.configure_tdata', account_id=account_id))
