@@ -218,12 +218,98 @@ def configure_tdata(account_id):
                 except Exception as e:
                     flash(f"⚠️ Invalid auth_key format: {e}", "warning")
             
-            # Update status to 'pending' (ready for session creation)
+            # ==================== CREATE SESSION FILE FROM TDATA ====================
+            # Create Telethon session file from TData auth_key
+            try:
+                from telethon import TelegramClient
+                from telethon.sessions import SQLiteSession
+                import asyncio
+                
+                logger.info(f"Creating session file from TData for account {account_id}")
+                
+                # Get decrypted auth_key
+                auth_key_bytes = decrypt_auth_key(account.tdata_metadata.auth_key)
+                
+                # Get API credentials
+                api_cred = ApiCredential.query.get(api_credential_id)
+                api_id = api_cred.api_id
+                api_hash = decrypt_api_hash(api_cred.api_hash)
+                
+                # Create session file path
+                session_dir = os.path.join(Config.SESSIONS_DIR, str(account.id))
+                os.makedirs(session_dir, exist_ok=True)
+                session_file = os.path.join(session_dir, f"{account.phone}.session")
+                
+                # Get device fingerprint from TData
+                tdata = account.tdata_metadata
+                device_model = tdata.device_model or "Desktop"
+                system_version = tdata.system_version or "Windows 10"
+                app_version = tdata.app_version or "1.0"
+                lang_code = tdata.lang_code or "en"
+                system_lang_code = tdata.system_lang_code or "en-US"
+                
+                # Get proxy if assigned
+                proxy_dict = None
+                if account.proxy:
+                    import socks
+                    proxy_type = socks.SOCKS5 if account.proxy.type == "socks5" else socks.HTTP
+                    proxy_dict = {
+                        "proxy_type": proxy_type,
+                        "addr": account.proxy.host,
+                        "port": account.proxy.port,
+                        "username": account.proxy.username,
+                        "password": account.proxy.password,
+                    }
+                
+                # Create client
+                client = TelegramClient(
+                    session_file,
+                    api_id,
+                    api_hash,
+                    device_model=device_model,
+                    system_version=system_version,
+                    app_version=app_version,
+                    lang_code=lang_code,
+                    system_lang_code=system_lang_code,
+                    proxy=proxy_dict
+                )
+                
+                # Set auth_key in session
+                async def create_session():
+                    await client.connect()
+                    # Set DC and auth_key
+                    client.session.set_dc(
+                        tdata.dc_id,
+                        tdata.dc_id  # server_address - use DC ID as placeholder
+                    )
+                    # CRITICAL: Set the auth_key from TData
+                    from telethon.crypto import AuthKey
+                    client.session.auth_key = AuthKey(data=auth_key_bytes)
+                    client.session.save()
+                    await client.disconnect()
+                
+                # Run async function
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                loop.run_until_complete(create_session())
+                loop.close()
+                
+                # Update account session path
+                account.session_file_path = session_file
+                
+                logger.info(f"✅ Session file created: {session_file}")
+                flash("✅ Session file created from TData", "success")
+                
+            except Exception as e:
+                logger.error(f"Session creation error: {e}", exc_info=True)
+                flash(f"⚠️ Warning: Could not create session file: {str(e)}", "warning")
+            
+            # Update status to 'pending' (ready for verification)
             account.status = 'pending'
             
             db.session.commit()
             
-            flash("✅ TData configuration saved! Account ready for session creation.", "success")
+            flash("✅ TData configuration saved! Click 'Verify Session' to activate account.", "success")
             return redirect(url_for('accounts.detail', account_id=account_id))
             
         except Exception as e:
