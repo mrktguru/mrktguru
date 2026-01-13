@@ -103,7 +103,7 @@ def upload_tdata():
                 account_id=account.id,
                 # Auth data
                 auth_key=auth_key_encrypted,
-                auth_key_id=auth_data.get('auth_key_id'),
+                auth_key_id=str(auth_data.get('auth_key_id')) if auth_data.get('auth_key_id') else None,
                 dc_id=auth_data.get('dc_id'),
                 main_dc_id=auth_data.get('main_dc_id'),
                 user_id=auth_data.get('user_id'),

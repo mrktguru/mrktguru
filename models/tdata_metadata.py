@@ -11,7 +11,7 @@ class TDataMetadata(db.Model):
     
     # ==================== AUTH DATA (encrypted) ====================
     auth_key = db.Column(db.LargeBinary)  # 256 bytes, encrypted
-    auth_key_id = db.Column(db.BigInteger)
+    auth_key_id = db.Column(db.String(50))  # Store as string to handle large integers
     dc_id = db.Column(db.Integer)
     main_dc_id = db.Column(db.Integer)
     user_id = db.Column(db.BigInteger)
