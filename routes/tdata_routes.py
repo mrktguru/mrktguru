@@ -83,6 +83,22 @@ def upload_tdata():
             if device_info.get('original_api_hash'):
                 original_api_hash_encrypted = encrypt_api_hash(device_info['original_api_hash'])
             
+            # Prepare raw_metadata for JSON storage (convert bytes to hex)
+            def serialize_metadata(data):
+                """Convert bytes to hex strings for JSON serialization"""
+                if isinstance(data, dict):
+                    return {k: serialize_metadata(v) for k, v in data.items()}
+                elif isinstance(data, list):
+                    return [serialize_metadata(item) for item in data]
+                elif isinstance(data, bytes):
+                    return data.hex()  # Convert bytes to hex string
+                elif isinstance(data, datetime):
+                    return data.isoformat()
+                else:
+                    return data
+            
+            raw_metadata_serialized = serialize_metadata(metadata)
+            
             tdata_meta = TDataMetadata(
                 account_id=account.id,
                 # Auth data
@@ -109,8 +125,8 @@ def upload_tdata():
                 # Session info
                 session_count=session_info.get('session_count'),
                 last_update_time=session_info.get('last_update_time'),
-                # Raw metadata for debugging
-                raw_metadata=metadata
+                # Raw metadata for debugging (serialized for JSON)
+                raw_metadata=raw_metadata_serialized
             )
             db.session.add(tdata_meta)
             
