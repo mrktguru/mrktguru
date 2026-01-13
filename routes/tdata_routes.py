@@ -240,7 +240,7 @@ def configure_tdata(account_id):
                 api_hash = decrypt_api_hash(api_cred.api_hash)
                 
                 # Create session file path
-                session_dir = os.path.join(Config.SESSIONS_DIR, str(account.id))
+                session_dir = f"uploads/sessions/{account.phone}"
                 os.makedirs(session_dir, exist_ok=True)
                 session_file = os.path.join(session_dir, f"{account.phone}.session")
                 
