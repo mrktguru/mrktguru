@@ -223,85 +223,67 @@ def configure_tdata(account_id):
                     flash(f"⚠️ Invalid auth_key format: {e}", "warning")
             
             # ==================== CREATE SESSION FILE FROM TDATA ====================
-            # Create Telethon session file from TData auth_key
+            # Create Telethon session file from TData auth_key using direct SQLite
             try:
-                from telethon import TelegramClient
-                from telethon.sessions import SQLiteSession
-                import asyncio
+                import sqlite3
                 
                 logger.info(f"Creating session file from TData for account {account_id}")
                 
                 # Get decrypted auth_key
                 auth_key_bytes = decrypt_auth_key(account.tdata_metadata.auth_key)
                 
-                # Get API credentials
-                api_cred = ApiCredential.query.get(api_credential_id)
-                api_id = api_cred.api_id
-                api_hash = decrypt_api_hash(api_cred.api_hash)
-                
                 # Create session file path
                 session_dir = f"uploads/sessions/{account.phone}"
                 os.makedirs(session_dir, exist_ok=True)
                 session_file = os.path.join(session_dir, f"{account.phone}.session")
                 
-                # Get device fingerprint from TData
+                # Get TData metadata
                 tdata = account.tdata_metadata
-                device_model = tdata.device_model or "Desktop"
-                system_version = tdata.system_version or "Windows 10"
-                app_version = tdata.app_version or "1.0"
-                lang_code = tdata.lang_code or "en"
-                system_lang_code = tdata.system_lang_code or "en-US"
                 
-                # Get proxy if assigned
-                proxy_dict = None
-                if account.proxy:
-                    import socks
-                    proxy_type = socks.SOCKS5 if account.proxy.type == "socks5" else socks.HTTP
-                    proxy_dict = {
-                        "proxy_type": proxy_type,
-                        "addr": account.proxy.host,
-                        "port": account.proxy.port,
-                        "username": account.proxy.username,
-                        "password": account.proxy.password,
-                    }
+                # DC server mapping
+                dc_servers = {
+                    1: ('149.154.175.53', 443),
+                    2: ('149.154.167.51', 443),
+                    3: ('149.154.175.100', 443),
+                    4: ('149.154.167.91', 443),
+                    5: ('91.108.56.130', 443),
+                }
                 
-                # Create client
-                client = TelegramClient(
-                    session_file,
-                    api_id,
-                    api_hash,
-                    device_model=device_model,
-                    system_version=system_version,
-                    app_version=app_version,
-                    lang_code=lang_code,
-                    system_lang_code=system_lang_code,
-                    proxy=proxy_dict
-                )
+                dc_id = tdata.dc_id or 2
+                server_address, port = dc_servers.get(dc_id, dc_servers[2])
                 
-                # Set auth_key in session
-                async def create_session():
-                    await client.connect()
-                    # Set DC and auth_key
-                    client.session.set_dc(
-                        tdata.dc_id,
-                        tdata.dc_id  # server_address - use DC ID as placeholder
+                # Create SQLite session file directly
+                conn = sqlite3.connect(session_file)
+                c = conn.cursor()
+                
+                # Create sessions table (Telethon format)
+                c.execute('''
+                    CREATE TABLE IF NOT EXISTS sessions (
+                        dc_id INTEGER PRIMARY KEY,
+                        server_address TEXT,
+                        port INTEGER,
+                        auth_key BLOB,
+                        takeout_id INTEGER
                     )
-                    # CRITICAL: Set the auth_key from TData
-                    from telethon.crypto import AuthKey
-                    client.session.auth_key = AuthKey(data=auth_key_bytes)
-                    client.session.save()
-                    await client.disconnect()
+                ''')
                 
-                # Run async function
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                loop.run_until_complete(create_session())
-                loop.close()
+                # Create version table
+                c.execute('CREATE TABLE IF NOT EXISTS version (version INTEGER PRIMARY KEY)')
+                c.execute('INSERT OR REPLACE INTO version VALUES (8)')  # Telethon session version
+                
+                # Insert DC and auth_key
+                c.execute('''
+                    INSERT OR REPLACE INTO sessions (dc_id, server_address, port, auth_key, takeout_id)
+                    VALUES (?, ?, ?, ?, NULL)
+                ''', (dc_id, server_address, port, auth_key_bytes))
+                
+                conn.commit()
+                conn.close()
                 
                 # Update account session path
                 account.session_file_path = session_file
                 
-                logger.info(f"✅ Session file created: {session_file}")
+                logger.info(f"✅ Session file created: {session_file} (DC: {dc_id})")
                 flash("✅ Session file created from TData", "success")
                 
             except Exception as e:
