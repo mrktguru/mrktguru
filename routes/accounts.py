@@ -859,65 +859,65 @@ def update_profile(account_id):
 
 # ==================== WARMUP SETTINGS ROUTES ====================
 
-@accounts_bp.route("/<int:account_id>/warmup")
-@login_required
-def warmup_settings(account_id):
-    """View warmup settings for account"""
-    from models.warmup import ConversationPair, WarmupActivity, WarmupChannelTheme
-    from models.account import AccountSubscription
-    
-    account = Account.query.get_or_404(account_id)
-    
-    # Get subscriptions (these are used for warmup reading)
-    warmup_channels = AccountSubscription.query.filter_by(
-        account_id=account_id,
-        is_active=True
-    ).all()
-    
-    # Get conversation pairs
-    pairs = ConversationPair.query.filter(
-        db.or_(
-            ConversationPair.account_a_id == account_id,
-            ConversationPair.account_b_id == account_id
-        )
-    ).all()
-    
-    # Get partner accounts for each pair
-    conversation_partners = []
-    for pair in pairs:
-        partner_id = pair.account_b_id if pair.account_a_id == account_id else pair.account_a_id
-        partner = Account.query.get(partner_id)
-        if partner:
-            conversation_partners.append({
-                "pair_id": pair.id,
-                "partner": partner,
-                "last_conversation": pair.last_conversation_at,
-                "conversation_count": pair.conversation_count
-            })
-    
-    # Get recent warmup activities
-    recent_activities = WarmupActivity.query.filter_by(
-        account_id=account_id
-    ).order_by(WarmupActivity.timestamp.desc()).limit(20).all()
-    
-    # Get available themes
-    themes = WarmupChannelTheme.query.all()
-    
-    # Get other accounts for pairing
-    other_accounts = Account.query.filter(
-        Account.id != account_id,
-        Account.status.in_(['warming_up', 'active'])
-    ).all()
-    
-    return render_template(
-        "accounts/warmup_settings.html",
-        account=account,
-        warmup_channels=warmup_channels,
-        conversation_partners=conversation_partners,
-        recent_activities=recent_activities,
-        themes=themes,
-        other_accounts=other_accounts
-    )
+# WARMUP DISABLED: @accounts_bp.route("/<int:account_id>/warmup")
+# WARMUP DISABLED: @login_required
+# WARMUP DISABLED: def warmup_settings(account_id):
+# WARMUP DISABLED:     """View warmup settings for account"""
+# WARMUP DISABLED:     from models.warmup import ConversationPair, WarmupActivity, WarmupChannelTheme
+# WARMUP DISABLED:     from models.account import AccountSubscription
+# WARMUP DISABLED:     
+# WARMUP DISABLED:     account = Account.query.get_or_404(account_id)
+# WARMUP DISABLED:     
+# WARMUP DISABLED:     # Get subscriptions (these are used for warmup reading)
+# WARMUP DISABLED:     warmup_channels = AccountSubscription.query.filter_by(
+# WARMUP DISABLED:         account_id=account_id,
+# WARMUP DISABLED:         is_active=True
+# WARMUP DISABLED:     ).all()
+# WARMUP DISABLED:     
+# WARMUP DISABLED:     # Get conversation pairs
+# WARMUP DISABLED:     pairs = ConversationPair.query.filter(
+# WARMUP DISABLED:         db.or_(
+# WARMUP DISABLED:             ConversationPair.account_a_id == account_id,
+# WARMUP DISABLED:             ConversationPair.account_b_id == account_id
+# WARMUP DISABLED:         )
+# WARMUP DISABLED:     ).all()
+# WARMUP DISABLED:     
+# WARMUP DISABLED:     # Get partner accounts for each pair
+# WARMUP DISABLED:     conversation_partners = []
+# WARMUP DISABLED:     for pair in pairs:
+# WARMUP DISABLED:         partner_id = pair.account_b_id if pair.account_a_id == account_id else pair.account_a_id
+# WARMUP DISABLED:         partner = Account.query.get(partner_id)
+# WARMUP DISABLED:         if partner:
+# WARMUP DISABLED:             conversation_partners.append({
+# WARMUP DISABLED:                 "pair_id": pair.id,
+# WARMUP DISABLED:                 "partner": partner,
+# WARMUP DISABLED:                 "last_conversation": pair.last_conversation_at,
+# WARMUP DISABLED:                 "conversation_count": pair.conversation_count
+# WARMUP DISABLED:             })
+# WARMUP DISABLED:     
+# WARMUP DISABLED:     # Get recent warmup activities
+# WARMUP DISABLED:     recent_activities = WarmupActivity.query.filter_by(
+# WARMUP DISABLED:         account_id=account_id
+# WARMUP DISABLED:     ).order_by(WarmupActivity.timestamp.desc()).limit(20).all()
+# WARMUP DISABLED:     
+# WARMUP DISABLED:     # Get available themes
+# WARMUP DISABLED:     themes = WarmupChannelTheme.query.all()
+# WARMUP DISABLED:     
+# WARMUP DISABLED:     # Get other accounts for pairing
+# WARMUP DISABLED:     other_accounts = Account.query.filter(
+# WARMUP DISABLED:         Account.id != account_id,
+# WARMUP DISABLED:         Account.status.in_(['warming_up', 'active'])
+# WARMUP DISABLED:     ).all()
+# WARMUP DISABLED:     
+# WARMUP DISABLED:     return render_template(
+# WARMUP DISABLED:         "accounts/warmup_settings.html",
+# WARMUP DISABLED:         account=account,
+# WARMUP DISABLED:         warmup_channels=warmup_channels,
+# WARMUP DISABLED:         conversation_partners=conversation_partners,
+# WARMUP DISABLED:         recent_activities=recent_activities,
+# WARMUP DISABLED:         themes=themes,
+# WARMUP DISABLED:         other_accounts=other_accounts
+# WARMUP DISABLED:     )
 
 
 @accounts_bp.route("/<int:account_id>/warmup/add-channel", methods=["POST"])
