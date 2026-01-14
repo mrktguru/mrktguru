@@ -1,0 +1,313 @@
+<!-- Warmup System Section -->
+<div class="card mb-3">
+    <div class="card-header bg-primary text-white">
+        <h5 class="mb-0">🔥 Account Warmup</h5>
+    </div>
+    <div class="card-body">
+        <!-- Progress Bar -->
+        <div class="warmup-progress mb-3">
+            <div class="progress">
+                <div class="progress-bar" style="width: 0%" id="warmup-progress-bar">0%</div>
+            </div>
+            <small class="text-muted">Stage 1/4: Profile</small>
+        </div>
+
+        <!-- Stage 1: Profile -->
+        <div class="accordion" id="warmupAccordion">
+            <div class="accordion-item">
+                <h2 class="accordion-header">
+                    <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#stage1">
+                        <span class="badge bg-secondary me-2">1</span>
+                        Stage 1: Profile Setup
+                    </button>
+                </h2>
+                <div id="stage1" class="accordion-collapse collapse show" data-bs-parent="#warmupAccordion">
+                    <div class="accordion-body">
+                        <!-- Manual Settings -->
+                        <h6>Manual Settings</h6>
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label>Privacy - Phone</label>
+                                <select class="form-select" id="privacy-phone">
+                                    <option value="nobody">Nobody</option>
+                                    <option value="contacts">My Contacts</option>
+                                    <option value="everybody">Everybody</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label>Language</label>
+                                <select class="form-select" id="language">
+                                    <option value="en">English</option>
+                                    <option value="ru">Русский</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label>First Name <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="first-name" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label>Last Name</label>
+                                <input type="text" class="form-control" id="last-name">
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label>Bio</label>
+                            <textarea class="form-control" id="bio" rows="2"></textarea>
+                        </div>
+
+                        <div class="mb-3">
+                            <label>Photo</label>
+                            <input type="file" class="form-control" id="photo" accept="image/*">
+                        </div>
+
+                        <button class="btn btn-primary" onclick="executeProfile()">
+                            <i class="bi bi-play-fill"></i> Execute Stage 1
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Stage 3: Subscriptions -->
+            <div class="accordion-item">
+                <h2 class="accordion-header">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                        data-bs-target="#stage3">
+                        <span class="badge bg-secondary me-2">3</span>
+                        Stage 3: Subscriptions
+                    </button>
+                </h2>
+                <div id="stage3" class="accordion-collapse collapse" data-bs-parent="#warmupAccordion">
+                    <div class="accordion-body">
+                        <!-- Channel Search -->
+                        <h6>Search Channels</h6>
+                        <div class="input-group mb-3">
+                            <input type="text" class="form-control" id="channel-search-query"
+                                placeholder="Enter channel name or keyword">
+                            <button class="btn btn-primary" onclick="searchChannels()">
+                                <i class="bi bi-search"></i> Search
+                            </button>
+                        </div>
+
+                        <!-- Search Results -->
+                        <div id="search-results" style="display:none">
+                            <h6>Search Results</h6>
+                            <div id="results-list" class="list-group mb-3"></div>
+                        </div>
+
+                        <!-- Selected Channels -->
+                        <div id="selected-channels">
+                            <h6>Selected Channels (<span id="channel-count">0</span>)</h6>
+                            <div id="channels-list"></div>
+                        </div>
+
+                        <button class="btn btn-success" onclick="executeChannels()" disabled id="execute-channels-btn">
+                            <i class="bi bi-play-fill"></i> Execute Stage 3
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Activity Log -->
+        <div class="mt-3">
+            <h6>📊 Recent Activity</h6>
+            <div id="warmup-logs" class="border rounded p-2" style="max-height: 200px; overflow-y: auto">
+                <small class="text-muted">No activity yet</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Warmup JavaScript Functions
+    const accountId = {{ account.id }};
+
+    // Execute Profile Setup
+    async function executeProfile() {
+        const data = {
+            first_name: document.getElementById('first-name').value,
+            last_name: document.getElementById('last-name').value,
+            bio: document.getElementById('bio').value,
+            privacy_phone: document.getElementById('privacy-phone').value,
+            language: document.getElementById('language').value
+        };
+
+        if (!data.first_name) {
+            alert('First name is required');
+            return;
+        }
+
+        try {
+            const response = await fetch(`/accounts/${accountId}/warmup/execute-profile`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                alert('✅ Profile setup completed!');
+                loadLogs();
+            } else {
+                alert('❌ Error: ' + result.error);
+            }
+        } catch (e) {
+            alert('❌ Error: ' + e.message);
+        }
+    }
+
+    // Search Channels
+    async function searchChannels() {
+        const query = document.getElementById('channel-search-query').value;
+
+        if (!query) {
+            alert('Enter a search query');
+            return;
+        }
+
+        try {
+            const response = await fetch(`/accounts/${accountId}/warmup/search-channels`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ query })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                displaySearchResults(result.results);
+            } else {
+                alert('❌ Error: ' + result.error);
+            }
+        } catch (e) {
+            alert('❌ Error: ' + e.message);
+        }
+    }
+
+    // Display Search Results
+    function displaySearchResults(results) {
+        const container = document.getElementById('results-list');
+        container.innerHTML = '';
+
+        results.forEach(channel => {
+            const item = document.createElement('div');
+            item.className = 'list-group-item d-flex justify-content-between align-items-center';
+            item.innerHTML = `
+            <div>
+                <strong>@${channel.username}</strong>
+                <br><small>${channel.title} • ${channel.participants_count} members</small>
+            </div>
+            <button class="btn btn-sm btn-primary" onclick='addChannel(${JSON.stringify(channel)})'>
+                Add
+            </button>
+        `;
+            container.appendChild(item);
+        });
+
+        document.getElementById('search-results').style.display = 'block';
+    }
+
+    // Add Channel
+    let selectedChannels = [];
+
+    function addChannel(channel) {
+        selectedChannels.push(channel);
+        updateChannelsList();
+        document.getElementById('execute-channels-btn').disabled = false;
+    }
+
+    // Update Channels List
+    function updateChannelsList() {
+        const container = document.getElementById('channels-list');
+        container.innerHTML = '';
+
+        selectedChannels.forEach((channel, index) => {
+            const item = document.createElement('div');
+            item.className = 'card mb-2';
+            item.innerHTML = `
+            <div class="card-body p-2">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong>@${channel.username}</strong>
+                        <br><small>${channel.title}</small>
+                    </div>
+                    <div>
+                        <select class="form-select form-select-sm" id="action-${index}">
+                            <option value="view_only">View Only</option>
+                            <option value="subscribe">Subscribe</option>
+                        </select>
+                        <input type="number" class="form-control form-control-sm mt-1" 
+                               id="read-count-${index}" value="5" min="1" max="20">
+                        <button class="btn btn-sm btn-danger mt-1" onclick="removeChannel(${index})">Remove</button>
+                    </div>
+                </div>
+            </div>
+        `;
+            container.appendChild(item);
+        });
+
+        document.getElementById('channel-count').textContent = selectedChannels.length;
+    }
+
+    // Remove Channel
+    function removeChannel(index) {
+        selectedChannels.splice(index, 1);
+        updateChannelsList();
+
+        if (selectedChannels.length === 0) {
+            document.getElementById('execute-channels-btn').disabled = true;
+        }
+    }
+
+    // Execute Channels
+    async function executeChannels() {
+        // Add channels to backend first
+        for (let i = 0; i < selectedChannels.length; i++) {
+            const channel = selectedChannels[i];
+            const action = document.getElementById(`action-${i}`).value;
+            const readCount = document.getElementById(`read-count-${i}`).value;
+
+            await fetch(`/accounts/${accountId}/warmup/add-channel`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    channel_id: channel.id,
+                    username: channel.username,
+                    title: channel.title,
+                    action: action,
+                    read_count: parseInt(readCount)
+                })
+            });
+        }
+
+        // Execute
+        try {
+            const response = await fetch(`/accounts/${accountId}/warmup/execute-channels`, {
+                method: 'POST'
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                alert('✅ Channels processed!');
+                selectedChannels = [];
+                updateChannelsList();
+                loadLogs();
+            } else {
+                alert('❌ Error: ' + result.error);
+            }
+        } catch (e) {
+            alert('❌ Error: ' + e.message);
+        }
+    }
+
+    // Load Activity Logs
+    async function loadLogs() {
+        // TODO: Implement logs endpoint
+    }
+</script>
