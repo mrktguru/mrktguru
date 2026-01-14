@@ -405,91 +405,27 @@
             </div>
         </div>
 
-        <!-- Conversation Pairs (Warmup) -->
-        <div class="card mb-3">
-            <div class="card-header d-flex justify-content-between align-items-center bg-success text-white">
-                <h5 class="mb-0">💬 Conversation Pairs</h5>
-                <button class="btn btn-sm btn-light" data-bs-toggle="modal" data-bs-target="#addPairModal">
-                    <i class="bi bi-plus"></i> Add Pair
-                </button>
-            </div>
-            <div class="card-body">
-                {% if conversation_partners %}
-                <div class="list-group list-group-flush">
-                    {% for pair in conversation_partners %}
-                    <div class="list-group-item d-flex justify-content-between align-items-center">
-                        <div>
-                            <strong>{{ pair.partner.phone }}</strong>
-                            {% if pair.partner.username %}
-                            <span class="text-muted">(@{{ pair.partner.username }})</span>
-                            {% endif %}
-                            <br>
-                            <small class="text-muted">
-                                Conversations: {{ pair.conversation_count }}
-                                {% if pair.last_conversation %}
-                                | Last: {{ pair.last_conversation.strftime('%d.%m %H:%M') }}
-                                {% endif %}
-                            </small>
-                        </div>
-                        <form
-                            action="{{ url_for('accounts.remove_conversation_pair', account_id=account.id, pair_id=pair.pair_id) }}"
-                            method="POST">
-                            <button type="submit" class="btn btn-sm btn-outline-danger">×</button>
-                        </form>
-                    </div>
-                    {% endfor %}
-                </div>
-                {% else %}
-                <p class="text-muted mb-0">No conversation pairs. Add pairs for warmup messaging between accounts.</p>
-                {% endif %}
-            </div>
-        </div>
 
-        <!-- Recent Warmup Activity -->
+        <!-- WARMUP DISABLED - OLD SYSTEM
+        Conversation Pairs section hidden
+        Will be reimplemented in new balanced warmup system
+        
+        <div class="card mb-3">
+            ...
+        </div>
+        END WARMUP DISABLED -->
+
+
+        <!-- WARMUP DISABLED - OLD SYSTEM
+        Recent Warmup Activity section hidden
+        Will be reimplemented in new balanced warmup system
+        
         {% if recent_activities %}
         <div class="card mb-3">
-            <div class="card-header">
-                <h5 class="mb-0">📊 Recent Warmup Activity</h5>
-            </div>
-            <div class="card-body" style="max-height: 200px; overflow-y: auto;">
-                <table class="table table-sm table-hover mb-0">
-                    <thead>
-                        <tr>
-                            <th>Time</th>
-                            <th>Action</th>
-                            <th>Target</th>
-                            <th>Status</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for activity in recent_activities %}
-                        <tr>
-                            <td><small>{{ activity.timestamp.strftime('%d.%m %H:%M') }}</small></td>
-                            <td>
-                                {% if activity.action_type == 'read_posts' %}📖
-                                {% elif activity.action_type == 'react' %}👍
-                                {% elif activity.action_type == 'conversation' %}💬
-                                {% elif activity.action_type == 'conversation_reply' %}↩️
-                                {% else %}⚡{% endif %}
-                                {{ activity.action_type }}
-                            </td>
-                            <td><small>{{ activity.target or '-' }}</small></td>
-                            <td>
-                                {% if activity.status == 'success' %}
-                                <span class="badge bg-success">OK</span>
-                                {% elif activity.status == 'failed' %}
-                                <span class="badge bg-danger">Fail</span>
-                                {% else %}
-                                <span class="badge bg-secondary">{{ activity.status }}</span>
-                                {% endif %}
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
+            ...
         </div>
         {% endif %}
+        END WARMUP DISABLED -->
 
         <div class="card">
             <div class="card-header bg-danger text-white">
