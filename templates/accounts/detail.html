@@ -650,8 +650,16 @@
                 a.className = 'alert alert-success alert-dismissible fade show mt-3';
                 a.innerHTML = `<strong>✅ Alive!</strong> ${names[method]}<br><small>${d.duration}</small><button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
             } else {
-                a.className = 'alert alert-warning alert-dismissible fade show mt-3';
-                a.innerHTML = `<strong>⚠️ Error</strong> ${d.error}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
+                // Check if banned
+                if (d.error_type === 'banned') {
+                    const badge = document.querySelector('dd .badge');
+                    if (badge) { badge.className = 'badge bg-danger'; badge.textContent = 'banned'; }
+                    a.className = 'alert alert-danger alert-dismissible fade show mt-3';
+                    a.innerHTML = `<strong>🚫 BANNED</strong> ${d.error}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
+                } else {
+                    a.className = 'alert alert-warning alert-dismissible fade show mt-3';
+                    a.innerHTML = `<strong>⚠️ Error</strong> ${d.error}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
+                }
             }
             btn.parentElement.parentElement.appendChild(a);
             setTimeout(() => a.remove(), 10000);
