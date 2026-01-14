@@ -798,6 +798,9 @@ async def update_telegram_profile(account_id, username=None, bio=None, first_nam
     """
     from telethon.tl.functions.account import UpdateProfileRequest, UpdateUsernameRequest
     
+    import random
+    import asyncio
+    
     client = None
     updated_fields = []
     
@@ -805,11 +808,26 @@ async def update_telegram_profile(account_id, username=None, bio=None, first_nam
         client = get_telethon_client(account_id)
         await client.connect()
         
+        # Human-like thinking pause (simulate navigating to settings)
+        thinking_time = random.uniform(2.0, 5.0)
+        print(f"🤔 Thinking for {thinking_time:.1f}s before updating profile...")
+        await asyncio.sleep(thinking_time)
+        
         # Update username (separate request)
         if username is not None:
+            # Simulate typing username
+            typing_speed = random.uniform(0.1, 0.3)
+            typing_time = len(username) * typing_speed
+            print(f"⌨️  Simulating typing username... ({typing_time:.1f}s)")
+            await asyncio.sleep(typing_time)
+            
             try:
                 await client(UpdateUsernameRequest(username=username))
                 updated_fields.append('username')
+                
+                # Pause after success
+                await asyncio.sleep(random.uniform(1.0, 2.0))
+                
             except Exception as e:
                 error_msg = str(e)
                 if "USERNAME_OCCUPIED" in error_msg:
@@ -828,6 +846,16 @@ async def update_telegram_profile(account_id, username=None, bio=None, first_nam
             profile_updates['about'] = bio
         
         if profile_updates:
+            # Simulate switching fields and typing
+            if updated_fields: # If we just updated username
+                await asyncio.sleep(random.uniform(1.0, 3.0))
+                
+            total_chars = sum(len(str(v)) for v in profile_updates.values() if v)
+            if total_chars > 0:
+                typing_time = total_chars * random.uniform(0.1, 0.25)
+                print(f"⌨️  Simulating typing bio/name... ({typing_time:.1f}s)")
+                await asyncio.sleep(typing_time)
+            
             await client(UpdateProfileRequest(**profile_updates))
             updated_fields.extend(profile_updates.keys())
         
@@ -858,8 +886,17 @@ async def update_telegram_photo(account_id, photo_path):
         client = get_telethon_client(account_id)
         await client.connect()
         
+        # Human-like thinking (simulate browsing for photo)
+        thinking_time = random.uniform(2.0, 4.0)
+        print(f"🤔 Thinking for {thinking_time:.1f}s before uploading photo...")
+        await asyncio.sleep(thinking_time)
+        
         # Upload photo
         file = await client.upload_file(photo_path)
+        
+        # Confirm pause
+        await asyncio.sleep(random.uniform(1.0, 2.0))
+        
         await client(UploadProfilePhotoRequest(file=file))
         
         return {"success": True, "error": None}
