@@ -82,16 +82,16 @@ async def safe_self_check(client):
             'error_type': 'flood_wait',
             'wait': e.seconds
         }
-    except (UserDeactivatedError, UserDeactivatedBanError):
-        logger.error("Account is banned/deactivated")
+    except (UserDeactivatedError, UserDeactivatedBanError) as e:
+        logger.error(f"Account is banned/deactivated: {e}")
         return {
             'success': False,
             'method': 'self_check',
-            'error': 'Account is banned/deactivated by Telegram',
+            'error': 'Account is BANNED by Telegram',
             'error_type': 'banned'
         }
-    except AuthKeyError:
-        logger.error("Invalid session (AuthKeyError)")
+    except AuthKeyError as e:
+        logger.error(f"Invalid session (AuthKeyError): {e}")
         return {
             'success': False,
             'method': 'self_check',
@@ -99,7 +99,19 @@ async def safe_self_check(client):
             'error_type': 'invalid_session'
         }
     except Exception as e:
+        error_msg = str(e).lower()
         logger.error(f"Self-check error: {e}", exc_info=True)
+        
+        # Check if error message indicates ban
+        if any(keyword in error_msg for keyword in ['peer', 'deactivated', 'banned', 'terminated']):
+            logger.warning(f"Detected potential ban from error message: {e}")
+            return {
+                'success': False,
+                'method': 'self_check',
+                'error': 'Account may be banned or restricted',
+                'error_type': 'banned'
+            }
+        
         return {
             'success': False,
             'method': 'self_check',
