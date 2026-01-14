@@ -15,7 +15,8 @@ from utils.telethon_helper import get_telethon_client
 from utils.warmup_executor import execute_warmup_action, emulate_typing
 from telethon.tl.functions.contacts import SearchRequest
 from telethon.tl.functions.channels import GetFullChannelRequest, JoinChannelRequest
-from telethon.tl.functions.account import UpdateProfileRequest, UploadProfilePhotoRequest
+from telethon.tl.functions.account import UpdateProfileRequest
+from telethon.tl.functions.photos import UploadProfilePhotoRequest
 import asyncio
 import random
 import logging
