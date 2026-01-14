@@ -380,72 +380,64 @@
 
     // Load Activity Logs
     async function loadLogs() {
-        // TODO: Implement logs endpoint
+        try {
+            const response = await fetch(`/accounts/${accountId}/warmup/logs`);
+            const data = await response.json();
+
+            const tbody = document.getElementById('logs-tbody');
+            tbody.innerHTML = '';
+
+            if (data.logs && data.logs.length > 0) {
+                data.logs.forEach(log => {
+                    const row = document.createElement('tr');
+
+                    // Status-based row class
+                    let rowClass = '';
+                    if (log.status === 'failed') rowClass = 'table-danger';
+                    else if (log.status === 'pending') rowClass = 'table-warning';
+                    row.className = rowClass;
+
+                    // Category badge color
+                    let categoryBadge = 'bg-secondary';
+                    if (log.category === 'warmup') categoryBadge = 'bg-warning';
+                    else if (log.category === 'system') categoryBadge = 'bg-info';
+                    else if (log.category === 'campaign') categoryBadge = 'bg-primary';
+                    else if (log.category === 'profile') categoryBadge = 'bg-success';
+
+                    // Status badge
+                    let statusBadge = 'bg-light text-dark';
+                    let statusIcon = '';
+                    if (log.status === 'success') {
+                        statusBadge = 'bg-success';
+                        statusIcon = '✓ ';
+                    } else if (log.status === 'failed') {
+                        statusBadge = 'bg-danger';
+                        statusIcon = '✗ ';
+                    } else if (log.status === 'pending') {
+                        statusBadge = 'bg-warning';
+                        statusIcon = '⏳ ';
+                    }
+
+                    row.innerHTML = `
+                        <td><small>${log.timestamp}</small></td>
+                        <td><span class="badge bg-secondary">${log.action_type}</span></td>
+                        <td><span class="badge ${categoryBadge}">${log.category}</span></td>
+                        <td><span class="badge ${statusBadge}">${statusIcon}${log.status}</span></td>
+                        <td><small>${log.description || '-'}</small></td>
+                    `;
+
+                    tbody.appendChild(row);
+                });
+            } else {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No activity yet</td></tr>';
+            }
+        } catch (e) {
+            console.error('Failed to load logs:', e);
+            document.getElementById('logs-tbody').innerHTML =
+                '<tr><td colspan="5" class="text-center text-danger">Failed to load logs</td></tr>';
+        }
     }
+
+    // Load logs on page load
+    document.addEventListener('DOMContentLoaded', loadLogs);
 </script>
-// Load Activity Logs
-async function loadLogs() {
-try {
-const response = await fetch(`/accounts/${accountId}/warmup/logs`);
-const data = await response.json();
-
-const tbody = document.getElementById('logs-tbody');
-tbody.innerHTML = '';
-
-if (data.logs && data.logs.length > 0) {
-data.logs.forEach(log => {
-const row = document.createElement('tr');
-
-// Status-based row class
-let rowClass = '';
-if (log.status === 'failed') rowClass = 'table-danger';
-else if (log.status === 'pending') rowClass = 'table-warning';
-row.className = rowClass;
-
-// Category badge color
-let categoryBadge = 'bg-secondary';
-if (log.category === 'warmup') categoryBadge = 'bg-warning';
-else if (log.category === 'system') categoryBadge = 'bg-info';
-else if (log.category === 'campaign') categoryBadge = 'bg-primary';
-else if (log.category === 'profile') categoryBadge = 'bg-success';
-
-// Status badge
-let statusBadge = 'bg-light text-dark';
-let statusIcon = '';
-if (log.status === 'success') {
-statusBadge = 'bg-success';
-statusIcon = '✓ ';
-} else if (log.status === 'failed') {
-statusBadge = 'bg-danger';
-statusIcon = '✗ ';
-} else if (log.status === 'pending') {
-statusBadge = 'bg-warning';
-statusIcon = '⏳ ';
-}
-
-row.innerHTML = `
-<td><small>${log.timestamp}</small></td>
-<td><span class="badge bg-secondary">${log.action_type}</span></td>
-<td><span class="badge ${categoryBadge}">${log.category}</span></td>
-<td><span class="badge ${statusBadge}">${statusIcon}${log.status}</span></td>
-<td><small>${log.description || '-'}</small></td>
-`;
-
-tbody.appendChild(row);
-});
-} else {
-tbody.innerHTML = '<tr>
-    <td colspan="5" class="text-center text-muted">No activity yet</td>
-</tr>';
-}
-} catch (e) {
-console.error('Failed to load logs:', e);
-document.getElementById('logs-tbody').innerHTML =
-'<tr>
-    <td colspan="5" class="text-center text-danger">Failed to load logs</td>
-</tr>';
-}
-}
-
-// Load logs on page load
-document.addEventListener('DOMContentLoaded', loadLogs);
