@@ -10,20 +10,9 @@
                 <div class="progress-bar" style="width: 0%" id="warmup-progress-bar">0%</div>
             </div>
             <small class="text-muted">Stage 1/4: Profile</small>
-
-                            <li>Viewing feed and stories</li>
-                            <li>Reacting to posts</li>
-                            <li>Interacting with bots</li>
-                            <li>Joining groups</li>
-                        </ul>
-                        <p class="text-muted mb-0">
-                            <strong>Status:</strong> Coming soon
-                        </p>
-                    </div>
-                </div>
         </div>
 
-        <!-- Stage 1: Profile -->
+        <!-- Warmup Stages Accordion -->
         <div class="accordion" id="warmupAccordion">
             <div class="accordion-item">
                 <h2 class="accordion-header">
@@ -57,11 +46,13 @@
                         <div class="row mb-3">
                             <div class="col-md-6">
                                 <label>First Name <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control" id="first-name" value="{{ account.first_name or '' }}" required>
+                                <input type="text" class="form-control" id="first-name"
+                                    value="{{ account.first_name or '' }}" required>
                             </div>
                             <div class="col-md-6">
                                 <label>Last Name</label>
-                                <input type="text" class="form-control" id="last-name" value="{{ account.last_name or '' }}">
+                                <input type="text" class="form-control" id="last-name"
+                                    value="{{ account.last_name or '' }}">
                             </div>
                         </div>
 
@@ -93,7 +84,8 @@
             <!-- Stage 2: Contacts -->
             <div class="accordion-item">
                 <h2 class="accordion-header">
-                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#stage2">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                        data-bs-target="#stage2">
                         <span class="badge bg-secondary me-2">2</span>
                         Stage 2: Contacts
                     </button>
@@ -150,9 +142,11 @@
                 </div>
             </div>
 
+            <!-- Stage 4: Activity -->
             <div class="accordion-item">
                 <h2 class="accordion-header">
-                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#stage4">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                        data-bs-target="#stage4">
                         <span class="badge bg-secondary me-2">4</span>
                         Stage 4: Activity
                     </button>
@@ -160,7 +154,7 @@
                 <div id="stage4" class="accordion-collapse collapse" data-bs-parent="#warmupAccordion">
                     <div class="accordion-body">
                         <p class="text-muted">
-                            <i class="bi bi-info-circle"></i> 
+                            <i class="bi bi-info-circle"></i>
                             Stage 4 (Activity & Engagement) will include:
                         </p>
                         <ul class="text-muted">
@@ -174,39 +168,31 @@
                         </p>
                     </div>
                 </div>
+            </div>
         </div>
 
         <!-- Activity Log -->
-            <div class="table-responsive" style="max-height: 400px; overflow-y: auto">
-                <table class="table table-sm table-hover mb-0" id="logs-table">
-                    <thead class="table-light">
-                        <tr>
-                            <th style="width: 130px;">Time</th>
-                            <th style="width: 100px;">Action</th>
-                            <th style="width: 90px;">Category</th>
-                            <th style="width: 80px;">Status</th>
-                            <th>Description</th>
-                        </tr>
-                    </thead>
-                    <tbody id="logs-tbody">
-                        <tr><td colspan="5" class="text-center text-muted">Loading...</td></tr>
-                    </tbody>
-                </table>
-            </div>
-
-            <div class="accordion-item">
-                <h2 class="accordion-header">
-                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#stage4">
-                        <span class="badge bg-secondary me-2">4</span>
-                        </ul>
-                        <p class="text-muted mb-0">
-                            <strong>Status:</strong> Coming soon
-                        </p>
-                    </div>
-                </div>
+        <div class="table-responsive" style="max-height: 400px; overflow-y: auto">
+            <table class="table table-sm table-hover mb-0" id="logs-table">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width: 130px;">Time</th>
+                        <th style="width: 100px;">Action</th>
+                        <th style="width: 90px;">Category</th>
+                        <th style="width: 80px;">Status</th>
+                        <th>Description</th>
+                    </tr>
+                </thead>
+                <tbody id="logs-tbody">
+                    <tr>
+                        <td colspan="5" class="text-center text-muted">Loading...</td>
+                    </tr>
+                </tbody>
+            </table>
         </div>
     </div>
 </div>
+
 
 <script>
     // Warmup JavaScript Functions
@@ -352,50 +338,113 @@
 
     // Execute Channels
     async function executeChannels() {
-    // Load Activity Logs - moved inside script tag
         // Add channels to backend first
-                else if (log.status === 'pending') rowClass = 'table-warning';
-                row.className = rowClass;
-                
-                // Category badge color
-                let categoryBadge = 'bg-secondary';
-                if (log.category === 'warmup') categoryBadge = 'bg-warning';
-                else if (log.category === 'system') categoryBadge = 'bg-info';
-                else if (log.category === 'campaign') categoryBadge = 'bg-primary';
-                else if (log.category === 'profile') categoryBadge = 'bg-success';
-                
-                // Status badge
-                let statusBadge = 'bg-light text-dark';
-                let statusIcon = '';
-                if (log.status === 'success') {
-                    statusBadge = 'bg-success';
-                    statusIcon = '✓ ';
-                } else if (log.status === 'failed') {
-                    statusBadge = 'bg-danger';
-                    statusIcon = '✗ ';
-                } else if (log.status === 'pending') {
-                    statusBadge = 'bg-warning';
-                    statusIcon = '⏳ ';
-                }
-                
-                row.innerHTML = `
-                    <td><small>${log.timestamp}</small></td>
-                    <td><span class="badge bg-secondary">${log.action_type}</span></td>
-                    <td><span class="badge ${categoryBadge}">${log.category}</span></td>
-                    <td><span class="badge ${statusBadge}">${statusIcon}${log.status}</span></td>
-                    <td><small>${log.description || '-'}</small></td>
-                `;
-                
-                tbody.appendChild(row);
+        for (let i = 0; i < selectedChannels.length; i++) {
+            const channel = selectedChannels[i];
+            const action = document.getElementById(`action-${i}`).value;
+            const readCount = document.getElementById(`read-count-${i}`).value;
+
+            await fetch(`/accounts/${accountId}/warmup/add-channel`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    channel_id: channel.id,
+                    username: channel.username,
+                    title: channel.title,
+                    action: action,
+                    read_count: parseInt(readCount)
+                })
             });
-        } else {
-            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No activity yet</td></tr>';
         }
-    } catch (e) {
-        console.error('Failed to load logs:', e);
-        document.getElementById('logs-tbody').innerHTML = 
-            '<tr><td colspan="5" class="text-center text-danger">Failed to load logs</td></tr>';
+
+        // Execute
+        try {
+            const response = await fetch(`/accounts/${accountId}/warmup/execute-channels`, {
+                method: 'POST'
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                alert('✅ Channels processed!');
+                selectedChannels = [];
+                updateChannelsList();
+                loadLogs();
+            } else {
+                alert('❌ Error: ' + result.error);
+            }
+        } catch (e) {
+            alert('❌ Error: ' + e.message);
+        }
     }
+
+    // Load Activity Logs
+    async function loadLogs() {
+        // TODO: Implement logs endpoint
+    }
+</script>
+// Load Activity Logs
+async function loadLogs() {
+try {
+const response = await fetch(`/accounts/${accountId}/warmup/logs`);
+const data = await response.json();
+
+const tbody = document.getElementById('logs-tbody');
+tbody.innerHTML = '';
+
+if (data.logs && data.logs.length > 0) {
+data.logs.forEach(log => {
+const row = document.createElement('tr');
+
+// Status-based row class
+let rowClass = '';
+if (log.status === 'failed') rowClass = 'table-danger';
+else if (log.status === 'pending') rowClass = 'table-warning';
+row.className = rowClass;
+
+// Category badge color
+let categoryBadge = 'bg-secondary';
+if (log.category === 'warmup') categoryBadge = 'bg-warning';
+else if (log.category === 'system') categoryBadge = 'bg-info';
+else if (log.category === 'campaign') categoryBadge = 'bg-primary';
+else if (log.category === 'profile') categoryBadge = 'bg-success';
+
+// Status badge
+let statusBadge = 'bg-light text-dark';
+let statusIcon = '';
+if (log.status === 'success') {
+statusBadge = 'bg-success';
+statusIcon = '✓ ';
+} else if (log.status === 'failed') {
+statusBadge = 'bg-danger';
+statusIcon = '✗ ';
+} else if (log.status === 'pending') {
+statusBadge = 'bg-warning';
+statusIcon = '⏳ ';
+}
+
+row.innerHTML = `
+<td><small>${log.timestamp}</small></td>
+<td><span class="badge bg-secondary">${log.action_type}</span></td>
+<td><span class="badge ${categoryBadge}">${log.category}</span></td>
+<td><span class="badge ${statusBadge}">${statusIcon}${log.status}</span></td>
+<td><small>${log.description || '-'}</small></td>
+`;
+
+tbody.appendChild(row);
+});
+} else {
+tbody.innerHTML = '<tr>
+    <td colspan="5" class="text-center text-muted">No activity yet</td>
+</tr>';
+}
+} catch (e) {
+console.error('Failed to load logs:', e);
+document.getElementById('logs-tbody').innerHTML =
+'<tr>
+    <td colspan="5" class="text-center text-danger">Failed to load logs</td>
+</tr>';
+}
 }
 
 // Load logs on page load
