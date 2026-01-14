@@ -36,8 +36,8 @@ class WarmupChannel(db.Model):
     added_at = db.Column(db.DateTime, default=datetime.utcnow)
     executed_at = db.Column(db.DateTime, nullable=True)
     
-    # Relationships
-    account = db.relationship('Account', backref=db.backref('warmup_channels', lazy='dynamic'))
+    # Relationships - use different backref name to avoid conflict with old warmup system
+    account = db.relationship('Account', backref=db.backref('warmup_channels_new', lazy='dynamic'))
     
     def __repr__(self):
         return f'<WarmupChannel {self.username or self.channel_id} for Account {self.account_id}>'
