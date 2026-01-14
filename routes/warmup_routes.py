@@ -335,7 +335,7 @@ def execute_channels(account_id):
 Route to get combined activity logs (AccountActivityLog + WarmupLog)
 """
 from flask import jsonify
-from models.account_activity_log import AccountActivityLog
+from models.activity_log import AccountActivityLog
 from models.warmup_log import WarmupLog
 
 @warmup_bp.route('/logs', methods=['GET'])
