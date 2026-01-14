@@ -570,7 +570,8 @@
 
     // Check Account Health Function (separate from verification)
     function checkAccountHealth(method) {
-        const accountId = {{ account.id }};
+        const accountId = {{ account.id }
+    };
     const methodNames = {
         'self_check': 'Self-Check',
         'public_channel': 'Public Channel',
@@ -595,11 +596,12 @@
         .then(data => {
             if (data.success) {
                 // Success - show alert (NO reload, just health check)
+                const userDisplay = data.user.username ? '@' + data.user.username : (data.user.first_name || 'ID: ' + data.user.id);
                 const alert = document.createElement('div');
                 alert.className = 'alert alert-success alert-dismissible fade show mt-3';
                 alert.innerHTML = `
                     <strong>✅ Account is Alive!</strong> Check via ${methodNames[method]} successful.
-                    <br><small>Duration: ${data.duration || 'N/A'} | User: @${data.user.username || 'N/A'}</small>
+                    <br><small>Duration: ${data.duration || 'N/A'} | User: ${userDisplay}</small>
                     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                 `;
                 btn.parentElement.parentElement.appendChild(alert);
