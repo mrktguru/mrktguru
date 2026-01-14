@@ -331,3 +331,57 @@ def execute_channels(account_id):
     except Exception as e:
         logger.error(f"Channel processing failed: {e}", exc_info=True)
         return jsonify({'success': False, 'error': str(e)}), 500
+"""
+Route to get combined activity logs (AccountActivityLog + WarmupLog)
+"""
+from flask import jsonify
+from models.account_activity_log import AccountActivityLog
+from models.warmup_log import WarmupLog
+
+@warmup_bp.route('/logs', methods=['GET'])
+@login_required
+def get_logs(account_id):
+    """Get combined activity logs for warmup section"""
+    from sqlalchemy import union_all, select
+    
+    # Get last 20 AccountActivityLog entries
+    activity_logs = AccountActivityLog.query.filter_by(
+        account_id=account_id
+    ).order_by(AccountActivityLog.timestamp.desc()).limit(20).all()
+    
+    # Get last 20 WarmupLog entries
+    warmup_logs = WarmupLog.query.filter_by(
+        account_id=account_id
+    ).order_by(WarmupLog.timestamp.desc()).limit(20).all()
+    
+    # Combine and format logs
+    combined_logs = []
+    
+    # Add activity logs
+    for log in activity_logs:
+        combined_logs.append({
+            'timestamp': log.timestamp.strftime('%d.%m.%Y %H:%M:%S'),
+            'action_type': log.action_type,
+            'category': log.action_category or 'system',
+            'status': log.status,
+            'description': log.description or '',
+            'source': 'activity'
+        })
+    
+    # Add warmup logs
+    for log in warmup_logs:
+        combined_logs.append({
+            'timestamp': log.timestamp.strftime('%d.%m.%Y %H:%M:%S'),
+            'action_type': log.action_type or 'warmup',
+            'category': 'warmup',
+            'status': log.status,
+            'description': log.message,
+            'source': 'warmup',
+            'stage': log.stage_number
+        })
+    
+    # Sort by timestamp (newest first)
+    combined_logs.sort(key=lambda x: x['timestamp'], reverse=True)
+    
+    # Return last 20
+    return jsonify({'logs': combined_logs[:20]})
