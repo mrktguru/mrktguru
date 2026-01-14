@@ -46,17 +46,17 @@
                         <div class="row mb-3">
                             <div class="col-md-6">
                                 <label>First Name <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control" id="first-name" required>
+                                <input type="text" class="form-control" id="first-name" value="{{ account.first_name or '' }}" required>
                             </div>
                             <div class="col-md-6">
                                 <label>Last Name</label>
-                                <input type="text" class="form-control" id="last-name">
+                                <input type="text" class="form-control" id="last-name" value="{{ account.last_name or '' }}">
                             </div>
                         </div>
 
                         <div class="mb-3">
                             <label>Bio</label>
-                            <textarea class="form-control" id="bio" rows="2"></textarea>
+                            <textarea class="form-control" id="bio" rows="2">{{ account.bio or '' }}</textarea>
                         </div>
 
                         <div class="mb-3">
@@ -71,6 +71,27 @@
                 </div>
             </div>
 
+
+            <!-- Stage 2: Contacts -->
+            <div class="accordion-item">
+                <h2 class="accordion-header">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#stage2">
+                        <span class="badge bg-secondary me-2">2</span>
+                        Stage 2: Contacts
+                    </button>
+                </h2>
+                <div id="stage2" class="accordion-collapse collapse" data-bs-parent="#warmupAccordion">
+                    <div class="accordion-body">
+                        <p class="text-muted">
+                            <i class="bi bi-info-circle"></i>
+                            Stage 2 (Contacts import) is optional and will be implemented later.
+                        </p>
+                        <p class="text-muted">
+                            You can skip this stage and proceed directly to Stage 3 (Subscriptions).
+                        </p>
+                    </div>
+                </div>
+            </div>
             <!-- Stage 3: Subscriptions -->
             <div class="accordion-item">
                 <h2 class="accordion-header">
