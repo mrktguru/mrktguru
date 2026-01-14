@@ -10,6 +10,33 @@
                 <div class="progress-bar" style="width: 0%" id="warmup-progress-bar">0%</div>
             </div>
             <small class="text-muted">Stage 1/4: Profile</small>
+
+            <!-- Stage 4: Activity -->
+            <div class="accordion-item">
+                <h2 class="accordion-header">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#stage4">
+                        <span class="badge bg-secondary me-2">4</span>
+                        Stage 4: Activity
+                    </button>
+                </h2>
+                <div id="stage4" class="accordion-collapse collapse" data-bs-parent="#warmupAccordion">
+                    <div class="accordion-body">
+                        <p class="text-muted">
+                            <i class="bi bi-info-circle"></i> 
+                            Stage 4 (Activity & Engagement) will include:
+                        </p>
+                        <ul class="text-muted">
+                            <li>Viewing feed and stories</li>
+                            <li>Reacting to posts</li>
+                            <li>Interacting with bots</li>
+                            <li>Joining groups</li>
+                        </ul>
+                        <p class="text-muted mb-0">
+                            <strong>Status:</strong> Coming soon
+                        </p>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- Stage 1: Profile -->
@@ -58,7 +85,14 @@
                             <label>Bio</label>
                             <textarea class="form-control" id="bio" rows="2">{{ account.bio or '' }}</textarea>
                         </div>
-
+                        <ul class="text-muted">
+                            <li>Importing contacts</li>
+                            <li>Viewing contact list</li>
+                            <li>Saving to Saved Messages</li>
+                        </ul>
+                        <p class="text-muted mb-0">
+                            <strong>Status:</strong> Optional - Coming soon
+                        </p>
                         <div class="mb-3">
                             <label>Photo</label>
                             <input type="file" class="form-control" id="photo" accept="image/*">
@@ -131,6 +165,33 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Stage 4: Activity -->
+            <div class="accordion-item">
+                <h2 class="accordion-header">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#stage4">
+                        <span class="badge bg-secondary me-2">4</span>
+                        Stage 4: Activity
+                    </button>
+                </h2>
+                <div id="stage4" class="accordion-collapse collapse" data-bs-parent="#warmupAccordion">
+                    <div class="accordion-body">
+                        <p class="text-muted">
+                            <i class="bi bi-info-circle"></i> 
+                            Stage 4 (Activity & Engagement) will include:
+                        </p>
+                        <ul class="text-muted">
+                            <li>Viewing feed and stories</li>
+                            <li>Reacting to posts</li>
+                            <li>Interacting with bots</li>
+                            <li>Joining groups</li>
+                        </ul>
+                        <p class="text-muted mb-0">
+                            <strong>Status:</strong> Coming soon
+                        </p>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- Activity Log -->
@@ -149,6 +210,33 @@
                         <tr><td colspan="5" class="text-center text-muted">Loading...</td></tr>
                     </tbody>
                 </table>
+            </div>
+
+            <!-- Stage 4: Activity -->
+            <div class="accordion-item">
+                <h2 class="accordion-header">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#stage4">
+                        <span class="badge bg-secondary me-2">4</span>
+                        Stage 4: Activity
+                    </button>
+                </h2>
+                <div id="stage4" class="accordion-collapse collapse" data-bs-parent="#warmupAccordion">
+                    <div class="accordion-body">
+                        <p class="text-muted">
+                            <i class="bi bi-info-circle"></i> 
+                            Stage 4 (Activity & Engagement) will include:
+                        </p>
+                        <ul class="text-muted">
+                            <li>Viewing feed and stories</li>
+                            <li>Reacting to posts</li>
+                            <li>Interacting with bots</li>
+                            <li>Joining groups</li>
+                        </ul>
+                        <p class="text-muted mb-0">
+                            <strong>Status:</strong> Coming soon
+                        </p>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -343,3 +431,65 @@
         // TODO: Implement logs endpoint
     }
 </script>
+// Load Activity Logs
+async function loadLogs() {
+    try {
+        const response = await fetch(`/accounts/${accountId}/warmup/logs`);
+        const data = await response.json();
+        
+        const tbody = document.getElementById('logs-tbody');
+        tbody.innerHTML = '';
+        
+        if (data.logs && data.logs.length > 0) {
+            data.logs.forEach(log => {
+                const row = document.createElement('tr');
+                
+                // Status-based row class
+                let rowClass = '';
+                if (log.status === 'failed') rowClass = 'table-danger';
+                else if (log.status === 'pending') rowClass = 'table-warning';
+                row.className = rowClass;
+                
+                // Category badge color
+                let categoryBadge = 'bg-secondary';
+                if (log.category === 'warmup') categoryBadge = 'bg-warning';
+                else if (log.category === 'system') categoryBadge = 'bg-info';
+                else if (log.category === 'campaign') categoryBadge = 'bg-primary';
+                else if (log.category === 'profile') categoryBadge = 'bg-success';
+                
+                // Status badge
+                let statusBadge = 'bg-light text-dark';
+                let statusIcon = '';
+                if (log.status === 'success') {
+                    statusBadge = 'bg-success';
+                    statusIcon = '✓ ';
+                } else if (log.status === 'failed') {
+                    statusBadge = 'bg-danger';
+                    statusIcon = '✗ ';
+                } else if (log.status === 'pending') {
+                    statusBadge = 'bg-warning';
+                    statusIcon = '⏳ ';
+                }
+                
+                row.innerHTML = `
+                    <td><small>${log.timestamp}</small></td>
+                    <td><span class="badge bg-secondary">${log.action_type}</span></td>
+                    <td><span class="badge ${categoryBadge}">${log.category}</span></td>
+                    <td><span class="badge ${statusBadge}">${statusIcon}${log.status}</span></td>
+                    <td><small>${log.description || '-'}</small></td>
+                `;
+                
+                tbody.appendChild(row);
+            });
+        } else {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No activity yet</td></tr>';
+        }
+    } catch (e) {
+        console.error('Failed to load logs:', e);
+        document.getElementById('logs-tbody').innerHTML = 
+            '<tr><td colspan="5" class="text-center text-danger">Failed to load logs</td></tr>';
+    }
+}
+
+// Load logs on page load
+document.addEventListener('DOMContentLoaded', loadLogs);
