@@ -907,3 +907,54 @@ async def update_telegram_photo(account_id, photo_path):
         if client and client.is_connected():
             await client.disconnect()
 
+
+async def search_public_channels(account_id, query, limit=20):
+    """
+    Search for public channels/groups
+    
+    Args:
+        account_id: Account ID
+        query: Search query
+        limit: Max results
+    
+    Returns:
+        dict: {success, results, error}
+    """
+    from telethon.tl.functions.contacts import SearchRequest
+    from telethon.tl.types import Channel
+    
+    client = None
+    try:
+        client = get_telethon_client(account_id)
+        await client.connect()
+        
+        # Human-like delay before search
+        await asyncio.sleep(random.uniform(1.0, 2.5))
+        
+        # Perform search
+        result = await client(SearchRequest(
+            q=query,
+            limit=limit
+        ))
+        
+        channels = []
+        for chat in result.chats:
+            if isinstance(chat, Channel):
+                # Filter for channels/groups, skip if no username
+                if chat.username:
+                    channels.append({
+                        "id": chat.id,
+                        "title": chat.title,
+                        "username": chat.username,
+                        "participants_count": getattr(chat, "participants_count", 0),
+                        "type": "megagroup" if chat.megagroup else "channel"
+                    })
+        
+        return {"success": True, "results": channels, "error": None}
+        
+    except Exception as e:
+        return {"success": False, "results": [], "error": str(e)}
+    finally:
+        if client and client.is_connected():
+            await client.disconnect()
+

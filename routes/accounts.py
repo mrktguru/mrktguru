@@ -1402,3 +1402,171 @@ def verify_safe(account_id):
         
     finally:
         loop.close()
+
+
+# ==================== WARMUP ROUTES ====================
+
+@accounts_bp.route("/<int:account_id>/warmup/execute-profile", methods=["POST"])
+@login_required
+def warmup_execute_profile(account_id):
+    """
+    Stage 1: Execute Profile Setup
+    Update profile fields with human-like delays
+    """
+    from utils.telethon_helper import update_telegram_profile
+    import asyncio
+    
+    account = Account.query.get_or_404(account_id)
+    data = request.json
+    
+    if not data:
+        return jsonify({"success": False, "error": "No data provided"}), 400
+        
+    first_name = data.get("first_name")
+    last_name = data.get("last_name")
+    bio = data.get("bio")
+    
+    # Create event loop
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    
+    try:
+        # Update Telegram Profile
+        result = loop.run_until_complete(update_telegram_profile(
+            account_id,
+            first_name=first_name,
+            last_name=last_name,
+            bio=bio
+        ))
+        
+        if result['success']:
+            # Update local DB
+            account.first_name = first_name
+            account.last_name = last_name
+            account.bio = bio
+            
+            # Log activity
+            logger = ActivityLogger(account_id)
+            logger.log(
+                action_type='warmup_stage_1',
+                status='success',
+                description='Profile setup completed (Stage 1)',
+                category='warmup'
+            )
+            
+            db.session.commit()
+            return jsonify({"success": True, "updated_fields": result['updated_fields']})
+        else:
+            return jsonify({"success": False, "error": result['error']}), 500
+            
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        loop.close()
+
+
+@accounts_bp.route("/<int:account_id>/warmup/search-channels", methods=["POST"])
+@login_required
+def warmup_search_channels(account_id):
+    """
+    Stage 3: Search for channels
+    """
+    from utils.telethon_helper import search_public_channels
+    import asyncio
+    
+    data = request.json
+    query = data.get("query")
+    
+    if not query:
+        return jsonify({"success": False, "error": "Query required"}), 400
+        
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    
+    try:
+        result = loop.run_until_complete(search_public_channels(account_id, query))
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        loop.close()
+
+
+@accounts_bp.route("/<int:account_id>/warmup/execute-channels", methods=["POST"])
+@login_required
+def warmup_execute_channels(account_id):
+    """
+    Stage 3: Execute Channel Subscriptions
+    Join selected channels with human-like delays
+    """
+    from utils.telethon_helper import join_channel_for_warmup, read_channel_posts
+    import asyncio
+    import random
+    
+    data = request.json
+    channels = data.get("channels", [])
+    
+    if not channels:
+        return jsonify({"success": False, "error": "No channels selected"}), 400
+        
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    
+    results = []
+    
+    try:
+        for channel in channels:
+            username = channel.get("username")
+            if not username:
+                continue
+                
+            # Human-like Pre-Action: Read some posts first (don't join blindly)
+            if random.random() > 0.3:
+                # 70% chance to read posts before joining
+                read_result = loop.run_until_complete(read_channel_posts(
+                    account_id, 
+                    username, 
+                    count=random.randint(1, 3), 
+                    delay_between=2
+                ))
+            
+            # Join channel
+            join_result = loop.run_until_complete(join_channel_for_warmup(account_id, username))
+            
+            results.append({
+                "username": username,
+                "success": join_result["success"],
+                "status": "joined" if not join_result.get("already_member") else "already_member"
+            })
+            
+            # Log
+            logger = ActivityLogger(account_id)
+            if join_result["success"]:
+                logger.log(
+                    action_type='warmup_join_channel',
+                    status='success',
+                    description=f'Joined channel @{username}',
+                    category='warmup'
+                )
+            
+            # Random delay between channel joins (essential for safety)
+            await_time = random.uniform(10, 30)
+            loop.run_until_complete(asyncio.sleep(await_time))
+            
+        return jsonify({"success": True, "results": results})
+        
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        loop.close()
+
+
+@accounts_bp.route("/<int:account_id>/warmup/execute-activity", methods=["POST"])
+@login_required
+def warmup_execute_activity(account_id):
+    """
+    Stage 4: Execute Random Activity
+    Read feed, react to posts
+    """
+    # Placeholder for Stage 4 implementation
+    return jsonify({"success": True, "message": "Activity simulation started (background)"})
