@@ -1414,6 +1414,7 @@ def warmup_execute_profile(account_id):
     Update profile fields with human-like delays
     """
     from utils.telethon_helper import update_telegram_profile
+    from utils.activity_logger import ActivityLogger
     import asyncio
     
     account = Account.query.get_or_404(account_id)
@@ -1500,6 +1501,7 @@ def warmup_execute_channels(account_id):
     Join selected channels with human-like delays
     """
     from utils.telethon_helper import join_channel_for_warmup, read_channel_posts
+    from utils.activity_logger import ActivityLogger
     import asyncio
     import random
     
