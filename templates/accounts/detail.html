@@ -570,10 +570,9 @@
 
     // Check Account Health
     function checkAccountHealth(method) {
-        const accountId = {{ account.id }
-    };
-    const names = { 'self_check': 'Self-Check', 'public_channel': 'Public Channel', 'get_me': 'Get Me' };
-    const btn = document.querySelector('.btn-outline-success.dropdown-toggle');
+            const accountId = {{ account.id }};
+        const names = { 'self_check': 'Self-Check', 'public_channel': 'Public Channel', 'get_me': 'Get Me' };
+        const btn = document.querySelector('.btn-outline-success.dropdown-toggle');
     const orig = btn.innerHTML;
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Checking...';
