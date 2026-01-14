@@ -17,6 +17,7 @@ from telethon.tl.functions.contacts import SearchRequest
 from telethon.tl.functions.channels import GetFullChannelRequest, JoinChannelRequest
 from telethon.tl.functions.account import UpdateProfileRequest, UploadProfilePhotoRequest
 import asyncio
+import random
 import logging
 
 logger = logging.getLogger(__name__)
