@@ -86,8 +86,8 @@ class AccountWarmupChannel(db.Model):
     last_read_at = db.Column(db.DateTime)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
-    # Relationship
-    account = db.relationship('Account', backref=db.backref('warmup_channels', lazy='dynamic'))
+    # Relationships - renamed to avoid conflict with new warmup system
+    account = db.relationship('Account', backref=db.backref('warmup_channels_old', lazy='dynamic'))
     
     __table_args__ = (
         db.UniqueConstraint('account_id', 'channel_username', name='_account_warmup_channel_uc'),
