@@ -568,52 +568,86 @@
             });
     }
 
-    // Check Account Health
+    // Check Account Health Function (separate from verification)
     function checkAccountHealth(method) {
         const accountId = {{ account.id }
     };
-    const names = { 'self_check': 'Self-Check', 'public_channel': 'Public Channel', 'get_me': 'Get Me' };
+    const methodNames = {
+        'self_check': 'Self-Check',
+        'public_channel': 'Public Channel',
+        'get_me': 'Get Me'
+    };
+
+    // Show loading state
     const btn = document.querySelector('.btn-outline-success.dropdown-toggle');
-    const orig = btn.innerHTML;
+    const originalText = btn.innerHTML;
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Checking...';
 
+    // Make AJAX request
     fetch(`/accounts/${accountId}/verify-safe`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+        },
         body: `method=${method}`
     })
-        .then(r => r.json())
-        .then(d => {
-            const a = document.createElement('div');
-            if (d.success) {
-                a.className = 'alert alert-success alert-dismissible fade show mt-3';
-                a.innerHTML = `<strong>✅ Alive!</strong> ${names[method]}<br><small>${d.duration}</small><button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Success - show alert (NO reload, just health check)
+                const alert = document.createElement('div');
+                alert.className = 'alert alert-success alert-dismissible fade show mt-3';
+                alert.innerHTML = `
+                    <strong>✅ Account is Alive!</strong> Check via ${methodNames[method]} successful.
+                    <br><small>Duration: ${data.duration || 'N/A'} | User: @${data.user.username || 'N/A'}</small>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                `;
+                btn.parentElement.parentElement.appendChild(alert);
+
+                // Auto-dismiss after 10 seconds
+                setTimeout(() => alert.remove(), 10000);
             } else {
-                // Check if banned
-                if (d.error_type === 'banned') {
-                    const badge = document.querySelector('dd .badge');
-                    if (badge) { badge.className = 'badge bg-danger'; badge.textContent = 'banned'; }
-                    a.className = 'alert alert-danger alert-dismissible fade show mt-3';
-                    a.innerHTML = `<strong>🚫 BANNED</strong> ${d.error}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
-                } else {
-                    a.className = 'alert alert-warning alert-dismissible fade show mt-3';
-                    a.innerHTML = `<strong>⚠️ Error</strong> ${d.error}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
+                // Error - show error message
+                const errorType = data.error_type || 'error';
+                let alertClass = 'alert-danger';
+                let icon = '❌';
+
+                if (errorType === 'cooldown') {
+                    alertClass = 'alert-warning';
+                    icon = '⏱️';
+                } else if (errorType === 'flood_wait') {
+                    alertClass = 'alert-warning';
+                    icon = '⚠️';
                 }
+
+                const alert = document.createElement('div');
+                alert.className = `alert ${alertClass} alert-dismissible fade show mt-3`;
+                alert.innerHTML = `
+                    <strong>${icon} ${errorType === 'cooldown' ? 'Cooldown Active' : 'Error'}</strong> ${data.error}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                `;
+                btn.parentElement.parentElement.appendChild(alert);
+
+                // Auto-dismiss after 10 seconds
+                setTimeout(() => alert.remove(), 10000);
             }
-            btn.parentElement.parentElement.appendChild(a);
-            setTimeout(() => a.remove(), 10000);
         })
-        .catch(e => {
-            const a = document.createElement('div');
-            a.className = 'alert alert-danger alert-dismissible fade show mt-3';
-            a.innerHTML = `<strong>❌</strong> ${e.message}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
-            btn.parentElement.parentElement.appendChild(a);
-            setTimeout(() => a.remove(), 5000);
+        .catch(error => {
+            // Network error
+            const alert = document.createElement('div');
+            alert.className = 'alert alert-danger alert-dismissible fade show mt-3';
+            alert.innerHTML = `
+                <strong>❌ Network Error!</strong> ${error.message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            btn.parentElement.parentElement.appendChild(alert);
+            setTimeout(() => alert.remove(), 5000);
         })
         .finally(() => {
+            // Re-enable button
             btn.disabled = false;
-            btn.innerHTML = orig;
+            btn.innerHTML = originalText;
         });
     }
 </script>
