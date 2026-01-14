@@ -570,11 +570,13 @@
 
     // Check Account Health Function (separate from verification)
     function checkAccountHealth(method) {
-        const accountId = {{ account.id }};
+        const accountId = {{ account.id }
+    };
     const methodNames = {
         'self_check': 'Self-Check',
         'public_channel': 'Public Channel',
         'get_me': 'Get Me'
+    };
 
     // Show loading state
     const btn = document.querySelector('.btn-outline-success.dropdown-toggle');
