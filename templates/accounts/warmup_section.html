@@ -245,12 +245,25 @@
     let isExecuting = false;
     let pollTimer = null;
     let activeStage = null;
+    let lastSeenLogId = 0;
 
     // Start polling logs while executing
-    function startPolling(stage) {
+    async function startPolling(stage) {
         if (pollTimer) clearInterval(pollTimer);
         isExecuting = true;
         activeStage = stage;
+
+        // Record the ID of the latest log BEFORE starting
+        try {
+            const response = await fetch(`/accounts/${accountId}/warmup/logs`);
+            const data = await response.json();
+            if (data.logs && data.logs.length > 0) {
+                const latest = data.logs[0];
+                lastSeenLogId = (typeof latest.id === 'number') ? latest.id : 0;
+            }
+        } catch (e) {
+            console.error('Failed to get initial log ID:', e);
+        }
 
         // Initial load
         loadLogs(stage);
@@ -527,7 +540,11 @@
             if (data.logs && data.logs.length > 0) {
                 // Update active stage progress if polling
                 if (activeStage) {
-                    const stageLogs = data.logs.filter(l => l.source === 'warmup' && l.stage === activeStage);
+                    const stageLogs = data.logs.filter(l =>
+                        l.source === 'warmup' &&
+                        l.stage === activeStage &&
+                        (typeof l.id === 'number' ? l.id > lastSeenLogId : true)
+                    );
                     if (stageLogs.length > 0) {
                         const latest = stageLogs[0];
                         const container = document.getElementById(`progress-stage-${activeStage}`);

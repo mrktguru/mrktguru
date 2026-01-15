@@ -290,6 +290,7 @@ def get_logs(account_id):
     # Add activity logs
     for log in activity_logs:
         raw_logs.append({
+            'id': f"act_{log.id}",
             'dt': log.timestamp,
             'timestamp': log.timestamp.strftime('%d.%m.%Y %H:%M:%S'),
             'action_type': log.action_type,
@@ -302,6 +303,7 @@ def get_logs(account_id):
     # Add warmup logs
     for log in warmup_logs:
         raw_logs.append({
+            'id': log.id,
             'dt': log.timestamp,
             'timestamp': log.timestamp.strftime('%d.%m.%Y %H:%M:%S'),
             'action_type': log.action_type or 'warmup',

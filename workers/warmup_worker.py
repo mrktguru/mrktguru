@@ -49,6 +49,9 @@ def execute_stage_1_task(self, account_id, data):
                         if new_first_name and new_first_name != account.first_name:
                             await emulate_typing(new_first_name, 'slow', account_id)
                             await client(UpdateProfileRequest(first_name=new_first_name))
+                            account.first_name = new_first_name
+                            db.session.commit()
+                            logger.info(f"Database updated: first_name={new_first_name}")
                             await asyncio.sleep(random.uniform(3, 8))
                             WarmupLog.log(account_id, 'success', f"First name set: {new_first_name}", stage=1, action='set_first_name')
                         
@@ -58,6 +61,9 @@ def execute_stage_1_task(self, account_id, data):
                             await asyncio.sleep(random.uniform(10, 20)) # Reduced delay for debugging
                             await emulate_typing(new_last_name, 'slow', account_id)
                             await client(UpdateProfileRequest(last_name=new_last_name))
+                            account.last_name = new_last_name
+                            db.session.commit()
+                            logger.info(f"Database updated: last_name={new_last_name}")
                             await asyncio.sleep(random.uniform(3, 8))
                             WarmupLog.log(account_id, 'success', f"Last name set: {new_last_name}", stage=1, action='set_last_name')
                         
@@ -67,6 +73,9 @@ def execute_stage_1_task(self, account_id, data):
                             await asyncio.sleep(random.uniform(10, 20)) # Reduced delay
                             await emulate_typing(new_username, 'normal', account_id)
                             await client(UpdateUsernameRequest(username=new_username))
+                            account.username = new_username
+                            db.session.commit()
+                            logger.info(f"Database updated: username=@{new_username}")
                             await asyncio.sleep(random.uniform(3, 8))
                             WarmupLog.log(account_id, 'success', f"Username set: @{new_username}", stage=1, action='set_username')
 
@@ -76,6 +85,9 @@ def execute_stage_1_task(self, account_id, data):
                             await asyncio.sleep(random.uniform(10, 20)) # Reduced delay
                             await emulate_typing(new_bio, 'normal', account_id)
                             await client(UpdateProfileRequest(about=new_bio))
+                            account.bio = new_bio
+                            db.session.commit()
+                            logger.info(f"Database updated: bio updated")
                             await asyncio.sleep(random.uniform(2, 5))
                             WarmupLog.log(account_id, 'success', 'Bio updated', stage=1, action='set_bio')
                         
@@ -97,6 +109,15 @@ def execute_stage_1_task(self, account_id, data):
                                     
                                     # Set as profile photo using explicit keyword argument
                                     await client(UploadProfilePhotoRequest(file=uploaded_file))
+                                    
+                                    # Update local DB with relative path for UI compatibility
+                                    if 'uploads/' in photo_path:
+                                        rel_path = photo_path.split('uploads/')[-1]
+                                        account.photo_url = f"uploads/{rel_path}"
+                                    else:
+                                        account.photo_url = photo_path
+                                    
+                                    db.session.commit()
                                     
                                     await asyncio.sleep(random.uniform(2, 5))
                                     WarmupLog.log(account_id, 'success', 'Photo uploaded and set', stage=1, action='set_photo')
