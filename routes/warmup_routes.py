@@ -2,7 +2,7 @@
 Warmup Routes
 Backend routes for warmup system
 """
-from flask import Blueprint, request, jsonify, render_template, flash, redirect, url_for
+from flask import Blueprint, request, jsonify, render_template, flash, redirect, url_for, current_app
 from werkzeug.utils import secure_filename
 import os
 from utils.decorators import login_required
@@ -26,7 +26,7 @@ import asyncio
 import random
 import logging
 
-logger = logging.getLogger(__name__)
+# Logger will be used via current_app.logger in routes
 
 warmup_bp = Blueprint('warmup', __name__, url_prefix='/accounts/<int:account_id>/warmup')
 
@@ -109,9 +109,9 @@ def execute_profile(account_id):
             photo_path = os.path.join(upload_dir, filename)
             photo.save(photo_path)
             data['photo_path'] = photo_path
-            logger.info(f"Photo saved for warmup at absolute path: {photo_path}")
+            current_app.logger.info(f"Photo saved for warmup at absolute path: {photo_path}")
         else:
-            logger.info("Photo field present but no file selected or filename missing")
+            current_app.logger.info("Photo field present but no file selected or filename missing")
     
     # Trigger task
     execute_stage_1_task.apply_async((account_id, data))

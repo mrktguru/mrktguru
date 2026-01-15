@@ -10,8 +10,8 @@ if [ -d "venv" ]; then
 fi
 
 # Start Flask app in background
-echo "Starting Flask app..."
-python3 app.py &
+echo "Starting Flask app on port 8081..."
+PORT=8081 python3 app.py &
 FLASK_PID=$!
 
 # Start Celery worker
@@ -29,7 +29,7 @@ echo "Flask PID: $FLASK_PID"
 echo "Worker PID: $WORKER_PID"
 echo "Beat PID: $BEAT_PID"
 echo ""
-echo "Access the app at: http://localhost:5000"
+echo "Access the app at: http://localhost:8081"
 echo ""
 echo "To stop all services, run: kill $FLASK_PID $WORKER_PID $BEAT_PID"
 

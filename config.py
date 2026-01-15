@@ -12,7 +12,7 @@ class Config:
     DEBUG = os.getenv('FLASK_DEBUG', 'False').lower() == 'true'
     
     # Database
-    SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL', 'postgresql://postgres:password@localhost:5432/telegram_system')
+    SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL', 'postgresql://postgres:password@127.0.0.1:5432/telegram_system')
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ENGINE_OPTIONS = {
         'pool_size': 10,

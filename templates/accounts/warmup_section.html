@@ -244,13 +244,13 @@
     const accountId = {{ account.id }};
     let isExecuting = false;
     let pollTimer = null;
-    let taskStartTime = null;
+    let activeStage = null;
 
     // Start polling logs while executing
     function startPolling(stage) {
         if (pollTimer) clearInterval(pollTimer);
         isExecuting = true;
-        taskStartTime = new Date();
+        activeStage = stage;
 
         // Initial load
         loadLogs(stage);
