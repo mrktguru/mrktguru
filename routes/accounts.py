@@ -1583,3 +1583,52 @@ def warmup_execute_activity(account_id):
     """
     # Placeholder for Stage 4 implementation
     return jsonify({"success": True, "message": "Activity simulation started (background)"})
+
+
+@accounts_bp.route("/<int:account_id>/sync-profile", methods=["POST"])
+@login_required
+def sync_profile_from_telegram(account_id):
+    """
+    Sync profile info from Telegram (Manual Trigger)
+    """
+    from utils.telethon_helper import sync_official_profile
+    from utils.activity_logger import ActivityLogger
+    import asyncio
+    
+    # Anti-Lock: Release DB session
+    db.session.close()
+    
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    
+    try:
+        result = loop.run_until_complete(sync_official_profile(account_id))
+        
+        # Re-query
+        account = Account.query.get(account_id)
+        if not account:
+            return jsonify({"success": False, "error": "Account not found"}), 404
+            
+        if result['success']:
+            data = result['data']
+            
+            # Update local DB
+            account.username = data.get('username')
+            account.first_name = data.get('first_name')
+            account.last_name = data.get('last_name')
+            account.phone = data.get('phone')
+            account.bio = data.get('bio')
+            
+            # Log
+            logger = ActivityLogger(account_id)
+            logger.log_sync(status='success', items_synced=5)
+            
+            db.session.commit()
+            return jsonify({"success": True, "data": data})
+        else:
+            return jsonify({"success": False, "error": result['error']}), 500
+            
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        loop.close()

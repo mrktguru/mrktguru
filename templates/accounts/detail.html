@@ -202,11 +202,18 @@
                             </div>
                         </div>
 
-                        <!-- Edit Profile Form -->
-                        <button class="btn btn-sm btn-outline-primary" data-bs-toggle="collapse"
-                            data-bs-target="#editProfile">
-                            <i class="bi bi-pencil"></i> Edit Profile
-                        </button>
+                        <!-- Actions -->
+                        <div class="d-flex justify-content-between align-items-center">
+                            <button class="btn btn-sm btn-outline-primary" data-bs-toggle="collapse"
+                                data-bs-target="#editProfile">
+                                <i class="bi bi-pencil"></i> Edit Profile
+                            </button>
+
+                            <button class="btn btn-sm btn-outline-secondary" onclick="syncProfile()" id="sync-btn"
+                                title="Sync profile data from Telegram (human-like)">
+                                <i class="bi bi-arrow-repeat"></i> Sync Profile
+                            </button>
+                        </div>
 
                         <div class="collapse mt-3" id="editProfile">
                             <form method="POST" action="{{ url_for('accounts.update_profile', account_id=account.id) }}"
@@ -570,7 +577,8 @@
 
     // Check Account Health Function (separate from verification)
     function checkAccountHealth(method) {
-        const accountId = {{ account.id }};
+        const accountId = {{ account.id }
+    };
     const methodNames = {
         'self_check': 'Self-Check',
         'public_channel': 'Public Channel',
@@ -649,6 +657,39 @@
             btn.disabled = false;
             btn.innerHTML = originalText;
         });
+    }
+
+    // Sync Profile Logic
+    function syncProfile() {
+        if (!confirm('Start full profile sync? This behaves like a human checking their own profile (opening settings, scrolling, scrolling). Takes ~5-10s.')) {
+            return;
+        }
+
+        const btn = document.getElementById('sync-btn');
+        const originalText = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Syncing...';
+
+        fetch(`/accounts/${accountId}/sync-profile`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Reload to show new data
+                    location.reload();
+                } else {
+                    alert('❌ Sync Error: ' + data.error);
+                    btn.disabled = false;
+                    btn.innerHTML = originalText;
+                }
+            })
+            .catch(err => {
+                alert('❌ Network Error: ' + err.message);
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            });
     }
 </script>
 

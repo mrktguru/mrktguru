@@ -13,10 +13,11 @@ from models.warmup_settings import WarmupSettings
 from models.warmup_log import WarmupLog
 from utils.telethon_helper import get_telethon_client
 from utils.warmup_executor import execute_warmup_action, emulate_typing
-from telethon.tl.functions.contacts import SearchRequest
+from telethon.tl.functions.contacts import SearchRequest, ImportContactsRequest, GetContactsRequest
 from telethon.tl.functions.channels import GetFullChannelRequest, JoinChannelRequest
-from telethon.tl.functions.account import UpdateProfileRequest
-from telethon.tl.functions.photos import UploadProfilePhotoRequest
+from telethon.tl.functions.account import UpdateProfileRequest, UpdateStatusRequest
+from telethon.tl.functions.messages import SendMessageRequest
+from telethon.tl.types import InputPhoneContact
 import asyncio
 import random
 import logging
@@ -149,6 +150,84 @@ def execute_profile(account_id):
     except Exception as e:
         logger.error(f"Profile setup failed: {e}", exc_info=True)
         WarmupLog.log(account_id, 'error', f'Profile setup failed: {str(e)}', stage=1)
+        return jsonify({'success': False, 'error': str(e)}), 500
+# ==================== STAGE 2: CONTACTS ====================
+
+@warmup_bp.route('/execute-contacts', methods=['POST'])
+@login_required
+def execute_contacts(account_id):
+    """Execute Stage 2: Contacts import and activity"""
+    account = Account.query.get_or_404(account_id)
+    data = request.json
+    phone_numbers = data.get('phones', [])
+    
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    
+    async def setup_contacts():
+        client = get_telethon_client(account_id)
+        
+        try:
+            async def contacts_action(client, account_id):
+                # 1. Import Contacts
+                if phone_numbers:
+                    WarmupLog.log(account_id, 'info', f"Starting import of {len(phone_numbers)} contacts", stage=2, action='import_contacts_start')
+                    
+                    contacts = []
+                    for i, phone in enumerate(phone_numbers):
+                        contacts.append(InputPhoneContact(
+                            client_id=random.getrandbits(64),
+                            phone=phone,
+                            first_name=f"Contact {i+1}",
+                            last_name=""
+                        ))
+                    
+                    # Import in small batches if many
+                    await client(ImportContactsRequest(contacts))
+                    await asyncio.sleep(random.uniform(5, 10))
+                    WarmupLog.log(account_id, 'success', f"Imported {len(phone_numbers)} contacts", stage=2, action='import_contacts_success')
+                
+                # 2. View Contact List
+                await asyncio.sleep(random.uniform(10, 20))
+                await client(GetContactsRequest(hash=0))
+                WarmupLog.log(account_id, 'success', "Viewed contact list", stage=2, action='view_contacts')
+                
+                # 3. Save to Saved Messages
+                await asyncio.sleep(random.uniform(15, 30))
+                greeting_texts = [
+                    "Hello! This is my new account.",
+                    "Starting fresh here.",
+                    "Settings look good.",
+                    "Testing saved messages feature.",
+                    "Note to self: warmup in progress."
+                ]
+                text = random.choice(greeting_texts)
+                await emulate_typing(text, 'fast', account_id)
+                await client(SendMessageRequest(peer='me', message=text))
+                WarmupLog.log(account_id, 'success', "Sent message to Saved Messages", stage=2, action='send_saved_message')
+                
+                return {'success': True}
+            
+            result = await execute_warmup_action(client, account_id, contacts_action, estimated_duration=300)
+            return result
+            
+        finally:
+            if client.is_connected():
+                await client.disconnect()
+    
+    try:
+        result = loop.run_until_complete(setup_contacts())
+        
+        # Mark stage as completed
+        stage = WarmupStage.query.filter_by(account_id=account_id, stage_number=2).first()
+        if stage:
+            stage.mark_completed()
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        logger.error(f"Contacts warmup failed: {e}", exc_info=True)
+        WarmupLog.log(account_id, 'error', f'Contacts warmup failed: {str(e)}', stage=2)
         return jsonify({'success': False, 'error': str(e)}), 500
 
 

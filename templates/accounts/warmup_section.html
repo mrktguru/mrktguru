@@ -92,13 +92,23 @@
                 </h2>
                 <div id="stage2" class="accordion-collapse collapse" data-bs-parent="#warmupAccordion">
                     <div class="accordion-body">
-                        <p class="text-muted">
-                            <i class="bi bi-info-circle"></i>
-                            Stage 2 (Contacts import) is optional and will be implemented later.
-                        </p>
-                        <p class="text-muted">
-                            You can skip this stage and proceed directly to Stage 3 (Subscriptions).
-                        </p>
+                        <h6>Contact Activities</h6>
+                        <div class="mb-3">
+                            <label for="contact-phones">Phone Numbers (one per line)</label>
+                            <textarea class="form-control" id="contact-phones" rows="3"
+                                placeholder="+79123456789&#10;+79987654321"></textarea>
+                            <small class="text-muted">Importing contacts helps build account trust.</small>
+                        </div>
+
+                        <ul class="text-muted small">
+                            <li><i class="bi bi-check2"></i> Importing provided contacts</li>
+                            <li><i class="bi bi-check2"></i> Viewing account contact list</li>
+                            <li><i class="bi bi-check2"></i> Sending test message to "Saved Messages"</li>
+                        </ul>
+
+                        <button class="btn btn-primary" onclick="executeContacts()">
+                            <i class="bi bi-play-fill"></i> Execute Stage 2
+                        </button>
                     </div>
                 </div>
             </div>
@@ -223,8 +233,33 @@
             const result = await response.json();
 
             if (result.success) {
-                alert('✅ Profile setup completed!');
-                loadLogs();
+                alert('✅ Profile setup completed! Reloading to update info...');
+                location.reload();
+            } else {
+                alert('❌ Error: ' + result.error);
+            }
+        } catch (e) {
+            alert('❌ Error: ' + e.message);
+        }
+    }
+
+    // Execute Contacts Setup
+    async function executeContacts() {
+        const phonesText = document.getElementById('contact-phones').value;
+        const phones = phonesText.split('\n').map(p => p.trim()).filter(p => p.length > 0);
+
+        try {
+            const response = await fetch(`/accounts/${accountId}/warmup/execute-contacts`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ phones })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                alert('✅ Contacts warmup completed!');
+                location.reload();
             } else {
                 alert('❌ Error: ' + result.error);
             }

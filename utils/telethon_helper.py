@@ -958,3 +958,61 @@ async def search_public_channels(account_id, query, limit=20):
         if client and client.is_connected():
             await client.disconnect()
 
+
+async def sync_official_profile(account_id):
+    """
+    Fetch full profile info from Telegram with human delays
+    
+    Args:
+        account_id: Account ID
+    
+    Returns:
+        dict: {success, data, error}
+    """
+    from telethon.tl.functions.users import GetFullUserRequest
+    
+    client = None
+    try:
+        client = get_telethon_client(account_id)
+        await client.connect()
+        
+        # Simulate opening settings/profile
+        print("🤔 Opening profile for sync...")
+        await asyncio.sleep(random.uniform(1.5, 3.0))
+        
+        # Get basic info
+        me = await client.get_me()
+        
+        # Simulate scrolling/viewing
+        await asyncio.sleep(random.uniform(0.5, 1.5))
+        
+        # Get full info (needed for Bio/About)
+        full = await client(GetFullUserRequest(me))
+        
+        # Handle full user result which might vary by Telethon version
+        bio = None
+        if hasattr(full, 'full_user') and full.full_user:
+             bio = full.full_user.about
+        
+        # Simulate finishing reading
+        await asyncio.sleep(random.uniform(0.5, 1.0))
+        
+        return {
+            "success": True,
+            "data": {
+                "id": me.id,
+                "username": me.username,
+                "first_name": me.first_name,
+                "last_name": me.last_name,
+                "phone": getattr(me, 'phone', None),
+                "bio": bio
+            },
+            "error": None
+        }
+        
+    except Exception as e:
+        return {"success": False, "data": None, "error": str(e)}
+    finally:
+        if client and client.is_connected():
+            await client.disconnect()
+
