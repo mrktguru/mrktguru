@@ -3,7 +3,7 @@ Warmup Routes
 Backend routes for warmup system
 """
 from flask import Blueprint, request, jsonify, render_template, flash, redirect, url_for
-from flask_login import login_required
+from utils.decorators import login_required
 from database import db
 from models.account import Account
 from models.warmup_stage import WarmupStage
