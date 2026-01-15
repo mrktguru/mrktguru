@@ -86,12 +86,26 @@ def execute_stage_1_task(self, account_id, data):
                                 WarmupLog.log(account_id, 'error', f"Photo file not found: {photo_path}", stage=1, action='set_photo_error')
                                 logger.error(f"Photo file not found: {photo_path}")
                             else:
-                                WarmupLog.log(account_id, 'info', 'Uploading profile photo...', stage=1, action='upload_photo_start')
-                                await asyncio.sleep(random.uniform(5, 10))
-                                photo = await client.upload_file(photo_path)
-                                await client(UploadProfilePhotoRequest(photo))
-                                await asyncio.sleep(random.uniform(2, 5))
-                                WarmupLog.log(account_id, 'success', 'Photo uploaded and set', stage=1, action='set_photo')
+                                try:
+                                    WarmupLog.log(account_id, 'info', 'Uploading profile photo...', stage=1, action='upload_photo_start')
+                                    await asyncio.sleep(random.uniform(5, 10))
+                                    
+                                    # Upload to Telegram servers first
+                                    uploaded_file = await client.upload_file(photo_path)
+                                    if not uploaded_file:
+                                        raise Exception("File upload to Telegram failed (returned None)")
+                                    
+                                    # Set as profile photo using explicit keyword argument
+                                    await client(UploadProfilePhotoRequest(file=uploaded_file))
+                                    
+                                    await asyncio.sleep(random.uniform(2, 5))
+                                    WarmupLog.log(account_id, 'success', 'Photo uploaded and set', stage=1, action='set_photo')
+                                    logger.info(f"Photo successfully set for account {account_id}")
+                                except Exception as e:
+                                    error_msg = f"Photo upload failed: {str(e)}"
+                                    logger.error(error_msg, exc_info=True)
+                                    WarmupLog.log(account_id, 'error', error_msg, stage=1, action='set_photo_error')
+                                    # Don't fail the whole task if just photo fails, but log it
                         
                         return {'success': True}
                     
