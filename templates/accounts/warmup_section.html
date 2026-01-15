@@ -244,11 +244,13 @@
     const accountId = {{ account.id }};
     let isExecuting = false;
     let pollTimer = null;
+    let taskStartTime = null;
 
     // Start polling logs while executing
     function startPolling(stage) {
         if (pollTimer) clearInterval(pollTimer);
         isExecuting = true;
+        taskStartTime = new Date();
 
         // Initial load
         loadLogs(stage);
@@ -261,7 +263,10 @@
         if (container) {
             container.style.display = 'block';
             container.querySelector('.progress-bar').style.width = '10%';
-            container.querySelector('.status-text').textContent = 'Initializing...';
+            container.querySelector('.status-text').textContent = 'Queuing task...';
+            container.querySelector('.progress-bar').classList.add('progress-bar-animated');
+            container.querySelector('.progress-bar').classList.remove('bg-danger');
+            container.querySelector('.progress-bar').classList.add('bg-primary');
         }
 
         // Disable button
@@ -277,15 +282,19 @@
 
         const container = document.getElementById(`progress-stage-${stage}`);
         if (container) {
+            container.querySelector('.progress-bar').classList.remove('progress-bar-animated');
             if (success) {
                 container.querySelector('.progress-bar').style.width = '100%';
                 container.querySelector('.status-text').textContent = 'Completed!';
-                setTimeout(() => { container.style.display = 'none'; }, 3000);
+                setTimeout(() => {
+                    container.style.display = 'none';
+                    // Optional: refresh page to show updated info if it was profile setup
+                    if (stage === 1) location.reload();
+                }, 3000);
             } else {
                 container.querySelector('.progress-bar').classList.replace('bg-primary', 'bg-danger');
                 container.querySelector('.progress-bar').classList.replace('bg-success', 'bg-danger');
                 container.querySelector('.status-text').textContent = 'Failed';
-                container.querySelector('.progress-bar').classList.remove('progress-bar-animated');
             }
         }
 
@@ -320,16 +329,14 @@
 
             const result = await response.json();
 
-            if (result.success) {
-                stopPolling(1, true);
-                setTimeout(() => location.reload(), 1000);
-            } else {
+            if (!result.success) {
                 stopPolling(1, false);
-                alert('❌ Error: ' + result.error);
+                alert('❌ Failed to start: ' + result.error);
             }
+            // If success, just keep polling
         } catch (e) {
             stopPolling(1, false);
-            alert('❌ Error: ' + e.message);
+            alert('❌ Connection Error: ' + e.message);
         }
     }
 
@@ -349,17 +356,14 @@
 
             const result = await response.json();
 
-            if (result.success) {
-                stopPolling(2, true);
-                setTimeout(() => location.reload(), 1000);
-            } else {
+            if (!result.success) {
                 stopPolling(2, false);
-                alert('❌ Error: ' + result.error);
+                alert('❌ Failed to start: ' + result.error);
             }
         } catch (e) {
             stopPolling(2, false);
             console.error('Contacts execution error:', e);
-            alert('❌ Error: ' + e.message);
+            alert('❌ Connection Error: ' + e.message);
         }
     }
 
@@ -387,7 +391,7 @@
                 alert('❌ Error: ' + result.error);
             }
         } catch (e) {
-            alert('❌ Error: ' + e.message);
+            alert('❌ Connection Error: ' + e.message);
         }
     }
 
@@ -497,19 +501,13 @@
 
             const result = await response.json();
 
-            if (result.success) {
-                stopPolling(3, true);
-                alert('✅ Channels processed!');
-                selectedChannels = [];
-                updateChannelsList();
-                loadLogs();
-            } else {
+            if (!result.success) {
                 stopPolling(3, false);
-                alert('❌ Error: ' + result.error);
+                alert('❌ Failed to start: ' + result.error);
             }
         } catch (e) {
             stopPolling(3, false);
-            alert('❌ Error: ' + e.message);
+            alert('❌ Connection Error: ' + e.message);
         }
     }
 
@@ -534,12 +532,28 @@
 
                             // Estimate % (rough based on typical step counts)
                             let progress = 10;
-                            if (activeStage === 1) progress = (stageLogs.length / 4) * 100;
-                            if (activeStage === 2) progress = (stageLogs.length / 3) * 100;
-                            if (activeStage === 3) progress = (stageLogs.length / (selectedChannels.length * 2 || 1)) * 100;
+                            if (activeStage === 1) progress = Math.min(95, (stageLogs.length / 5) * 100);
+                            if (activeStage === 2) progress = Math.min(95, (stageLogs.length / 4) * 100);
+                            if (activeStage === 3) progress = Math.min(95, (stageLogs.length / (selectedChannels.length * 3 || 1)) * 100);
 
-                            progress = Math.min(95, Math.max(10, progress));
+                            progress = Math.max(10, progress);
                             container.querySelector('.progress-bar').style.width = `${progress}%`;
+
+                            // Check for completion in logs
+                            // Since we have a 'success' or 'error' status in WarmupLog, we can use it
+                            if (latest.status === 'success' && (latest.action_type === 'set_photo' || latest.description.includes('completed') || latest.description.includes('Read'))) {
+                                // This is a bit fuzzy, maybe we should log a specific 'stage_completed' action
+                                // For now, let's look for specific descriptive success messages
+                            }
+
+                            // A better way: if the latest log for this stage is 'success' or 'error', 
+                            // and it refers to the FINAL action of that stage
+                            const completeActions = ['set_photo', 'send_saved_message', 'read_posts_success'];
+                            if (latest.status === 'success' && completeActions.includes(latest.action_type)) {
+                                stopPolling(activeStage, true);
+                            } else if (latest.status === 'error' || latest.status === 'failed') {
+                                stopPolling(activeStage, false);
+                            }
                         }
                     }
                 }
@@ -569,9 +583,13 @@
                     } else if (log.status === 'failed' || log.status === 'error') {
                         statusBadge = 'bg-danger';
                         statusIcon = '✗ ';
-                    } else if (log.status === 'pending') {
-                        statusBadge = 'bg-warning';
-                        statusIcon = '⏳ ';
+                    } else if (log.status === 'pending' || log.status === 'info') {
+                        statusBadge = 'bg-info';
+                        statusIcon = 'ℹ ';
+                        if (log.status === 'pending') {
+                            statusBadge = 'bg-warning';
+                            statusIcon = '⏳ ';
+                        }
                     }
 
                     row.innerHTML = `
