@@ -43,22 +43,30 @@
                             </div>
                         </div>
 
-                        <div class="row mb-3">
+                        <div class="row g-2 mb-3">
                             <div class="col-md-6">
-                                <label>First Name <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control" id="first-name"
-                                    value="{{ account.first_name or '' }}" required>
+                                <label for="first-name" class="form-label small">First Name</label>
+                                <input type="text" class="form-control form-control-sm" id="first-name"
+                                    value="{{ account.first_name or '' }}">
                             </div>
                             <div class="col-md-6">
-                                <label>Last Name</label>
-                                <input type="text" class="form-control" id="last-name"
+                                <label for="last-name" class="form-label small">Last Name</label>
+                                <input type="text" class="form-control form-control-sm" id="last-name"
                                     value="{{ account.last_name or '' }}">
                             </div>
                         </div>
 
                         <div class="mb-3">
-                            <label>Bio</label>
-                            <textarea class="form-control" id="bio" rows="2">{{ account.bio or '' }}</textarea>
+                            <label for="username" class="form-label small">Username (@...)</label>
+                            <input type="text" class="form-control form-control-sm" id="username"
+                                value="{{ account.username or '' }}" placeholder="username">
+                            <small class="text-muted small">Only changed fields will be updated on Telegram.</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="bio" class="form-label small">Bio</label>
+                            <textarea class="form-control form-control-sm" id="bio"
+                                rows="2">{{ account.bio or '' }}</textarea>
                         </div>
                         <ul class="text-muted">
                             <li>Importing contacts</li>
@@ -290,6 +298,7 @@
         const data = {
             first_name: document.getElementById('first-name').value,
             last_name: document.getElementById('last-name').value,
+            username: document.getElementById('username').value,
             bio: document.getElementById('bio').value,
             privacy_phone: document.getElementById('privacy-phone').value,
             language: document.getElementById('language').value

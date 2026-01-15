@@ -15,7 +15,7 @@ from utils.telethon_helper import get_telethon_client
 from utils.warmup_executor import execute_warmup_action, emulate_typing
 from telethon.tl.functions.contacts import SearchRequest, ImportContactsRequest, GetContactsRequest
 from telethon.tl.functions.channels import GetFullChannelRequest, JoinChannelRequest
-from telethon.tl.functions.account import UpdateProfileRequest, UpdateStatusRequest
+from telethon.tl.functions.account import UpdateProfileRequest, UpdateStatusRequest, UpdateUsernameRequest
 from telethon.tl.functions.photos import UploadProfilePhotoRequest
 from telethon.tl.functions.messages import SendMessageRequest
 from telethon.tl.types import InputPhoneContact
@@ -100,26 +100,41 @@ def execute_profile(account_id):
         
         try:
             async def profile_action(client, account_id):
+                # Fetch account again within the action context if needed, 
+                # but we can use the snapshot we take before session close
+                
                 # First name (required)
-                if data.get('first_name'):
-                    await emulate_typing(data['first_name'], 'slow', account_id)
-                    await client(UpdateProfileRequest(first_name=data['first_name']))
+                new_first_name = data.get('first_name')
+                if new_first_name and new_first_name != account.first_name:
+                    await emulate_typing(new_first_name, 'slow', account_id)
+                    await client(UpdateProfileRequest(first_name=new_first_name))
                     await asyncio.sleep(random.uniform(3, 8))
-                    WarmupLog.log(account_id, 'success', f"First name set: {data['first_name']}", stage=1, action='set_first_name')
+                    WarmupLog.log(account_id, 'success', f"First name set: {new_first_name}", stage=1, action='set_first_name')
                 
                 # Last name (optional)
-                if data.get('last_name'):
+                new_last_name = data.get('last_name')
+                if new_last_name is not None and new_last_name != account.last_name:
                     await asyncio.sleep(random.uniform(60, 120))
-                    await emulate_typing(data['last_name'], 'slow', account_id)
-                    await client(UpdateProfileRequest(last_name=data['last_name']))
+                    await emulate_typing(new_last_name, 'slow', account_id)
+                    await client(UpdateProfileRequest(last_name=new_last_name))
                     await asyncio.sleep(random.uniform(3, 8))
-                    WarmupLog.log(account_id, 'success', f"Last name set: {data['last_name']}", stage=1, action='set_last_name')
+                    WarmupLog.log(account_id, 'success', f"Last name set: {new_last_name}", stage=1, action='set_last_name')
                 
+                # Username (optional)
+                new_username = data.get('username', '').replace('@', '').strip()
+                if new_username and new_username != account.username:
+                    await asyncio.sleep(random.uniform(60, 120))
+                    await emulate_typing(new_username, 'normal', account_id)
+                    await client(UpdateUsernameRequest(username=new_username))
+                    await asyncio.sleep(random.uniform(3, 8))
+                    WarmupLog.log(account_id, 'success', f"Username set: @{new_username}", stage=1, action='set_username')
+
                 # Bio (optional)
-                if data.get('bio'):
+                new_bio = data.get('bio')
+                if new_bio is not None and new_bio != account.bio:
                     await asyncio.sleep(random.uniform(30, 60))
-                    await emulate_typing(data['bio'], 'normal', account_id)
-                    await client(UpdateProfileRequest(about=data['bio']))
+                    await emulate_typing(new_bio, 'normal', account_id)
+                    await client(UpdateProfileRequest(about=new_bio))
                     await asyncio.sleep(random.uniform(2, 5))
                     WarmupLog.log(account_id, 'success', 'Bio updated', stage=1, action='set_bio')
                 
