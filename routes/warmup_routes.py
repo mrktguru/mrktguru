@@ -3,6 +3,8 @@ Warmup Routes
 Backend routes for warmup system
 """
 from flask import Blueprint, request, jsonify, render_template, flash, redirect, url_for
+from werkzeug.utils import secure_filename
+import os
 from utils.decorators import login_required
 from database import db
 from models.account import Account
@@ -83,12 +85,33 @@ def settings(account_id):
 @warmup_bp.route('/execute-profile', methods=['POST'])
 @login_required
 def execute_profile(account_id):
-    """Execute Stage 1: Profile setup via Celery"""
-    data = request.json
+    """Execute Stage 1: Profile setup via Celery (supports photo upload)"""
+    account = Account.query.get_or_404(account_id)
+    
+    # Handle both JSON and FormData
+    if request.is_json:
+        data = request.json
+    else:
+        data = request.form.to_dict()
     
     # Validate required fields
     if not data.get('first_name'):
         return jsonify({'success': False, 'error': 'First name is required'}), 400
+    
+    # Handle Photo upload
+    if 'photo' in request.files:
+        photo = request.files['photo']
+        if photo and photo.filename:
+            filename = secure_filename(f"warmup_{account.id}_{photo.filename}")
+            # Use absolute path for safety with Celery
+            upload_dir = os.path.abspath(os.path.join(request.environ.get('PWD', os.getcwd()), 'uploads', 'photos'))
+            os.makedirs(upload_dir, exist_ok=True)
+            photo_path = os.path.join(upload_dir, filename)
+            photo.save(photo_path)
+            data['photo_path'] = photo_path
+            logger.info(f"Photo saved for warmup at absolute path: {photo_path}")
+        else:
+            logger.info("Photo field present but no file selected or filename missing")
     
     # Trigger task
     execute_stage_1_task.apply_async((account_id, data))
