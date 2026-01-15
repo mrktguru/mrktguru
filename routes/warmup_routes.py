@@ -16,6 +16,7 @@ from utils.warmup_executor import execute_warmup_action, emulate_typing
 from telethon.tl.functions.contacts import SearchRequest, ImportContactsRequest, GetContactsRequest
 from telethon.tl.functions.channels import GetFullChannelRequest, JoinChannelRequest
 from telethon.tl.functions.account import UpdateProfileRequest, UpdateStatusRequest
+from telethon.tl.functions.photos import UploadProfilePhotoRequest
 from telethon.tl.functions.messages import SendMessageRequest
 from telethon.tl.types import InputPhoneContact
 import asyncio
@@ -89,6 +90,8 @@ def execute_profile(account_id):
     if not data.get('first_name'):
         return jsonify({'success': False, 'error': 'First name is required'}), 400
     
+    db.session.close()
+    
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     
@@ -151,6 +154,8 @@ def execute_profile(account_id):
         logger.error(f"Profile setup failed: {e}", exc_info=True)
         WarmupLog.log(account_id, 'error', f'Profile setup failed: {str(e)}', stage=1)
         return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        loop.close()
 # ==================== STAGE 2: CONTACTS ====================
 
 @warmup_bp.route('/execute-contacts', methods=['POST'])
@@ -158,8 +163,10 @@ def execute_profile(account_id):
 def execute_contacts(account_id):
     """Execute Stage 2: Contacts import and activity"""
     account = Account.query.get_or_404(account_id)
-    data = request.json
+    data = request.json or {}
     phone_numbers = data.get('phones', [])
+    
+    db.session.close()
     
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
@@ -202,8 +209,9 @@ def execute_contacts(account_id):
                     "Note to self: warmup in progress."
                 ]
                 text = random.choice(greeting_texts)
+                logger.info(f"Account {account_id}: Sending saved message: {text}")
                 await emulate_typing(text, 'fast', account_id)
-                await client(SendMessageRequest(peer='me', message=text))
+                await client.send_message('me', text)
                 WarmupLog.log(account_id, 'success', "Sent message to Saved Messages", stage=2, action='send_saved_message')
                 
                 return {'success': True}
@@ -229,6 +237,8 @@ def execute_contacts(account_id):
         logger.error(f"Contacts warmup failed: {e}", exc_info=True)
         WarmupLog.log(account_id, 'error', f'Contacts warmup failed: {str(e)}', stage=2)
         return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        loop.close()
 
 
 # ==================== STAGE 3: CHANNELS ====================
@@ -243,6 +253,8 @@ def search_channels(account_id):
     
     if not query:
         return jsonify({'success': False, 'error': 'Query is required'}), 400
+    
+    db.session.close()
     
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
@@ -287,6 +299,8 @@ def search_channels(account_id):
     except Exception as e:
         logger.error(f"Channel search failed: {e}", exc_info=True)
         return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        loop.close()
 
 
 @warmup_bp.route('/add-channel', methods=['POST'])
@@ -346,6 +360,8 @@ def execute_channels(account_id):
     
     if not channels:
         return jsonify({'success': False, 'error': 'No channels to process'}), 400
+    
+    db.session.close()
     
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
@@ -410,18 +426,13 @@ def execute_channels(account_id):
     except Exception as e:
         logger.error(f"Channel processing failed: {e}", exc_info=True)
         return jsonify({'success': False, 'error': str(e)}), 500
-"""
-Route to get combined activity logs (AccountActivityLog + WarmupLog)
-"""
-from flask import jsonify
-from models.activity_log import AccountActivityLog
-from models.warmup_log import WarmupLog
-
+    finally:
+        loop.close()
 @warmup_bp.route('/logs', methods=['GET'])
 @login_required
 def get_logs(account_id):
     """Get combined activity logs for warmup section"""
-    from sqlalchemy import union_all, select
+    from models.activity_log import AccountActivityLog
     
     # Get last 20 AccountActivityLog entries
     activity_logs = AccountActivityLog.query.filter_by(
@@ -433,12 +444,13 @@ def get_logs(account_id):
         account_id=account_id
     ).order_by(WarmupLog.timestamp.desc()).limit(20).all()
     
-    # Combine and format logs
-    combined_logs = []
+    # Combine logs with original timestamps for sorting
+    raw_logs = []
     
     # Add activity logs
     for log in activity_logs:
-        combined_logs.append({
+        raw_logs.append({
+            'dt': log.timestamp,
             'timestamp': log.timestamp.strftime('%d.%m.%Y %H:%M:%S'),
             'action_type': log.action_type,
             'category': log.action_category or 'system',
@@ -449,7 +461,8 @@ def get_logs(account_id):
     
     # Add warmup logs
     for log in warmup_logs:
-        combined_logs.append({
+        raw_logs.append({
+            'dt': log.timestamp,
             'timestamp': log.timestamp.strftime('%d.%m.%Y %H:%M:%S'),
             'action_type': log.action_type or 'warmup',
             'category': 'warmup',
@@ -459,8 +472,13 @@ def get_logs(account_id):
             'stage': log.stage_number
         })
     
-    # Sort by timestamp (newest first)
-    combined_logs.sort(key=lambda x: x['timestamp'], reverse=True)
+    # Sort by datetime object (newest first)
+    raw_logs.sort(key=lambda x: x['dt'], reverse=True)
     
-    # Return last 20
-    return jsonify({'logs': combined_logs[:20]})
+    # Remove temporary 'dt' key and return last 20
+    final_logs = []
+    for log in raw_logs[:20]:
+        del log['dt']
+        final_logs.append(log)
+        
+    return jsonify({'logs': final_logs})

@@ -264,6 +264,7 @@
                 alert('❌ Error: ' + result.error);
             }
         } catch (e) {
+            console.error('Contacts execution error:', e);
             alert('❌ Error: ' + e.message);
         }
     }
