@@ -428,6 +428,19 @@ def execute_channels(account_id):
         return jsonify({'success': False, 'error': str(e)}), 500
     finally:
         loop.close()
+
+# ==================== STAGE 4: ACTIVITY ====================
+
+@warmup_bp.route('/execute-activity', methods=['POST'])
+@login_required
+def execute_activity(account_id):
+    """Execute Stage 4: Random activity simulation"""
+    return jsonify({
+        'success': True, 
+        'message': 'Activity simulation started (background)'
+    })
+
+
 @warmup_bp.route('/logs', methods=['GET'])
 @login_required
 def get_logs(account_id):
