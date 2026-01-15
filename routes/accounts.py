@@ -1427,6 +1427,9 @@ def warmup_execute_profile(account_id):
     last_name = data.get("last_name")
     bio = data.get("bio")
     
+    # Anti-Lock: Release DB session before long async operation
+    db.session.close()
+    
     # Create event loop
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
@@ -1439,6 +1442,11 @@ def warmup_execute_profile(account_id):
             last_name=last_name,
             bio=bio
         ))
+        
+        # Re-query account after async operation (new transaction)
+        account = Account.query.get(account_id)
+        if not account:
+             return jsonify({"success": False, "error": "Account not found after update"}), 404
         
         if result['success']:
             # Update local DB
@@ -1510,6 +1518,9 @@ def warmup_execute_channels(account_id):
     
     if not channels:
         return jsonify({"success": False, "error": "No channels selected"}), 400
+        
+    # Anti-Lock: Release DB session
+    db.session.close()
         
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
