@@ -183,7 +183,7 @@ def execute_contacts(account_id):
                     contacts = []
                     for i, phone in enumerate(phone_numbers):
                         contacts.append(InputPhoneContact(
-                            client_id=random.getrandbits(64),
+                            client_id=random.getrandbits(31),
                             phone=phone,
                             first_name=f"Contact {i+1}",
                             last_name=""
