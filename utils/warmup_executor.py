@@ -159,6 +159,11 @@ async def execute_warmup_action(client, account_id, action_func, estimated_durat
     presence_task = None
     
     try:
+        # 0. Ensure client is connected
+        if not client.is_connected():
+            logger.info(f"Account {account_id}: Connecting Telethon client...")
+            await client.connect()
+        
         # 1. Set status ONLINE
         await emulate_presence_start(client, account_id)
         
