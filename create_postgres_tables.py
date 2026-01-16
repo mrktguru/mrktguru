@@ -3,36 +3,16 @@
 Create all missing PostgreSQL tables based on SQLAlchemy models
 Run this after migrating to PostgreSQL to ensure all tables exist
 """
-import os
-import sys
 
 def create_all_tables():
+    # Import app which will load all models via imports in app.py
     from app import app, db
     
     print("Creating all PostgreSQL tables...")
+    print("(Models are auto-discovered from app.py imports)")
     
     with app.app_context():
-        # Import all models to ensure they're registered
-        from models.account import Account
-        from models.activity_log import AccountActivityLog
-        from models.api_credential import ApiCredential
-        from models.proxy import Proxy
-        from models.user import User
-        from models.warmup_log import WarmupLog
-        from models.warmup_settings import WarmupSettings
-        from models.warmup_stage import WarmupStage
-        from models.warmup_action import WarmupAction
-        from models.warmup_channel import WarmupChannel
-        from models.warmup import WarmupActivity, ConversationPair, WarmupChannelTheme, AccountWarmupChannel
-        from models.channel import Channel, ChannelMessage, AccountSubscription
-        from models.campaign import Campaign, CampaignAccount
-        from models.dm_campaign import DMCampaign, DMTarget, DMMessage, DMCampaignAccount
-        from models.parser import ParseJob, SourceUser
-        from models.blacklist import GlobalBlacklist, GlobalWhitelist, ChannelBlacklist
-        from models.automation import ScheduledTask, InviteLog
-        from models.tdata_metadata import TdataMetadata
-        
-        # Create all tables
+        # Create all tables - db.create_all() will find all registered models
         db.create_all()
         
         print("\n✅ All tables created successfully!")
