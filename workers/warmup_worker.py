@@ -144,6 +144,11 @@ def execute_stage_1_task(self, account_id, data):
 
             # Run async in celery thread
             result = asyncio.run(run())
+            
+            # Log successful completion so UI knows task is done
+            if result and result.get('success'):
+                WarmupLog.log(account_id, 'success', 'Profile setup completed successfully', stage=1, action='complete')
+            
             return result
         except Exception as e:
             error_msg = f"Stage 1 background error: {str(e)}"
