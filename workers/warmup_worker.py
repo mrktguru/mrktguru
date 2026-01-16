@@ -297,6 +297,16 @@ def execute_stage_3_task(self, account_id):
                                             
                                         except Exception as c_err:
                                             pass
+                                    
+                                    # 15% chance to Forward to Saved Messages (classic "save for later")
+                                    if random.random() < 0.15:
+                                        try:
+                                            WarmupLog.log(account_id, 'info', "Forwarding post to Saved Messages...", stage=3, action='forward_saved')
+                                            await asyncio.sleep(random.uniform(1, 2))
+                                            await client.forward_messages('me', msg)
+                                            await asyncio.sleep(random.uniform(1, 2))
+                                        except:
+                                            pass
                                 
                                 # Final scroll simulation (Up/Down)
                                 await asyncio.sleep(random.uniform(2, 4))
