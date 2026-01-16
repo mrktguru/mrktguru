@@ -5,7 +5,6 @@ Transfers all data from SQLite database to PostgreSQL
 """
 import sqlite3
 import os
-from datetime import datetime
 
 # SQLite database path
 SQLITE_PATH = '/root/mrktguru/instance/telegram_system.db'
@@ -14,7 +13,7 @@ def migrate():
     from app import app, db
     from models.account import Account
     from models.warmup_log import WarmupLog
-    from models.api_credential import APICredential
+    from models.api_credential import ApiCredential
     from models.proxy import Proxy
     from models.user import User
     
@@ -46,7 +45,7 @@ def migrate():
                             id=row_dict['id'],
                             username=row_dict.get('username'),
                             password_hash=row_dict.get('password_hash'),
-                            is_admin=row_dict.get('is_admin', False)
+                            is_active=bool(row_dict.get('is_active', True))
                         )
                         db.session.add(user)
                         print(f"  Added user: {row_dict.get('username')}")
@@ -61,13 +60,17 @@ def migrate():
             for row in cursor:
                 row_dict = dict(row)
                 try:
-                    existing = APICredential.query.get(row_dict['id'])
+                    existing = ApiCredential.query.get(row_dict['id'])
                     if not existing:
-                        cred = APICredential(
+                        cred = ApiCredential(
                             id=row_dict['id'],
                             api_id=row_dict.get('api_id'),
                             api_hash=row_dict.get('api_hash'),
-                            name=row_dict.get('name')
+                            name=row_dict.get('name'),
+                            client_type=row_dict.get('client_type'),
+                            is_official=bool(row_dict.get('is_official', False)),
+                            is_default=bool(row_dict.get('is_default', False)),
+                            notes=row_dict.get('notes')
                         )
                         db.session.add(cred)
                         print(f"  Added API credential: {row_dict.get('name')}")
@@ -90,7 +93,8 @@ def migrate():
                             port=row_dict.get('port'),
                             username=row_dict.get('username'),
                             password=row_dict.get('password'),
-                            proxy_type=row_dict.get('proxy_type', 'socks5')
+                            type=row_dict.get('type', 'socks5'),
+                            status=row_dict.get('status', 'active')
                         )
                         db.session.add(proxy)
                         print(f"  Added proxy: {row_dict.get('host')}")
@@ -168,6 +172,8 @@ def migrate():
             db.session.execute(db.text("SELECT setval('accounts_id_seq', (SELECT COALESCE(MAX(id), 0) + 1 FROM accounts), false)"))
             db.session.execute(db.text("SELECT setval('api_credentials_id_seq', (SELECT COALESCE(MAX(id), 0) + 1 FROM api_credentials), false)"))
             db.session.execute(db.text("SELECT setval('warmup_logs_id_seq', (SELECT COALESCE(MAX(id), 0) + 1 FROM warmup_logs), false)"))
+            db.session.execute(db.text("SELECT setval('users_id_seq', (SELECT COALESCE(MAX(id), 0) + 1 FROM users), false)"))
+            db.session.execute(db.text("SELECT setval('proxies_id_seq', (SELECT COALESCE(MAX(id), 0) + 1 FROM proxies), false)"))
             db.session.commit()
             print("  Sequences reset successfully")
         except Exception as e:
