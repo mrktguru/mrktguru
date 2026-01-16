@@ -249,30 +249,64 @@ def execute_stage_3_task(self, account_id):
                                 WarmupLog.log(account_id, 'success', f"Read {read_count} posts in {chan.username}", stage=3, action='read_posts_success')
                                 
                             else:  # view_only / visit
-                                # Simulation: Visit -> Read -> Scroll -> Exit
                                 WarmupLog.log(account_id, 'info', f"Visiting {chan.username}...", stage=3, action='visit_start')
-                                await asyncio.sleep(random.uniform(3, 6))
-                                
-                                # 1. Read latest
-                                limit = random.randint(3, 5)
-                                msgs = await client.get_messages(chan.username, limit=limit)
-                                last_id = msgs[-1].id if msgs else 0
                                 await asyncio.sleep(random.uniform(2, 5))
                                 
-                                # 2. Scroll Up (older)
-                                if last_id:
+                                # 1. Read latest posts with micro-delays
+                                limit = random.randint(3, 6)
+                                msgs = await client.get_messages(chan.username, limit=limit)
+                                
+                                for msg in msgs:
+                                    # Simulate reading post (micro-delay)
+                                    read_time = random.uniform(2, 8)
+                                    await asyncio.sleep(read_time)
+                                    
+                                    # 30% chance to open comments (if available)
+                                    if msg.replies and msg.replies.replies > 0 and random.random() < 0.3:
+                                        try:
+                                            WarmupLog.log(account_id, 'info', "Opening comments...", stage=3, action='view_comments')
+                                            # Transition delay
+                                            await asyncio.sleep(random.uniform(1.5, 3.0))
+                                            
+                                            # Fetch comments (enter discussion)
+                                            comments = await client.get_messages(chan.username, reply_to=msg.id, limit=random.randint(5, 12))
+                                            
+                                            # Scroll micro-delays in comments
+                                            for _ in range(random.randint(2, 5)):
+                                                await asyncio.sleep(random.uniform(1, 3))
+                                                
+                                            # 30% chance to view a commenter's profile
+                                            if comments and random.random() < 0.3:
+                                                comment = random.choice(comments)
+                                                if comment.sender_id:
+                                                    try:
+                                                        WarmupLog.log(account_id, 'info', "Viewing commenter profile...", stage=3, action='view_profile')
+                                                        # Click delay
+                                                        await asyncio.sleep(random.uniform(1, 2))
+                                                        # Fetch full entity (simulate studying profile)
+                                                        await client.get_entity(comment.sender_id)
+                                                        # Study delay
+                                                        await asyncio.sleep(random.uniform(4, 10))
+                                                        # Back to comments
+                                                        await asyncio.sleep(random.uniform(1, 2))
+                                                    except:
+                                                        pass
+                                            
+                                            # Back to posts navigation
+                                            await asyncio.sleep(random.uniform(1.5, 3.0))
+                                            
+                                        except Exception as c_err:
+                                            pass
+                                
+                                # Final scroll simulation (Up/Down)
+                                await asyncio.sleep(random.uniform(2, 4))
+                                if msgs:
+                                    last_id = msgs[-1].id
+                                    # Scroll up (older)
                                     await client.get_messages(chan.username, limit=3, offset_id=last_id)
                                     await asyncio.sleep(random.uniform(3, 6))
-                                    
-                                # 3. Scroll Down (latest)
-                                await client.get_messages(chan.username, limit=3)
-                                await asyncio.sleep(random.uniform(2, 4))
                                 
-                                # 4. Scroll Up again
-                                if last_id:
-                                    await client.get_messages(chan.username, limit=3, offset_id=last_id)
-                                
-                                WarmupLog.log(account_id, 'success', f"Visited {chan.username} (preview complete)", stage=3, action='visit_success')
+                                WarmupLog.log(account_id, 'success', f"Visited {chan.username} (deep interaction completed)", stage=3, action='visit_success')
                             
                             chan.status = 'completed'
                         
