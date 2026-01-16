@@ -40,10 +40,7 @@ def get_telethon_client(account_id, proxy=None):
     account = Account.query.get(account_id)
     if not account:
         raise ValueError(f"Account {account_id} not found")
-        
-    # Check if session file exists
-    if not os.path.exists(account.session_file_path):
-        raise FileNotFoundError(f"Session file not found at {account.session_file_path}")
+    
     
     # ==================== API CREDENTIALS SELECTION ====================
     # Priority: Selected API Credential > Original from TData > Config fallback
@@ -131,9 +128,13 @@ def get_telethon_client(account_id, proxy=None):
         }
         print(f"✅ Using proxy for account {account_id}: {account.proxy.host}:{account.proxy.port} (type: {account.proxy.type})")
     
-    # Create client with safer timeouts
+    # ==================== SESSION CONFIGURATION ====================
+    # Use StringSession from PostgreSQL to avoid SQLite file locks
+    session_string = account.session_string or ''
+    
+    # Create client with StringSession instead of file path
     client = TelegramClient(
-        account.session_file_path,
+        StringSession(session_string),
         api_id,
         api_hash,
         device_model=device_model,
@@ -149,6 +150,19 @@ def get_telethon_client(account_id, proxy=None):
         base_logger=None, # Disable internal logs as suggested
         catch_up=False    # Don't sync history as suggested
     )
+    
+    # Save session back to DB on disconnect (if modified)
+    original_disconnect = client.disconnect
+    async def disconnect_and_save():
+        # Save session string before disconnecting
+        if client.session and client.is_connected():
+            new_session_string = client.session.save()
+            if new_session_string != session_string:
+                account.session_string = new_session_string
+                db.session.commit()
+        await original_disconnect()
+    
+    client.disconnect = disconnect_and_save
     
     return client
 
