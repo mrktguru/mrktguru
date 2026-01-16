@@ -9,6 +9,7 @@ class Account(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     phone = db.Column(db.String(20), unique=True, nullable=False, index=True)
     session_file_path = db.Column(db.String(500), nullable=False)
+    session_string = db.Column(db.Text)  # Telethon StringSession for PostgreSQL
     proxy_id = db.Column(db.Integer, db.ForeignKey('proxies.id'))
     status = db.Column(db.String(20), default='active', index=True)  # active/warming_up/cooldown/banned
     health_score = db.Column(db.Integer, default=100)
