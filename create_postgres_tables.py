@@ -14,7 +14,7 @@ def create_all_tables():
     with app.app_context():
         # Import all models to ensure they're registered
         from models.account import Account
-        from models.activity_log import ActivityLog
+        from models.activity_log import AccountActivityLog
         from models.api_credential import ApiCredential
         from models.proxy import Proxy
         from models.user import User
@@ -23,7 +23,7 @@ def create_all_tables():
         from models.warmup_stage import WarmupStage
         from models.warmup_action import WarmupAction
         from models.warmup_channel import WarmupChannel
-        from models.warmup import WarmupActivity, ConversationPair
+        from models.warmup import WarmupActivity, ConversationPair, WarmupChannelTheme, AccountWarmupChannel
         from models.channel import Channel, ChannelMessage, AccountSubscription
         from models.campaign import Campaign, CampaignAccount
         from models.dm_campaign import DMCampaign, DMTarget, DMMessage, DMCampaignAccount
