@@ -9,7 +9,7 @@ ExecStart=/usr/bin/python3 app.py
 Restart=always
 Environment="FLASK_DEBUG=false"
 Environment="PORT=8081"
-Environment="DATABASE_URL=postgresql://postgres:password@127.0.0.1:5432/telegram_system"
+Environment="DATABASE_URL=postgresql://telegram_user:password@127.0.0.1:5432/telegram_system"
 # Add other env vars if needed, or rely on .env file loading in app
 
 [Install]
