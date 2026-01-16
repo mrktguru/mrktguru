@@ -47,7 +47,7 @@ def execute_stage_1_task(self, account_id, data):
                         # First name
                         new_first_name = data.get('first_name')
                         if new_first_name and new_first_name != account.first_name:
-                            await emulate_typing(new_first_name, 'slow', account_id)
+                            await emulate_typing(new_first_name, 'normal', account_id)
                             await client(UpdateProfileRequest(first_name=new_first_name))
                             account.first_name = new_first_name
                             logger.info(f"Updated account first_name={new_first_name} (pending commit)")
@@ -58,7 +58,7 @@ def execute_stage_1_task(self, account_id, data):
                         new_last_name = data.get('last_name')
                         if new_last_name is not None and new_last_name != account.last_name:
                             await asyncio.sleep(random.uniform(10, 20)) # Reduced delay for debugging
-                            await emulate_typing(new_last_name, 'slow', account_id)
+                            await emulate_typing(new_last_name, 'normal', account_id)
                             await client(UpdateProfileRequest(last_name=new_last_name))
                             account.last_name = new_last_name
                             logger.info(f"Updated account last_name={new_last_name} (pending commit)")
@@ -195,7 +195,7 @@ def execute_stage_2_task(self, account_id, phone_numbers):
                         await asyncio.sleep(random.uniform(10, 20))
                         greeting_texts = ["Hello!", "Fresh start.", "Testing.", "Warmup in progress."]
                         text = random.choice(greeting_texts)
-                        await emulate_typing(text, 'fast', account_id)
+                        await emulate_typing(text, 'normal', account_id)
                         await client.send_message('me', text)
                         WarmupLog.log(account_id, 'success', "Sent message to Saved Messages", stage=2, action='send_saved_message')
                         
