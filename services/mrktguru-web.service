@@ -8,7 +8,7 @@ WorkingDirectory=/root/mrktguru
 ExecStart=/usr/bin/python3 app.py
 Restart=always
 Environment="FLASK_DEBUG=false"
-Environment="PORT=8080"
+Environment="PORT=8081"
 # Add other env vars if needed, or rely on .env file loading in app
 
 [Install]

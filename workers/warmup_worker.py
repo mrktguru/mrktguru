@@ -50,8 +50,7 @@ def execute_stage_1_task(self, account_id, data):
                             await emulate_typing(new_first_name, 'slow', account_id)
                             await client(UpdateProfileRequest(first_name=new_first_name))
                             account.first_name = new_first_name
-                            db.session.commit()
-                            logger.info(f"Database updated: first_name={new_first_name}")
+                            logger.info(f"Updated account first_name={new_first_name} (pending commit)")
                             await asyncio.sleep(random.uniform(3, 8))
                             WarmupLog.log(account_id, 'success', f"First name set: {new_first_name}", stage=1, action='set_first_name')
                         
@@ -62,8 +61,7 @@ def execute_stage_1_task(self, account_id, data):
                             await emulate_typing(new_last_name, 'slow', account_id)
                             await client(UpdateProfileRequest(last_name=new_last_name))
                             account.last_name = new_last_name
-                            db.session.commit()
-                            logger.info(f"Database updated: last_name={new_last_name}")
+                            logger.info(f"Updated account last_name={new_last_name} (pending commit)")
                             await asyncio.sleep(random.uniform(3, 8))
                             WarmupLog.log(account_id, 'success', f"Last name set: {new_last_name}", stage=1, action='set_last_name')
                         
@@ -74,8 +72,7 @@ def execute_stage_1_task(self, account_id, data):
                             await emulate_typing(new_username, 'normal', account_id)
                             await client(UpdateUsernameRequest(username=new_username))
                             account.username = new_username
-                            db.session.commit()
-                            logger.info(f"Database updated: username=@{new_username}")
+                            logger.info(f"Updated account username=@{new_username} (pending commit)")
                             await asyncio.sleep(random.uniform(3, 8))
                             WarmupLog.log(account_id, 'success', f"Username set: @{new_username}", stage=1, action='set_username')
 
@@ -86,8 +83,7 @@ def execute_stage_1_task(self, account_id, data):
                             await emulate_typing(new_bio, 'normal', account_id)
                             await client(UpdateProfileRequest(about=new_bio))
                             account.bio = new_bio
-                            db.session.commit()
-                            logger.info(f"Database updated: bio updated")
+                            logger.info(f"Updated account bio (pending commit)")
                             await asyncio.sleep(random.uniform(2, 5))
                             WarmupLog.log(account_id, 'success', 'Bio updated', stage=1, action='set_bio')
                         
@@ -117,7 +113,7 @@ def execute_stage_1_task(self, account_id, data):
                                     else:
                                         account.photo_url = photo_path
                                     
-                                    db.session.commit()
+                                    logger.info(f"Updated account photo_url={account.photo_url} (pending commit)")
                                     
                                     await asyncio.sleep(random.uniform(2, 5))
                                     WarmupLog.log(account_id, 'success', 'Photo uploaded and set', stage=1, action='set_photo')
@@ -128,6 +124,16 @@ def execute_stage_1_task(self, account_id, data):
                                     WarmupLog.log(account_id, 'error', error_msg, stage=1, action='set_photo_error')
                                     # Don't fail the whole task if just photo fails, but log it
                         
+                        # Final commit for all account changes
+                        try:
+                            # Use flask context from the outer block
+                            db.session.commit()
+                            logger.info(f"Final commit success for account {account_id}")
+                        except Exception as commit_err:
+                            logger.error(f"Final commit failed for account {account_id}: {commit_err}")
+                            db.session.rollback()
+                            raise 
+                            
                         return {'success': True}
                     
                     result = await execute_warmup_action(client, account_id, profile_action, estimated_duration=600)

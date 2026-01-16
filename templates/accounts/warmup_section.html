@@ -241,11 +241,11 @@
 
 <script>
     // Warmup JavaScript Functions
-    const accountId = {{ account.id }};
+    const accountId = parseInt('{{ account.id }}');
     let isExecuting = false;
     let pollTimer = null;
     let activeStage = null;
-    let lastSeenLogId = 0;
+    let startTS = 0;
 
     // Start polling logs while executing
     async function startPolling(stage) {
@@ -253,18 +253,19 @@
         isExecuting = true;
         activeStage = stage;
 
-        // Record the ID of the latest log BEFORE starting
+        // Record the TS of the latest log BEFORE starting
         try {
             const response = await fetch(`/accounts/${accountId}/warmup/logs`);
             const data = await response.json();
             if (data.logs && data.logs.length > 0) {
-                const latest = data.logs[0];
-                lastSeenLogId = (typeof latest.id === 'number') ? latest.id : 0;
+                startTS = data.logs[0].ts || (Date.now() / 1000);
+            } else {
+                startTS = Date.now() / 1000;
             }
         } catch (e) {
-            console.error('Failed to get initial log ID:', e);
+            console.error('Failed to get initial log TS:', e);
+            startTS = Date.now() / 1000;
         }
-
         // Initial load
         loadLogs(stage);
 
@@ -543,7 +544,7 @@
                     const stageLogs = data.logs.filter(l =>
                         l.source === 'warmup' &&
                         l.stage === activeStage &&
-                        (typeof l.id === 'number' ? l.id > lastSeenLogId : true)
+                        (l.ts ? l.ts >= startTS : true)
                     );
                     if (stageLogs.length > 0) {
                         const latest = stageLogs[0];
