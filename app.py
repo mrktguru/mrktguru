@@ -12,18 +12,29 @@ def create_app():
     # Initialize extensions with app
     db.init_app(app)
     
-    # Configure SQLite for better concurrency
+    # Configure SQLite for better concurrency - run immediately on startup
     with app.app_context():
         if 'sqlite' in app.config.get('SQLALCHEMY_DATABASE_URI', ''):
-            from sqlalchemy import event
+            from sqlalchemy import event, text
+            
+            # Force WAL mode on the database file immediately
+            try:
+                with db.engine.connect() as conn:
+                    conn.execute(text("PRAGMA journal_mode=WAL"))
+                    conn.execute(text("PRAGMA synchronous=NORMAL"))
+                    conn.execute(text("PRAGMA busy_timeout=30000"))
+                    result = conn.execute(text("PRAGMA journal_mode")).fetchone()
+                    app.logger.info(f"SQLite journal mode: {result[0] if result else 'unknown'}")
+                    conn.commit()
+            except Exception as e:
+                app.logger.error(f"Failed to set WAL mode: {e}")
+            
+            # Also set for all future connections
             @event.listens_for(db.engine, "connect")
             def set_sqlite_pragma(dbapi_connection, connection_record):
                 cursor = dbapi_connection.cursor()
-                cursor.execute("PRAGMA journal_mode=WAL")
-                cursor.execute("PRAGMA synchronous=NORMAL")
-                cursor.execute("PRAGMA busy_timeout=30000")  # 30 seconds
+                cursor.execute("PRAGMA busy_timeout=30000")
                 cursor.close()
-                app.logger.info("SQLite WAL mode and timeout (30s) enabled")
     
     login_manager.init_app(app)
     login_manager.login_view = "auth.login"
