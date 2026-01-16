@@ -33,19 +33,34 @@ class WarmupLog(db.Model):
     @staticmethod
     def log(account_id, status, message, stage=None, action=None, details=None):
         """
-        Convenience method to create a log entry
-        
-        Usage:
-            WarmupLog.log(22, 'success', 'Profile updated', stage=1, action='set_name')
+        Convenience method to create a log entry with retry logic for SQLite locks
         """
-        log = WarmupLog(
-            account_id=account_id,
-            stage_number=stage,
-            action_type=action,
-            status=status,
-            message=message,
-            details=details
-        )
-        db.session.add(log)
-        db.session.commit()
-        return log
+        import time
+        from sqlalchemy.exc import OperationalError
+        
+        max_retries = 5
+        retry_delay = 0.1  # start with 100ms
+        
+        for attempt in range(max_retries):
+            try:
+                log = WarmupLog(
+                    account_id=account_id,
+                    stage_number=stage,
+                    action_type=action,
+                    status=status,
+                    message=message,
+                    details=details
+                )
+                db.session.add(log)
+                db.session.commit()
+                return log
+            except OperationalError as e:
+                db.session.rollback()
+                if "database is locked" in str(e).lower() and attempt < max_retries - 1:
+                    time.sleep(retry_delay)
+                    retry_delay *= 2  # exponential backoff
+                    continue
+                raise e
+            except Exception as e:
+                db.session.rollback()
+                raise e
