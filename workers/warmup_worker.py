@@ -237,14 +237,42 @@ def execute_stage_3_task(self, account_id):
                             WarmupLog.log(account_id, 'info', f"Processing channel: {chan.title or chan.username}", stage=3, action='process_channel_start')
                             
                             if chan.action == 'subscribe':
+                                # Subscribe logic
                                 await asyncio.sleep(random.uniform(10, 20))
                                 await client(JoinChannelRequest(chan.username))
                                 WarmupLog.log(account_id, 'success', f"Subscribed to {chan.username}", stage=3, action='subscribe_success')
-                            
-                            read_count = chan.read_count or 5
-                            await asyncio.sleep(random.uniform(5, 10))
-                            await client.get_messages(chan.username, limit=read_count)
-                            WarmupLog.log(account_id, 'success', f"Read {read_count} posts in {chan.username}", stage=3, action='read_posts_success')
+                                
+                                # Basic reading for subscribed
+                                read_count = chan.read_count or 5
+                                await asyncio.sleep(random.uniform(5, 10))
+                                await client.get_messages(chan.username, limit=read_count)
+                                WarmupLog.log(account_id, 'success', f"Read {read_count} posts in {chan.username}", stage=3, action='read_posts_success')
+                                
+                            else:  # view_only / visit
+                                # Simulation: Visit -> Read -> Scroll -> Exit
+                                WarmupLog.log(account_id, 'info', f"Visiting {chan.username}...", stage=3, action='visit_start')
+                                await asyncio.sleep(random.uniform(3, 6))
+                                
+                                # 1. Read latest
+                                limit = random.randint(3, 5)
+                                msgs = await client.get_messages(chan.username, limit=limit)
+                                last_id = msgs[-1].id if msgs else 0
+                                await asyncio.sleep(random.uniform(2, 5))
+                                
+                                # 2. Scroll Up (older)
+                                if last_id:
+                                    await client.get_messages(chan.username, limit=3, offset_id=last_id)
+                                    await asyncio.sleep(random.uniform(3, 6))
+                                    
+                                # 3. Scroll Down (latest)
+                                await client.get_messages(chan.username, limit=3)
+                                await asyncio.sleep(random.uniform(2, 4))
+                                
+                                # 4. Scroll Up again
+                                if last_id:
+                                    await client.get_messages(chan.username, limit=3, offset_id=last_id)
+                                
+                                WarmupLog.log(account_id, 'success', f"Visited {chan.username} (preview complete)", stage=3, action='visit_success')
                             
                             chan.status = 'completed'
                         
