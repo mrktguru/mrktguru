@@ -35,9 +35,30 @@ async def safe_self_check(client):
     try:
         logger.info("Starting safe self-check verification")
         
-        # Connect client first
-        if not client.is_connected():
-            await client.connect()
+        # Connect client with retry logic
+        max_retries = 3
+        retry_delay = 2
+        
+        for attempt in range(max_retries):
+            try:
+                if not client.is_connected():
+                    logger.info(f"Connection attempt {attempt + 1}/{max_retries}")
+                    await client.connect()
+                    logger.info("Successfully connected to Telegram")
+                break
+            except (OSError, ConnectionError, TimeoutError) as conn_err:
+                logger.warning(f"Connection attempt {attempt + 1} failed: {conn_err}")
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(retry_delay * (attempt + 1))  # Exponential backoff
+                else:
+                    logger.error(f"Failed to connect after {max_retries} attempts")
+                    return {
+                        'success': False,
+                        'method': 'self_check',
+                        'error': f'Connection to Telegram failed after {max_retries} attempts. Check proxy/network.',
+                        'error_type': 'connection_error',
+                        'details': str(conn_err)
+                    }
         
         # Get user info first
         me = await client.get_me()
