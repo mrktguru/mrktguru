@@ -131,139 +131,105 @@
             </div>
         </div>
 
+
+
+
+        <!-- Telegram User Info Card - Insert after Account Status card -->
         <div class="card mb-3">
             <div class="card-header">
-                <h5 class="mb-0">Daily Stats</h5>
+                <h5 class="mb-0"><i class="bi bi-telegram"></i> Telegram User Info</h5>
             </div>
             <div class="card-body">
-                <div class="row text-center">
-                    <div class="col-6">
-                        <h3>{{ account.messages_sent_today }}</h3>
-                        <small class="text-muted">Messages</small>
-                    </div>
-                    <div class="col-6">
-                        <h3>{{ account.invites_sent_today }}</h3>
-                        <small class="text-muted">Invites</small>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="card mb-3">
-            <div class="card-header">
-                <!-- Telegram User Info Card - Insert after Account Status card -->
-                <div class="card mb-3">
-                    <div class="card-header">
-                        <h5 class="mb-0"><i class="bi bi-telegram"></i> Telegram User Info</h5>
-                    </div>
-                    <div class="card-body">
-                        {% if account.telegram_id %}
-                        <div class="row mb-3">
-                            <div class="col-md-4 text-center">
-                                {% if account.photo_url and account.photo_url != "photo_available" %}
-                                <img src="/{{ account.photo_url }}" class="rounded-circle mb-2" width="100" height="100"
-                                    style="object-fit: cover;">
-                                {% else %}
-                                <div class="bg-secondary rounded-circle d-inline-flex align-items-center justify-content-center"
-                                    style="width: 100px; height: 100px;">
-                                    <i class="bi bi-person-fill text-white" style="font-size: 3rem;"></i>
-                                </div>
-                                {% endif %}
-                            </div>
-                            <div class="col-md-8">
-                                <dl class="row mb-0">
-                                    <dt class="col-sm-4">ID:</dt>
-                                    <dd class="col-sm-8"><code>{{ account.telegram_id }}</code></dd>
-
-                                    <dt class="col-sm-4">Name:</dt>
-                                    <dd class="col-sm-8">
-                                        {{ account.first_name }}
-                                        {% if account.last_name %}{{ account.last_name }}{% endif %}
-                                    </dd>
-
-                                    <dt class="col-sm-4">Username:</dt>
-                                    <dd class="col-sm-8">
-                                        {% if account.username %}
-                                        @{{ account.username }}
-                                        {% else %}
-                                        <span class="text-muted">No username</span>
-                                        {% endif %}
-                                    </dd>
-
-                                    <dt class="col-sm-4">Bio:</dt>
-                                    <dd class="col-sm-8">
-                                        {% if account.bio %}
-                                        {{ account.bio }}
-                                        {% else %}
-                                        <span class="text-muted">No bio</span>
-                                        {% endif %}
-                                    </dd>
-                                </dl>
-                            </div>
-                        </div>
-
-                        <!-- Actions -->
-                        <div class="d-flex justify-content-between align-items-center">
-                            <button class="btn btn-sm btn-outline-primary" data-bs-toggle="collapse"
-                                data-bs-target="#editProfile">
-                                <i class="bi bi-pencil"></i> Edit Profile
-                            </button>
-
-                            <button class="btn btn-sm btn-outline-secondary" onclick="syncProfile()" id="sync-btn"
-                                title="Sync profile data from Telegram (human-like)">
-                                <i class="bi bi-arrow-repeat"></i> Sync Profile
-                            </button>
-                        </div>
-
-                        <div class="collapse mt-3" id="editProfile">
-                            <form method="POST" action="{{ url_for('accounts.update_profile', account_id=account.id) }}"
-                                enctype="multipart/form-data">
-                                <div class="mb-2">
-                                    <label class="form-label">Username</label>
-                                    <input type="text" name="username" class="form-control"
-                                        value="{{ account.username or "" }}" placeholder="username (without @)">
-                                    <small class="text-muted">Enter without @ symbol</small>
-                                </div>
-                                <div class="mb-2">
-                                    <label class="form-label">Bio</label>
-                                    <textarea name="bio" class="form-control" rows="3"
-                                        placeholder="About me">{{ account.bio or "" }}</textarea>
-                                </div>
-                                <div class="mb-3">
-                                    <label class="form-label">Profile Photo</label>
-                                    <input type="file" name="photo" class="form-control" accept="image/*">
-                                </div>
-                                <button type="submit" class="btn btn-primary">
-                                    <i class="bi bi-save"></i> Save Changes
-                                </button>
-                            </form>
-                        </div>
+                {% if account.telegram_id %}
+                <div class="row mb-3">
+                    <div class="col-md-4 text-center">
+                        {% if account.photo_url and account.photo_url != "photo_available" %}
+                        <img src="/{{ account.photo_url }}" class="rounded-circle mb-2" width="100" height="100"
+                            style="object-fit: cover;">
                         {% else %}
-                        <div class="alert alert-info mb-0">
-                            <i class="bi bi-info-circle"></i> Click "Verify Session" button above to load Telegram user
-                            info
+                        <div class="bg-secondary rounded-circle d-inline-flex align-items-center justify-content-center"
+                            style="width: 100px; height: 100px;">
+                            <i class="bi bi-person-fill text-white" style="font-size: 3rem;"></i>
                         </div>
                         {% endif %}
                     </div>
-                </div>
+                    <div class="col-md-8">
+                        <dl class="row mb-0">
+                            <dt class="col-sm-4">ID:</dt>
+                            <dd class="col-sm-8"><code>{{ account.telegram_id }}</code></dd>
 
-                <h5 class="mb-0">Warm-up Progress</h5>
-            </div>
-            <div class="card-body">
-                <div class="progress mb-2" style="height: 25px;">
-                    <div class="progress-bar"
-                        style="width: {{ ((account.warm_up_days_completed or 0) / 7 * 100)|int }}%">
-                        {{ account.warm_up_days_completed or 0 }}/7 days
+                            <dt class="col-sm-4">Name:</dt>
+                            <dd class="col-sm-8">
+                                {{ account.first_name }}
+                                {% if account.last_name %}{{ account.last_name }}{% endif %}
+                            </dd>
+
+                            <dt class="col-sm-4">Username:</dt>
+                            <dd class="col-sm-8">
+                                {% if account.username %}
+                                @{{ account.username }}
+                                {% else %}
+                                <span class="text-muted">No username</span>
+                                {% endif %}
+                            </dd>
+
+                            <dt class="col-sm-4">Bio:</dt>
+                            <dd class="col-sm-8">
+                                {% if account.bio %}
+                                {{ account.bio }}
+                                {% else %}
+                                <span class="text-muted">No bio</span>
+                                {% endif %}
+                            </dd>
+                        </dl>
                     </div>
                 </div>
-                {% if (account.warm_up_days_completed or 0) < 7 %} <small class="text-muted">
-                    {{ 7 - (account.warm_up_days_completed or 0) }} days remaining
-                    </small>
-                    {% else %}
-                    <small class="text-success">✓ Warm-up completed</small>
-                    {% endif %}
+
+                <!-- Actions -->
+                <div class="d-flex justify-content-between align-items-center">
+                    <button class="btn btn-sm btn-outline-primary" data-bs-toggle="collapse"
+                        data-bs-target="#editProfile">
+                        <i class="bi bi-pencil"></i> Edit Profile
+                    </button>
+
+                    <button class="btn btn-sm btn-outline-secondary" onclick="syncProfile()" id="sync-btn"
+                        title="Sync profile data from Telegram (human-like)">
+                        <i class="bi bi-arrow-repeat"></i> Sync Profile
+                    </button>
+                </div>
+
+                <div class="collapse mt-3" id="editProfile">
+                    <form method="POST" action="{{ url_for('accounts.update_profile', account_id=account.id) }}"
+                        enctype="multipart/form-data">
+                        <div class="mb-2">
+                            <label class="form-label">Username</label>
+                            <input type="text" name="username" class="form-control" value="{{ account.username or "" }}"
+                                placeholder="username (without @)">
+                            <small class="text-muted">Enter without @ symbol</small>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label">Bio</label>
+                            <textarea name="bio" class="form-control" rows="3"
+                                placeholder="About me">{{ account.bio or "" }}</textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Profile Photo</label>
+                            <input type="file" name="photo" class="form-control" accept="image/*">
+                        </div>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-save"></i> Save Changes
+                        </button>
+                    </form>
+                </div>
+                {% else %}
+                <div class="alert alert-info mb-0">
+                    <i class="bi bi-info-circle"></i> Click "Verify Session" button above to load Telegram user
+                    info
+                </div>
+                {% endif %}
             </div>
         </div>
+
     </div>
 
     <div class="col-md-8">
@@ -359,58 +325,7 @@
             </div>
         </div>
 
-        <div class="card mb-3">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">Subscriptions ({{ account.subscriptions.count() }})</h5>
-                <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addSubscriptionModal">
-                    <i class="bi bi-plus"></i> Add
-                </button>
-            </div>
-            <div class="card-body">
-                {% if account.subscriptions.count() > 0 %}
-                <div class="table-responsive">
-                    <table class="table table-sm">
-                        <thead>
-                            <tr>
-                                <th>Channel</th>
-                                <th>Subscribed At</th>
-                                <th>Source</th>
-                                <th>Status</th>
-                                <th></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for sub in account.subscriptions %}
-                            <tr>
-                                <td>@{{ sub.channel_username }}</td>
-                                <td>{{ sub.subscribed_at.strftime('%Y-%m-%d') }}</td>
-                                <td><span class="badge bg-secondary">{{ sub.subscription_source }}</span></td>
-                                <td>
-                                    {% if sub.is_active %}
-                                    <span class="badge bg-success">Active</span>
-                                    {% else %}
-                                    <span class="badge bg-secondary">Inactive</span>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    <form method="POST"
-                                        action="{{ url_for('accounts.remove_subscription', account_id=account.id, sub_id=sub.id) }}"
-                                        style="display: inline;">
-                                        <button type="submit" class="btn btn-sm btn-outline-danger">
-                                            <i class="bi bi-trash"></i>
-                                        </button>
-                                    </form>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-                {% else %}
-                <p class="text-muted">No subscriptions yet</p>
-                {% endif %}
-            </div>
-        </div>
+
 
 
         <!-- WARMUP DISABLED - OLD SYSTEM
@@ -563,7 +478,7 @@
             });
     }
 
-    // Check Account Health Function (separate from verification)
+    // Check Account Health Function (separate from verification) corrected
     function checkAccountHealth(method) {
         const accountId = {{ account.id }
     };
