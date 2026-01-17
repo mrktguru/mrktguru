@@ -1,6 +1,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 from utils.decorators import login_required
 from models.account import Account, DeviceProfile, AccountSubscription
+from models.tdata_metadata import TDataMetadata
 from models.proxy import Proxy
 from database import db
 from utils.device_emulator import generate_device_profile, get_random_warmup_channels
