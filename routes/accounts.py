@@ -920,40 +920,42 @@ def update_profile(account_id):
 # WARMUP DISABLED:     )
 
 
-@accounts_bp.route("/<int:account_id>/warmup/add-channel", methods=["POST"])
-@login_required
-def add_warmup_channel(account_id):
-    """Add a channel for warmup reading"""
-    from models.warmup import AccountWarmupChannel
-    
-    account = Account.query.get_or_404(account_id)
-    channel_username = request.form.get("channel_username", "").strip().lstrip("@")
-    
-    if not channel_username:
-        flash("Channel username is required", "error")
-        return redirect(url_for("accounts.warmup_settings", account_id=account_id))
-    
-    # Check if already exists
-    existing = AccountWarmupChannel.query.filter_by(
-        account_id=account_id,
-        channel_username=channel_username
-    ).first()
-    
-    if existing:
-        flash(f"Channel @{channel_username} already added", "warning")
-        return redirect(url_for("accounts.warmup_settings", account_id=account_id))
-    
-    # Add channel
-    warmup_channel = AccountWarmupChannel(
-        account_id=account_id,
-        channel_username=channel_username,
-        source="manual"
-    )
-    db.session.add(warmup_channel)
-    db.session.commit()
-    
-    flash(f"Added @{channel_username} for warmup reading", "success")
-    return redirect(url_for("accounts.warmup_settings", account_id=account_id))
+# DEPRECATED: Moved to warmup_routes.py
+# @accounts_bp.route("/<int:account_id>/warmup/add-channel", methods=["POST"])
+# @login_required
+# def add_warmup_channel(account_id):
+#     """Add a channel for warmup reading"""
+#     from models.warmup import AccountWarmupChannel
+#     
+#     account = Account.query.get_or_404(account_id)
+#     channel_username = request.form.get("channel_username", "").strip().lstrip("@")
+#     
+#     if not channel_username:
+#         flash("Channel username is required", "error")
+#         return redirect(url_for("accounts.warmup_settings", account_id=account_id))
+#     
+#     # Check if already exists
+#     existing = AccountWarmupChannel.query.filter_by(
+#         account_id=account_id,
+#         channel_username=channel_username
+#     ).first()
+#     
+#     if existing:
+#         flash(f"Channel @{channel_username} already added", "warning")
+#         return redirect(url_for("accounts.warmup_settings", account_id=account_id))
+#     
+#     # Add channel
+#     warmup_channel = AccountWarmupChannel(
+#         account_id=account_id,
+#         channel_username=channel_username,
+#         source="manual"
+#     )
+#     db.session.add(warmup_channel)
+#     db.session.commit()
+#     
+#     flash(f"Added @{channel_username} for warmup reading", "success")
+#     return redirect(url_for("accounts.warmup_settings", account_id=account_id))
+
 
 
 @accounts_bp.route("/<int:account_id>/warmup/add-theme", methods=["POST"])
