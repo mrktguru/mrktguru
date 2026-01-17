@@ -210,15 +210,19 @@ async def execute_warmup_action(client, account_id, action_func, estimated_durat
                         pass  # Skip if error (e.g., restricted chat)
             
             logger.info(f"Account {account_id}: Feed scrolling completed")
+            WarmupLog.log(account_id, 'info', 'Feed scrolling completed', action='scroll_complete')
         except Exception as scroll_err:
             logger.warning(f"Feed scrolling failed (non-critical): {scroll_err}")
         
         # 8. Random delay before going offline
+        logger.info(f"Account {account_id}: Waiting before going offline...")
         await asyncio.sleep(random.uniform(5, 15))
         
         # 9. Set status OFFLINE
+        logger.info(f"Account {account_id}: Setting status to OFFLINE...")
         await emulate_presence_end(client, account_id)
         
+        logger.info(f"Account {account_id}: Warmup action completed successfully")
         return result
         
     except Exception as e:
