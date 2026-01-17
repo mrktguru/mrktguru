@@ -26,7 +26,7 @@ import asyncio
 import random
 import logging
 
-# Logger will be used via current_app.logger in routes
+logger = logging.getLogger(__name__)
 
 warmup_bp = Blueprint('warmup', __name__, url_prefix='/accounts/<int:account_id>/warmup')
 
