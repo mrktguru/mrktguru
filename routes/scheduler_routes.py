@@ -196,7 +196,7 @@ def update_node(node_id):
         return jsonify({'error': str(e)}), 500
 
 
-@scheduler_bp.route('/nodes/<int:node_id>', methods='DELETE'])
+@scheduler_bp.route('/nodes/<int:node_id>', methods=['DELETE'])
 def delete_node(node_id):
     """Delete a node from schedule"""
     try:
