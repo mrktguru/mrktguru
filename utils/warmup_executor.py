@@ -275,3 +275,104 @@ def random_pause(min_sec, max_sec):
         Coroutine for asyncio.sleep()
     """
     return asyncio.sleep(random.uniform(min_sec, max_sec))
+
+class WarmupExecutor:
+    """
+    Executor for warmup actions (Bio, Photo, Username, etc.)
+    Handles Telethon connection and realistic behavior
+    """
+    
+    def __init__(self):
+        pass
+
+    async def execute_immediate(self, account, node_type, config):
+        """
+        Execute a single node action immediately
+        """
+        from utils.telethon_helper import get_telethon_client
+        
+        client = None
+        try:
+            # Get Proxy
+            from models.proxy import Proxy
+            proxy = None
+            if account.proxy_id:
+                proxy_rec = Proxy.query.get(account.proxy_id)
+                if proxy_rec:
+                    proxy = proxy_rec.get_telethon_dict()
+            
+            # Create Client
+            client = get_telethon_client(account.id, proxy)
+            
+            await client.connect()
+            if not await client.is_user_authorized():
+                return {'success': False, 'error': 'Session expired or invalid'}
+
+            # Dispatch Action
+            if node_type == 'bio':
+                return await self._execute_bio(client, account, config)
+            elif node_type == 'username':
+                return await self._execute_username(client, account, config)
+            elif node_type == 'photo':
+                return await self._execute_photo(client, account, config)
+            elif node_type == 'send_message':
+                return {'success': False, 'error': 'Message execution not yet implemented in immediate mode'}
+            else:
+                return {'success': False, 'error': f'Unknown node type: {node_type}'}
+                
+        except Exception as e:
+            logger.error(f"Immediate execution failed: {e}")
+            return {'success': False, 'error': str(e)}
+        finally:
+            if client:
+                await client.disconnect()
+
+    async def _execute_bio(self, client, account, config):
+        from telethon.tl.functions.account import UpdateProfileRequest
+        
+        new_bio = config.get('bio_text')
+        if not new_bio:
+            return {'success': False, 'error': 'No bio text provided'}
+            
+        await client(UpdateProfileRequest(about=new_bio))
+        
+        # Update DB
+        account.bio = new_bio
+        from database import db
+        db.session.commit()
+        
+        return {'success': True, 'message': 'Bio updated from node'}
+
+    async def _execute_username(self, client, account, config):
+        from telethon.tl.functions.account import UpdateUsernameRequest
+        
+        username = config.get('username', '').replace('@', '')
+        if not username:
+            return {'success': False, 'error': 'No username provided'}
+            
+        await client(UpdateUsernameRequest(username=username))
+        
+        # Update DB
+        account.username = username
+        from database import db
+        db.session.commit()
+        
+        return {'success': True, 'message': 'Username updated'}
+
+    async def _execute_photo(self, client, account, config):
+        from telethon.tl.functions.photos import UploadProfilePhotoRequest
+        
+        photo_path = config.get('photo_path')
+        if not photo_path or not os.path.exists(photo_path):
+            return {'success': False, 'error': 'Photo file not found'}
+            
+        # Upload
+        file = await client.upload_file(photo_path)
+        await client(UploadProfilePhotoRequest(file=file))
+        
+        # Update DB (simplified, usually we'd download the resulting photo_url)
+        account.photo_url = photo_path # Placeholder
+        from database import db
+        db.session.commit()
+        
+        return {'success': True, 'message': 'Photo uploaded'}

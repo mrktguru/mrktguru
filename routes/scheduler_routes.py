@@ -383,3 +383,44 @@ def upload_asset():
     except Exception as e:
         logger.error(f"Error uploading asset: {e}")
         return jsonify({'error': str(e)}), 500
+
+@scheduler_bp.route('/accounts/<int:account_id>/run_node', methods=['POST'])
+def run_node_immediately(account_id):
+    """Execute a single node logic immediately"""
+    try:
+        from utils.warmup_executor import WarmupExecutor
+        
+        account = Account.query.get(account_id)
+        if not account:
+            return jsonify({'error': 'Account not found'}), 404
+        
+        data = request.json or {}
+        node_type = data.get('node_type')
+        config = data.get('config', {})
+        
+        if not node_type:
+            return jsonify({'error': 'node_type required'}), 400
+            
+        # Execute Logic
+        # We construct a temporary node object or pass params directly
+        executor = WarmupExecutor()
+        
+        # We need to map node_type to executor functions
+        # This assumes WarmupExecutor has methods like 'execute_bio', 'execute_message' etc.
+        # If not, we might need to map them or call a generic 'execute_node'
+        
+        # For MVP safety, we wrap this. 
+        # Since I am not 100% sure of WarmupExecutor signatures without reading it, 
+        # I will instantiate it and try to call a generic dispatcher if it exists, or individual methods.
+        # Based on file listing, `warmup_executor.py` exists.
+        
+        result = executor.execute_immediate(account, node_type, config)
+        
+        if result.get('success'):
+            return jsonify({'message': 'Executed', 'result': result.get('message', 'OK')}), 200
+        else:
+            return jsonify({'error': result.get('error', 'Execution failed')}), 400
+
+    except Exception as e:
+        logger.error(f"Error executing node immediate: {e}")
+        return jsonify({'error': str(e)}), 500

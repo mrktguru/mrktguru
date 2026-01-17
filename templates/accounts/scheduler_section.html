@@ -295,9 +295,16 @@ overflow-y: auto;
                     <div id="dynamicFields"></div>
                 </form>
             </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-primary" id="saveNodeConfigBtn">Save Configuration</button>
+            <div class="modal-footer justify-content-between">
+                <div>
+                    <button type="button" class="btn btn-warning" id="runNodeNowBtn">
+                        <i class="bi bi-lightning-fill"></i> Run Now
+                    </button>
+                </div>
+                <div>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="saveNodeConfigBtn">Save Configuration</button>
+                </div>
             </div>
         </div>
     </div>
@@ -306,7 +313,17 @@ overflow-y: auto;
 <script>
     (function () {
         // Scheduler JavaScript - wrapped in IIFE to avoid conflicts
-        const schedulerAccountId = {{ account.id }};
+        const schedulerAccountId = {{ account.id }
+    };
+
+    // Account Data for Pre-filling
+    const accountData = {
+        bio: "{{ account.bio | default('', true) }}",
+        username: "{{ account.username | default('', true) }}",
+        first_name: "{{ account.first_name | default('', true) }}",
+        last_name: "{{ account.last_name | default('', true) }}",
+        photo_url: "{{ account.photo_url | default('', true) }}"
+    };
 
     let scheduleData = {
         schedule_id: null,
@@ -326,6 +343,9 @@ overflow-y: auto;
 
         // Modal Save Handler
         document.getElementById('saveNodeConfigBtn').addEventListener('click', saveConfig);
+
+        // Run Now Handler
+        document.getElementById('runNodeNowBtn').addEventListener('click', runNodeNow);
 
         // Random time toggler
         document.getElementById('isRandomTime').addEventListener('change', function (e) {
@@ -385,12 +405,18 @@ overflow-y: auto;
         }
     }
 
+    // Helper to get local time string HH:MM
+    function getCurrentTime() {
+        const now = new Date();
+        return now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
+    }
+
     function addNodeToDay(nodeType, dayNumber) {
         // Create node object
         const node = {
             node_type: nodeType,
             day_number: dayNumber,
-            execution_time: '14:00',
+            execution_time: getCurrentTime(), // Use local time
             is_random_time: false,
             config: {}
         };
@@ -563,20 +589,26 @@ overflow-y: auto;
             `;
         }
         else if (type === 'bio') {
+            // Pre-fill Logic: Use existing DB bio if config is empty
+            const defaultBio = config.bio_text || accountData.bio;
+
             html += `
                 <div class="mb-3">
                     <label class="form-label">Bio Text</label>
-                    <textarea class="form-control" name="bio_text" rows="3">${config.bio_text || ''}</textarea>
+                    <textarea class="form-control" name="bio_text" rows="3">${defaultBio}</textarea>
                 </div>
             `;
         }
         else if (type === 'username') {
+            // Pre-fill Logic
+            const defaultUser = config.username || accountData.username;
+
             html += `
                 <div class="mb-3">
                     <label class="form-label">Set Username</label>
                     <div class="input-group">
                         <span class="input-group-text">@</span>
-                        <input type="text" class="form-control" name="username" value="${config.username || ''}">
+                        <input type="text" class="form-control" name="username" value="${defaultUser}">
                     </div>
                 </div>
             `;
@@ -618,6 +650,53 @@ overflow-y: auto;
                     }
                 }
             });
+        }
+    }
+
+    async function runNodeNow() {
+        if (!currentNode) return;
+
+        if (!confirm('Execute this node IMMEDIATELY?')) return;
+
+        // Temporarily grab current config from form just in case it wasn't saved yet
+        const form = document.getElementById('nodeConfigForm');
+        const formData = new FormData(form);
+        const tempConfig = {};
+        for (let [key, value] of formData.entries()) {
+            if (['execution_time', 'is_random_time'].includes(key)) continue;
+            tempConfig[key] = value;
+        }
+
+        const payload = {
+            node_type: currentNode.node_type,
+            config: tempConfig
+        };
+
+        const btn = document.getElementById('runNodeNowBtn');
+        const originalText = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Running...';
+
+        try {
+            const resp = await fetch(`/scheduler/accounts/${schedulerAccountId}/run_node`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const data = await resp.json();
+
+            if (resp.ok) {
+                alert('✅ Node executed successfully!\nResult: ' + (data.result || 'OK'));
+                configModal.hide();
+            } else {
+                alert('❌ Execution failed: ' + data.error);
+            }
+        } catch (err) {
+            console.error(err);
+            alert('❌ Execution error: ' + err);
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = originalText;
         }
     }
 
