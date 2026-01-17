@@ -262,8 +262,10 @@
 </style>
 
 <script>
-    // Scheduler JavaScript
-    const accountId = {{ account.id }};
+    (function () {
+        // Scheduler JavaScript - wrapped in IIFE to avoid conflicts
+        const schedulerAccountId = {{ account.id }
+    };
     let scheduleData = {
         schedule_id: null,
         nodes: []
@@ -352,7 +354,7 @@
         const nodeEl = document.createElement('div');
         nodeEl.className = 'scheduled-node';
         nodeEl.innerHTML = `
-        <span class="remove-node" onclick="removeNode(this, ${dayNumber}, '${node.node_type}')">×</span>
+        <span class="remove-node" onclick="window.removeSchedulerNode(this, ${dayNumber}, '${node.node_type}')">×</span>
         <strong>${getNodeLabel(node.node_type)}</strong>
         <span class="node-time">${node.is_random_time ? '🎲 Random' : node.execution_time}</span>
     `;
@@ -378,14 +380,14 @@
         return labels[nodeType] || nodeType;
     }
 
-    function removeNode(el, dayNumber, nodeType) {
+    window.removeSchedulerNode = function (el, dayNumber, nodeType) {
         el.parentElement.remove();
 
         // Remove from schedule data
         scheduleData.nodes = scheduleData.nodes.filter(n =>
             !(n.day_number === dayNumber && n.node_type === nodeType)
         );
-    }
+    };
 
     function openNodeConfig(node, dayNumber) {
         alert(`Configure ${node.node_type} node for Day ${dayNumber}\n\nConfiguration modal coming soon!`);
@@ -393,7 +395,7 @@
 
     async function loadSchedule() {
         try {
-            const response = await fetch(`/scheduler/accounts/${accountId}/schedule`);
+            const response = await fetch(`/scheduler/accounts/${schedulerAccountId}/schedule`);
             const data = await response.json();
 
             if (data.schedule) {
@@ -414,7 +416,7 @@
         try {
             // Create schedule if doesn't exist
             if (!scheduleData.schedule_id) {
-                const createResp = await fetch(`/scheduler/accounts/${accountId}/schedule`, {
+                const createResp = await fetch(`/scheduler/accounts/${schedulerAccountId}/schedule`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ name: 'Warmup Schedule' })
@@ -469,4 +471,5 @@
             document.querySelectorAll('.day-nodes').forEach(el => el.innerHTML = '');
         }
     });
+}) ();
 </script>
