@@ -588,7 +588,7 @@
 
                             // A better way: if the latest log for this stage is 'success' or 'error', 
                             // and it refers to the FINAL action of that stage
-                            const completeActions = ['set_photo', 'send_saved_message', 'read_posts_success'];
+                            const completeActions = ['complete', 'set_photo', 'send_saved_message', 'read_posts_success', 'visit_success'];
                             if (latest.status === 'success' && completeActions.includes(latest.action_type)) {
                                 stopPolling(activeStage, true);
                             } else if (latest.status === 'error' || latest.status === 'failed') {
