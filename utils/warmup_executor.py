@@ -304,17 +304,18 @@ class WarmupExecutor:
             # Create Client
             client = get_telethon_client(account.id, proxy)
             
-            await client.connect()
-            if not await client.is_user_authorized():
-                return {'success': False, 'error': 'Session expired or invalid'}
-
-            # Dispatch Action
+            # Note: execute_warmup_action handles connection, but we need it here for dispatch
+            # Actually, execute_warmup_action expects a connected client OR handles it?
+            # Looking at execute_warmup_action: "if not client.is_connected(): await client.connect()"
+            # So we can pass unconnected client.
+            
+            # Dispatch Action via execute_warmup_action for Safety
             if node_type == 'bio':
-                return await self._execute_bio(client, account, config)
+                return await execute_warmup_action(client, account.id, self._execute_bio, estimated_duration=30, config=config)
             elif node_type == 'username':
-                return await self._execute_username(client, account, config)
+                return await execute_warmup_action(client, account.id, self._execute_username, estimated_duration=30, config=config)
             elif node_type == 'photo':
-                return await self._execute_photo(client, account, config)
+                return await execute_warmup_action(client, account.id, self._execute_photo, estimated_duration=45, config=config)
             elif node_type == 'send_message':
                 return {'success': False, 'error': 'Message execution not yet implemented in immediate mode'}
             else:
@@ -324,55 +325,75 @@ class WarmupExecutor:
             logger.error(f"Immediate execution failed: {e}")
             return {'success': False, 'error': str(e)}
         finally:
-            if client:
+            if client and client.is_connected():
                 await client.disconnect()
 
-    async def _execute_bio(self, client, account, config):
+    async def _execute_bio(self, client, account_id, config):
         from telethon.tl.functions.account import UpdateProfileRequest
-        
+        from models.account import Account
+        from database import db
+
         new_bio = config.get('bio_text')
         if not new_bio:
             return {'success': False, 'error': 'No bio text provided'}
             
+        # Emulate typing
+        logger.info(f"Account {account_id}: Typing bio...")
+        await emulate_typing(new_bio, field_type='slow', account_id=account_id)
+            
         await client(UpdateProfileRequest(about=new_bio))
         
         # Update DB
-        account.bio = new_bio
-        from database import db
-        db.session.commit()
+        account = Account.query.get(account_id)
+        if account:
+            account.bio = new_bio
+            db.session.commit()
         
         return {'success': True, 'message': 'Bio updated from node'}
 
-    async def _execute_username(self, client, account, config):
+    async def _execute_username(self, client, account_id, config):
         from telethon.tl.functions.account import UpdateUsernameRequest
+        from models.account import Account
+        from database import db
         
         username = config.get('username', '').replace('@', '')
         if not username:
             return {'success': False, 'error': 'No username provided'}
             
+        # Emulate typing
+        logger.info(f"Account {account_id}: Typing username...")
+        await emulate_typing(username, field_type='normal', account_id=account_id)
+            
         await client(UpdateUsernameRequest(username=username))
         
         # Update DB
-        account.username = username
-        from database import db
-        db.session.commit()
+        account = Account.query.get(account_id)
+        if account:
+            account.username = username
+            db.session.commit()
         
         return {'success': True, 'message': 'Username updated'}
 
-    async def _execute_photo(self, client, account, config):
+    async def _execute_photo(self, client, account_id, config):
         from telethon.tl.functions.photos import UploadProfilePhotoRequest
+        from models.account import Account
+        from database import db
         
         photo_path = config.get('photo_path')
         if not photo_path or not os.path.exists(photo_path):
             return {'success': False, 'error': 'Photo file not found'}
             
+        # Emulate "selecting" photo delay
+        await asyncio.sleep(random.uniform(2, 5))
+            
         # Upload
         file = await client.upload_file(photo_path)
         await client(UploadProfilePhotoRequest(file=file))
         
-        # Update DB (simplified, usually we'd download the resulting photo_url)
-        account.photo_url = photo_path # Placeholder
-        from database import db
-        db.session.commit()
+        # Update DB
+        account = Account.query.get(account_id)
+        if account:
+            account.photo_url = photo_path 
+            db.session.commit()
         
         return {'success': True, 'message': 'Photo uploaded'}
