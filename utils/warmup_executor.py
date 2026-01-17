@@ -189,7 +189,34 @@ async def execute_warmup_action(client, account_id, action_func, estimated_durat
         # 6. Pause - "viewing result"
         await asyncio.sleep(random.uniform(3, 8))
         
-        # 7. Set status OFFLINE
+        # 7. Scroll feed before going offline (realistic behavior)
+        try:
+            logger.info(f"Account {account_id}: Scrolling feed before going offline...")
+            WarmupLog.log(account_id, 'info', 'Scrolling main feed', action='scroll_feed')
+            
+            # Get dialogs (chats list)
+            dialogs = await client.get_dialogs(limit=random.randint(10, 20))
+            await asyncio.sleep(random.uniform(1, 3))
+            
+            # Scroll through a few random chats
+            for _ in range(random.randint(2, 4)):
+                if dialogs:
+                    random_dialog = random.choice(dialogs)
+                    try:
+                        # Fetch messages from random chat (simulate scrolling)
+                        await client.get_messages(random_dialog, limit=random.randint(3, 10))
+                        await asyncio.sleep(random.uniform(2, 5))
+                    except:
+                        pass  # Skip if error (e.g., restricted chat)
+            
+            logger.info(f"Account {account_id}: Feed scrolling completed")
+        except Exception as scroll_err:
+            logger.warning(f"Feed scrolling failed (non-critical): {scroll_err}")
+        
+        # 8. Random delay before going offline
+        await asyncio.sleep(random.uniform(5, 15))
+        
+        # 9. Set status OFFLINE
         await emulate_presence_end(client, account_id)
         
         return result

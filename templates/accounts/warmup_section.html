@@ -498,17 +498,33 @@
             const action = document.getElementById(`action-${i}`).value;
             const readCount = document.getElementById(`read-count-${i}`).value;
 
-            await fetch(`/accounts/${accountId}/warmup/add-channel`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    channel_id: channel.id,
-                    username: channel.username,
-                    title: channel.title,
-                    action: action,
-                    read_count: parseInt(readCount)
-                })
-            });
+            console.log(`Adding channel: ${channel.username}, action: ${action}, read_count: ${readCount}`);
+
+            try {
+                const response = await fetch(`/accounts/${accountId}/warmup/add-channel`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        channel_id: channel.id,
+                        username: channel.username,
+                        title: channel.title,
+                        action: action,
+                        read_count: parseInt(readCount)
+                    })
+                });
+
+                const result = await response.json();
+                if (!result.success) {
+                    console.error(`Failed to add channel ${channel.username}:`, result.error);
+                    alert(`Error adding channel ${channel.username}: ${result.error}`);
+                    return;
+                }
+                console.log(`Channel ${channel.username} added successfully, ID: ${result.channel_id}`);
+            } catch (error) {
+                console.error(`Exception adding channel ${channel.username}:`, error);
+                alert(`Failed to add channel ${channel.username}: ${error.message}`);
+                return;
+            }
         }
 
         startPolling(3);

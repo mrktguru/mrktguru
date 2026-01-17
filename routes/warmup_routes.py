@@ -206,10 +206,12 @@ def search_channels(account_id):
 def add_channel(account_id):
     """Add a channel to warmup list"""
     data = request.json
+    logger.info(f"add_channel called for account {account_id} with data: {data}")
     
     # Validate
     required = ['channel_id', 'username', 'action', 'read_count']
     if not all(k in data for k in required):
+        logger.error(f"Missing required fields. Got: {list(data.keys())}")
         return jsonify({'success': False, 'error': 'Missing required fields'}), 400
     
     # Create channel record
@@ -224,6 +226,8 @@ def add_channel(account_id):
     
     db.session.add(channel)
     db.session.commit()
+    
+    logger.info(f"Channel saved to DB: ID={channel.id}, username={channel.username}, status={channel.status}")
     
     WarmupLog.log(account_id, 'success', f'Channel added: @{data["username"]}', 
                 stage=3, action='add_channel')
