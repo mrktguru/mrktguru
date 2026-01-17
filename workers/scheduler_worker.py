@@ -1,128 +1,234 @@
-from celery_app import celery
-from database import db
-from models.automation import ScheduledTask, AutoAction
-from datetime import datetime
+"""
+Scheduler Worker for Warmup Automation
+Celery tasks for checking and executing scheduled warmup nodes
+"""
 import logging
+from datetime import datetime, time, timedelta
+import random
+from celery_app import celery
+from models.warmup_schedule import WarmupSchedule
+from models.warmup_schedule_node import WarmupScheduleNode
+from models.warmup_log import WarmupLog
+from workers.node_executors import execute_node
+from utils.telethon_helper import get_telethon_client
+from database import db
 
 logger = logging.getLogger(__name__)
 
 
-@celery.task
-def execute_scheduled_tasks():
-    """Execute pending scheduled tasks"""
+@celery.task(name='workers.scheduler_worker.check_warmup_schedules')
+def check_warmup_schedules():
+    """
+    Periodic task (runs every minute) to check all active schedules
+    and execute pending nodes that are due
+    """
+    try:
+        now = datetime.now()
+        logger.info(f"Checking warmup schedules at {now}")
+        
+        # Find all active schedules
+        schedules = WarmupSchedule.query.filter_by(status='active').all()
+        
+        if not schedules:
+            logger.debug("No active schedules found")
+            return
+        
+        logger.info(f"Found {len(schedules)} active schedule(s)")
+        
+        for schedule in schedules:
+            try:
+                # Calculate current day number (1-14)
+                if not schedule.start_date:
+                    logger.warning(f"Schedule {schedule.id} has no start_date, skipping")
+                    continue
+                
+                days_elapsed = (now.date() - schedule.start_date).days
+                day_number = days_elapsed + 1
+                
+                # Check if schedule is completed
+                if day_number > 14:
+                    logger.info(f"Schedule {schedule.id} completed (day {day_number})")
+                    schedule.status = 'completed'
+                    schedule.end_date = now.date()
+                    db.session.commit()
+                    continue
+                
+                # Find pending nodes for current day
+                nodes = WarmupScheduleNode.query.filter_by(
+                    schedule_id=schedule.id,
+                    day_number=day_number,
+                    status='pending'
+                ).all()
+                
+                if not nodes:
+                    logger.debug(f"No pending nodes for schedule {schedule.id} day {day_number}")
+                    continue
+                
+                logger.info(f"Schedule {schedule.id}: Found {len(nodes)} pending node(s) for day {day_number}")
+                
+                # Check each node if it should execute now
+                for node in nodes:
+                    if should_execute_now(node, now):
+                        logger.info(f"Executing node {node.id} ({node.node_type}) for account {schedule.account_id}")
+                        execute_scheduled_node.delay(node.id)
+                    else:
+                        logger.debug(f"Node {node.id} not ready yet (time: {node.execution_time})")
+            
+            except Exception as e:
+                logger.error(f"Error processing schedule {schedule.id}: {e}")
+                continue
+        
+        logger.info("Schedule check completed")
+        
+    except Exception as e:
+        logger.error(f"Error in check_warmup_schedules: {e}")
+
+
+def should_execute_now(node, current_time):
+    """
+    Determine if a node should execute at the current time
     
-    now = datetime.utcnow()
+    Args:
+        node: WarmupScheduleNode instance
+        current_time: datetime object
     
-    tasks = ScheduledTask.query.filter(
-        ScheduledTask.scheduled_for <= now,
-        ScheduledTask.status == 'pending'
-    ).all()
+    Returns:
+        bool: True if node should execute now
+    """
+    if not node.execution_time:
+        # No time specified, execute immediately
+        return True
     
-    for task in tasks:
+    current_hour = current_time.hour
+    current_minute = current_time.minute
+    
+    if node.is_random_time:
+        # Random time format: "random:10:00-18:00"
+        start_time_str, end_time_str = node.get_execution_time_range()
+        
+        if not start_time_str or not end_time_str:
+            return True
+        
+        # Parse time strings
+        start_hour, start_min = map(int, start_time_str.split(':'))
+        end_hour, end_min = map(int, end_time_str.split(':'))
+        
+        # Check if current time is within range
+        current_minutes = current_hour * 60 + current_minute
+        start_minutes = start_hour * 60 + start_min
+        end_minutes = end_hour * 60 + end_min
+        
+        if start_minutes <= current_minutes <= end_minutes:
+            # Within range, execute with 10% probability per minute
+            # This spreads execution randomly across the time window
+            return random.random() < 0.1
+        
+        return False
+    
+    else:
+        # Fixed time format: "14:00"
         try:
-            logger.info(f"Executing scheduled task {task.id}: {task.task_type}")
+            target_hour, target_min = map(int, node.execution_time.split(':'))
             
-            # Execute based on task type
-            if task.task_type == 'subscribe_channel':
-                execute_subscribe_task(task)
-            elif task.task_type == 'post_message':
-                execute_post_task(task)
-            elif task.task_type == 'start_campaign':
-                execute_start_campaign_task(task)
-            # Add more task types as needed
+            # Execute if current time matches (within 1 minute window)
+            if current_hour == target_hour and abs(current_minute - target_min) <= 1:
+                return True
             
-            task.status = 'completed'
-            task.executed_at = datetime.utcnow()
-            
-        except Exception as e:
-            logger.error(f"Error executing task {task.id}: {str(e)}")
-            task.status = 'failed'
-            task.error_message = str(e)
+            return False
         
+        except:
+            logger.error(f"Invalid execution_time format for node {node.id}: {node.execution_time}")
+            return True
+
+
+@celery.task(name='workers.scheduler_worker.execute_scheduled_node')
+def execute_scheduled_node(node_id):
+    """
+    Execute a single scheduled warmup node
+    
+    Args:
+        node_id: ID of WarmupScheduleNode to execute
+    """
+    try:
+        node = WarmupScheduleNode.query.get(node_id)
+        
+        if not node:
+            logger.error(f"Node {node_id} not found")
+            return
+        
+        if node.status != 'pending':
+            logger.warning(f"Node {node_id} status is {node.status}, skipping")
+            return
+        
+        # Update status to running
+        node.status = 'running'
         db.session.commit()
-
-
-def execute_subscribe_task(task):
-    """Execute channel subscription task"""
-    # Implementation placeholder
-    pass
-
-
-def execute_post_task(task):
-    """Execute post message task"""
-    # Implementation placeholder
-    pass
-
-
-def execute_start_campaign_task(task):
-    """Execute start campaign task"""
-    from models.campaign import InviteCampaign
-    from workers.invite_worker import run_invite_campaign
-    
-    campaign = InviteCampaign.query.get(task.entity_id)
-    if campaign:
-        campaign.status = 'active'
-        campaign.started_at = datetime.utcnow()
-        db.session.commit()
-        run_invite_campaign.delay(campaign.id)
-
-
-@celery.task
-def check_auto_actions():
-    """Check if any auto-action triggers are met"""
-    
-    actions = AutoAction.query.filter_by(is_enabled=True).all()
-    
-    for action in actions:
-        try:
-            if check_trigger(action):
-                logger.info(f"Auto-action triggered: {action.name}")
-                execute_action(action)
-        except Exception as e:
-            logger.error(f"Error checking auto-action {action.id}: {str(e)}")
-
-
-def check_trigger(action):
-    """Check if trigger condition is met"""
-    trigger_type = action.trigger_type
-    condition = action.trigger_condition
-    
-    if trigger_type == 'campaign_progress':
-        from models.campaign import InviteCampaign
-        campaign_id = condition.get('campaign_id')
-        threshold = condition.get('threshold', 50)
         
-        campaign = InviteCampaign.query.get(campaign_id)
-        if campaign and campaign.total_targets > 0:
-            progress = (campaign.invited_count / campaign.total_targets) * 100
-            return progress >= threshold
-    
-    elif trigger_type == 'account_health':
-        from models.account import Account
-        account_id = condition.get('account_id')
-        threshold = condition.get('threshold', 50)
+        account_id = node.schedule.account_id
         
-        account = Account.query.get(account_id)
-        if account:
-            return account.health_score < threshold
-    
-    return False
-
-
-def execute_action(action):
-    """Execute auto-action"""
-    action_type = action.action_type
-    params = action.action_params
-    
-    if action_type == 'pause_account':
-        from models.account import Account
-        account = Account.query.get(params.get('account_id'))
-        if account:
-            account.status = 'cooldown'
+        logger.info(f"Executing node {node_id}: {node.node_type} for account {account_id}")
+        WarmupLog.log(account_id, 'info', f"Starting {node.node_type} node", action=f'{node.node_type}_start')
+        
+        # Get Telethon client
+        client = get_telethon_client(account_id)
+        
+        if not client:
+            error_msg = "Failed to get Telethon client"
+            logger.error(error_msg)
+            node.status = 'failed'
+            node.error_message = error_msg
+            node.executed_at = datetime.now()
             db.session.commit()
-    
-    elif action_type == 'send_notification':
-        from utils.notifications import send_notification
-        send_notification(params.get('message', 'Auto-action triggered'))
-    
-    # Add more action types as needed
+            WarmupLog.log(account_id, 'error', error_msg, action=f'{node.node_type}_error')
+            return
+        
+        # Execute node using async wrapper
+        import asyncio
+        result = asyncio.run(execute_node(
+            node.node_type,
+            client,
+            account_id,
+            node.config or {}
+        ))
+        
+        # Update node status based on result
+        if result.get('success'):
+            node.status = 'completed'
+            node.executed_at = datetime.now()
+            logger.info(f"Node {node_id} completed successfully")
+            WarmupLog.log(account_id, 'success', f"{node.node_type} node completed", action=f'{node.node_type}_complete')
+        else:
+            node.status = 'failed'
+            node.error_message = result.get('error', 'Unknown error')
+            node.executed_at = datetime.now()
+            logger.error(f"Node {node_id} failed: {node.error_message}")
+            WarmupLog.log(account_id, 'error', f"{node.node_type} failed: {node.error_message}", action=f'{node.node_type}_error')
+        
+        db.session.commit()
+        
+        # Disconnect client
+        try:
+            client.disconnect()
+        except:
+            pass
+        
+    except Exception as e:
+        logger.error(f"Error executing node {node_id}: {e}")
+        
+        try:
+            node = WarmupScheduleNode.query.get(node_id)
+            if node:
+                node.status = 'failed'
+                node.error_message = str(e)
+                node.executed_at = datetime.now()
+                db.session.commit()
+                
+                if node.schedule:
+                    WarmupLog.log(
+                        node.schedule.account_id,
+                        'error',
+                        f"Node execution failed: {str(e)}",
+                        action=f'{node.node_type}_error'
+                    )
+        except:
+            pass
