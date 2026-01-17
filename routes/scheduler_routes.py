@@ -8,6 +8,8 @@ from models.warmup_schedule import WarmupSchedule
 from models.warmup_schedule_node import WarmupScheduleNode
 from models.account import Account
 from datetime import datetime, timedelta
+import os
+from werkzeug.utils import secure_filename
 import logging
 
 logger = logging.getLogger(__name__)
@@ -350,4 +352,34 @@ def get_schedule_status(schedule_id):
         
     except Exception as e:
         logger.error(f"Error getting schedule status: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@scheduler_bp.route('/upload', methods=['POST'])
+def upload_asset():
+    """Upload asset for scheduler node (e.g. photo)"""
+    try:
+        if 'file' not in request.files:
+            return jsonify({'error': 'No file part'}), 400
+        
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({'error': 'No selected file'}), 400
+            
+        if file:
+            filename = secure_filename(f"{datetime.now().timestamp()}_{file.filename}")
+            upload_dir = os.path.join(os.getcwd(), 'storage', 'scheduler_uploads')
+            os.makedirs(upload_dir, exist_ok=True)
+            
+            filepath = os.path.join(upload_dir, filename)
+            file.save(filepath)
+            
+            # Return absolute path for internal use
+            return jsonify({
+                'message': 'File uploaded',
+                'path': filepath,
+                'filename': filename
+            }), 201
+            
+    except Exception as e:
+        logger.error(f"Error uploading asset: {e}")
         return jsonify({'error': str(e)}), 500
