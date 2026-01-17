@@ -1,0 +1,472 @@
+<!-- Warmup Scheduler Section -->
+<div class="card mb-3">
+    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">🔥 Warmup Scheduler</h5>
+        <div>
+            <button class="btn btn-sm btn-light" id="save-schedule-btn">
+                <i class="bi bi-save"></i> Save
+            </button>
+            <button class="btn btn-sm btn-success" id="start-schedule-btn">
+                <i class="bi bi-play-fill"></i> Start
+            </button>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <div class="row g-0">
+            <!-- Node Library Sidebar -->
+            <div class="col-md-3 border-end p-3" style="background-color: #f8f9fa;">
+                <h6 class="mb-3">📦 Available Nodes</h6>
+                <p class="text-muted small">Drag nodes to calendar</p>
+
+                <!-- Profile Nodes -->
+                <div class="mb-3">
+                    <strong class="d-block mb-2">👤 Profile</strong>
+                    <div class="node-item draggable mb-2" data-node-type="bio">
+                        <div class="card card-body p-2 small">
+                            <i class="bi bi-person-badge"></i> Bio
+                        </div>
+                    </div>
+                    <div class="node-item draggable mb-2" data-node-type="username">
+                        <div class="card card-body p-2 small">
+                            <i class="bi bi-at"></i> Username
+                        </div>
+                    </div>
+                    <div class="node-item draggable mb-2" data-node-type="photo">
+                        <div class="card card-body p-2 small">
+                            <i class="bi bi-camera"></i> Photo
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Contact Nodes -->
+                <div class="mb-3">
+                    <strong class="d-block mb-2">📞 Contacts</strong>
+                    <div class="node-item draggable mb-2" data-node-type="import_contacts">
+                        <div class="card card-body p-2 small">
+                            <i class="bi bi-person-plus"></i> Import
+                        </div>
+                    </div>
+                    <div class="node-item draggable mb-2" data-node-type="send_message">
+                        <div class="card card-body p-2 small">
+                            <i class="bi bi-chat"></i> Send Message
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Channel Nodes -->
+                <div class="mb-3">
+                    <strong class="d-block mb-2">📺 Channels</strong>
+                    <div class="node-item draggable mb-2" data-node-type="subscribe">
+                        <div class="card card-body p-2 small">
+                            <i class="bi bi-bookmark-plus"></i> Subscribe
+                        </div>
+                    </div>
+                    <div class="node-item draggable mb-2" data-node-type="visit">
+                        <div class="card card-body p-2 small">
+                            <i class="bi bi-eye"></i> Visit
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Other Nodes -->
+                <div class="mb-3">
+                    <strong class="d-block mb-2">💤 Other</strong>
+                    <div class="node-item draggable mb-2" data-node-type="idle">
+                        <div class="card card-body p-2 small">
+                            <i class="bi bi-moon"></i> Idle
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Calendar Grid -->
+            <div class="col-md-9 p-3">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h6 class="mb-0">14-Day Warmup Plan</h6>
+                    <div>
+                        <button class="btn btn-sm btn-outline-secondary" id="clear-schedule-btn">
+                            <i class="bi bi-trash"></i> Clear All
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Calendar Grid -->
+                <div id="scheduler-calendar" class="scheduler-calendar">
+                    <!-- Days 1-7 -->
+                    <div class="row mb-2">
+                        <div class="col">
+                            <div class="day-cell droppable" data-day="1">
+                                <div class="day-header">Day 1</div>
+                                <div class="day-nodes" id="day-1-nodes"></div>
+                            </div>
+                        </div>
+                        <div class="col">
+                            <div class="day-cell droppable" data-day="2">
+                                <div class="day-header">Day 2</div>
+                                <div class="day-nodes" id="day-2-nodes"></div>
+                            </div>
+                        </div>
+                        <div class="col">
+                            <div class="day-cell droppable" data-day="3">
+                                <div class="day-header">Day 3</div>
+                                <div class="day-nodes" id="day-3-nodes"></div>
+                            </div>
+                        </div>
+                        <div class="col">
+                            <div class="day-cell droppable" data-day="4">
+                                <div class="day-header">Day 4</div>
+                                <div class="day-nodes" id="day-4-nodes"></div>
+                            </div>
+                        </div>
+                        <div class="col">
+                            <div class="day-cell droppable" data-day="5">
+                                <div class="day-header">Day 5</div>
+                                <div class="day-nodes" id="day-5-nodes"></div>
+                            </div>
+                        </div>
+                        <div class="col">
+                            <div class="day-cell droppable" data-day="6">
+                                <div class="day-header">Day 6</div>
+                                <div class="day-nodes" id="day-6-nodes"></div>
+                            </div>
+                        </div>
+                        <div class="col">
+                            <div class="day-cell droppable" data-day="7">
+                                <div class="day-header">Day 7</div>
+                                <div class="day-nodes" id="day-7-nodes"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Days 8-14 -->
+                    <div class="row">
+                        <div class="col">
+                            <div class="day-cell droppable" data-day="8">
+                                <div class="day-header">Day 8</div>
+                                <div class="day-nodes" id="day-8-nodes"></div>
+                            </div>
+                        </div>
+                        <div class="col">
+                            <div class="day-cell droppable" data-day="9">
+                                <div class="day-header">Day 9</div>
+                                <div class="day-nodes" id="day-9-nodes"></div>
+                            </div>
+                        </div>
+                        <div class="col">
+                            <div class="day-cell droppable" data-day="10">
+                                <div class="day-header">Day 10</div>
+                                <div class="day-nodes" id="day-10-nodes"></div>
+                            </div>
+                        </div>
+                        <div class="col">
+                            <div class="day-cell droppable" data-day="11">
+                                <div class="day-header">Day 11</div>
+                                <div class="day-nodes" id="day-11-nodes"></div>
+                            </div>
+                        </div>
+                        <div class="col">
+                            <div class="day-cell droppable" data-day="12">
+                                <div class="day-header">Day 12</div>
+                                <div class="day-nodes" id="day-12-nodes"></div>
+                            </div>
+                        </div>
+                        <div class="col">
+                            <div class="day-cell droppable" data-day="13">
+                                <div class="day-header">Day 13</div>
+                                <div class="day-nodes" id="day-13-nodes"></div>
+                            </div>
+                        </div>
+                        <div class="col">
+                            <div class="day-cell droppable" data-day="14">
+                                <div class="day-header">Day 14</div>
+                                <div class="day-nodes" id="day-14-nodes"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .scheduler-calendar {
+        min-height: 400px;
+    }
+
+    .day-cell {
+        border: 2px dashed #dee2e6;
+        border-radius: 8px;
+        min-height: 150px;
+        padding: 8px;
+        background: white;
+        transition: all 0.2s;
+    }
+
+    .day-cell.drag-over {
+        border-color: #0d6efd;
+        background-color: #e7f1ff;
+    }
+
+    .day-header {
+        font-weight: bold;
+        font-size: 0.875rem;
+        color: #6c757d;
+        margin-bottom: 8px;
+        padding-bottom: 4px;
+        border-bottom: 1px solid #dee2e6;
+    }
+
+    .day-nodes {
+        min-height: 100px;
+    }
+
+    .node-item.draggable {
+        cursor: move;
+        user-select: none;
+    }
+
+    .node-item.draggable:hover {
+        opacity: 0.8;
+    }
+
+    .scheduled-node {
+        background: #e7f1ff;
+        border: 1px solid #0d6efd;
+        border-radius: 4px;
+        padding: 6px 8px;
+        margin-bottom: 6px;
+        font-size: 0.8rem;
+        cursor: pointer;
+        position: relative;
+    }
+
+    .scheduled-node:hover {
+        background: #cfe2ff;
+    }
+
+    .scheduled-node .remove-node {
+        position: absolute;
+        top: 2px;
+        right: 2px;
+        cursor: pointer;
+        color: #dc3545;
+        font-size: 0.75rem;
+    }
+
+    .scheduled-node .node-time {
+        font-size: 0.7rem;
+        color: #6c757d;
+        display: block;
+    }
+</style>
+
+<script>
+    // Scheduler JavaScript
+    const accountId = {{ account.id }};
+    let scheduleData = {
+        schedule_id: null,
+        nodes: []
+    };
+
+    // Initialize drag and drop
+    document.addEventListener('DOMContentLoaded', function () {
+        initDragAndDrop();
+        loadSchedule();
+    });
+
+    function initDragAndDrop() {
+        // Make nodes draggable
+        const draggables = document.querySelectorAll('.node-item.draggable');
+
+        draggables.forEach(item => {
+            item.addEventListener('dragstart', handleDragStart);
+            item.addEventListener('dragend', handleDragEnd);
+            item.setAttribute('draggable', 'true');
+        });
+
+        // Make day cells droppable
+        const dropZones = document.querySelectorAll('.day-cell.droppable');
+
+        dropZones.forEach(zone => {
+            zone.addEventListener('dragover', handleDragOver);
+            zone.addEventListener('dragleave', handleDragLeave);
+            zone.addEventListener('drop', handleDrop);
+        });
+    }
+
+    let draggedNodeType = null;
+
+    function handleDragStart(e) {
+        draggedNodeType = this.dataset.nodeType;
+        this.style.opacity = '0.4';
+    }
+
+    function handleDragEnd(e) {
+        this.style.opacity = '1';
+    }
+
+    function handleDragOver(e) {
+        e.preventDefault();
+        this.classList.add('drag-over');
+    }
+
+    function handleDragLeave(e) {
+        this.classList.remove('drag-over');
+    }
+
+    function handleDrop(e) {
+        e.preventDefault();
+        this.classList.remove('drag-over');
+
+        const dayNumber = parseInt(this.dataset.day);
+
+        if (draggedNodeType) {
+            addNodeToDay(draggedNodeType, dayNumber);
+            draggedNodeType = null;
+        }
+    }
+
+    function addNodeToDay(nodeType, dayNumber) {
+        // Create node object
+        const node = {
+            node_type: nodeType,
+            day_number: dayNumber,
+            execution_time: '14:00',
+            is_random_time: false,
+            config: {}
+        };
+
+        // Add to schedule data
+        scheduleData.nodes.push(node);
+
+        // Render node
+        renderNode(node, dayNumber);
+
+        console.log('Added node:', node);
+    }
+
+    function renderNode(node, dayNumber) {
+        const container = document.getElementById(`day-${dayNumber}-nodes`);
+
+        const nodeEl = document.createElement('div');
+        nodeEl.className = 'scheduled-node';
+        nodeEl.innerHTML = `
+        <span class="remove-node" onclick="removeNode(this, ${dayNumber}, '${node.node_type}')">×</span>
+        <strong>${getNodeLabel(node.node_type)}</strong>
+        <span class="node-time">${node.is_random_time ? '🎲 Random' : node.execution_time}</span>
+    `;
+
+        nodeEl.onclick = function () {
+            openNodeConfig(node, dayNumber);
+        };
+
+        container.appendChild(nodeEl);
+    }
+
+    function getNodeLabel(nodeType) {
+        const labels = {
+            'bio': '👤 Bio',
+            'username': '@Username',
+            'photo': '📷 Photo',
+            'import_contacts': '📞 Import',
+            'send_message': '💬 Message',
+            'subscribe': '📺 Subscribe',
+            'visit': '👁️ Visit',
+            'idle': '💤 Idle'
+        };
+        return labels[nodeType] || nodeType;
+    }
+
+    function removeNode(el, dayNumber, nodeType) {
+        el.parentElement.remove();
+
+        // Remove from schedule data
+        scheduleData.nodes = scheduleData.nodes.filter(n =>
+            !(n.day_number === dayNumber && n.node_type === nodeType)
+        );
+    }
+
+    function openNodeConfig(node, dayNumber) {
+        alert(`Configure ${node.node_type} node for Day ${dayNumber}\n\nConfiguration modal coming soon!`);
+    }
+
+    async function loadSchedule() {
+        try {
+            const response = await fetch(`/scheduler/accounts/${accountId}/schedule`);
+            const data = await response.json();
+
+            if (data.schedule) {
+                scheduleData.schedule_id = data.schedule.id;
+                scheduleData.nodes = data.nodes || [];
+
+                // Render existing nodes
+                data.nodes.forEach(node => {
+                    renderNode(node, node.day_number);
+                });
+            }
+        } catch (error) {
+            console.error('Error loading schedule:', error);
+        }
+    }
+
+    async function saveSchedule() {
+        try {
+            // Create schedule if doesn't exist
+            if (!scheduleData.schedule_id) {
+                const createResp = await fetch(`/scheduler/accounts/${accountId}/schedule`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: 'Warmup Schedule' })
+                });
+                const createData = await createResp.json();
+                scheduleData.schedule_id = createData.schedule.id;
+            }
+
+            // Save each node
+            for (const node of scheduleData.nodes) {
+                await fetch(`/scheduler/schedules/${scheduleData.schedule_id}/nodes`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(node)
+                });
+            }
+
+            alert('Schedule saved successfully!');
+        } catch (error) {
+            console.error('Error saving schedule:', error);
+            alert('Error saving schedule');
+        }
+    }
+
+    async function startSchedule() {
+        if (!scheduleData.schedule_id) {
+            alert('Please save schedule first');
+            return;
+        }
+
+        if (confirm('Start warmup schedule? This will begin automated execution.')) {
+            try {
+                const response = await fetch(`/scheduler/schedules/${scheduleData.schedule_id}/start`, {
+                    method: 'POST'
+                });
+                const data = await response.json();
+                alert('Schedule started!');
+                location.reload();
+            } catch (error) {
+                console.error('Error starting schedule:', error);
+                alert('Error starting schedule');
+            }
+        }
+    }
+
+    // Button handlers
+    document.getElementById('save-schedule-btn').addEventListener('click', saveSchedule);
+    document.getElementById('start-schedule-btn').addEventListener('click', startSchedule);
+    document.getElementById('clear-schedule-btn').addEventListener('click', function () {
+        if (confirm('Clear all nodes from schedule?')) {
+            scheduleData.nodes = [];
+            document.querySelectorAll('.day-nodes').forEach(el => el.innerHTML = '');
+        }
+    });
+</script>
