@@ -124,6 +124,21 @@ def execute_stage_1_task(self, account_id, data):
                                     WarmupLog.log(account_id, 'error', error_msg, stage=1, action='set_photo_error')
                                     # Don't fail the whole task if just photo fails, but log it
                         
+                        # Sync actual data from Telegram back to DB
+                        try:
+                            await asyncio.sleep(random.uniform(2, 4))
+                            me = await client.get_me()
+                            
+                            # Update account with actual Telegram data
+                            account.first_name = me.first_name or account.first_name
+                            account.last_name = me.last_name or account.last_name
+                            account.username = me.username or account.username
+                            account.bio = getattr(me, 'about', account.bio)
+                            
+                            logger.info(f"Synced from Telegram: {me.first_name} {me.last_name} @{me.username}")
+                        except Exception as sync_err:
+                            logger.warning(f"Failed to sync from Telegram (non-critical): {sync_err}")
+                        
                         # Final commit for all account changes
                         try:
                             # Use flask context from the outer block
