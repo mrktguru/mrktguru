@@ -272,6 +272,29 @@ def execute_stage_3_task(self, account_id):
                                 msgs = await client.get_messages(chan.username, limit=limit)
                                 
                                 for msg in msgs:
+                                    # Build post URL
+                                    post_url = f"https://t.me/{chan.username}/{msg.id}"
+                                    
+                                    # Get text preview (first 80 chars)
+                                    text_preview = ""
+                                    if msg.message:
+                                        text_preview = msg.message[:80].replace('\n', ' ')
+                                        if len(msg.message) > 80:
+                                            text_preview += "..."
+                                    elif msg.media:
+                                        text_preview = "[Media post]"
+                                    else:
+                                        text_preview = "[Empty post]"
+                                    
+                                    # Log post read
+                                    WarmupLog.log(
+                                        account_id, 
+                                        'info', 
+                                        f"📖 Reading: {text_preview} | {post_url}", 
+                                        stage=3, 
+                                        action='read_post'
+                                    )
+                                    
                                     # Simulate reading post (micro-delay)
                                     read_time = random.uniform(2, 8)
                                     await asyncio.sleep(read_time)
@@ -279,12 +302,27 @@ def execute_stage_3_task(self, account_id):
                                     # 30% chance to open comments (if available)
                                     if msg.replies and msg.replies.replies > 0 and random.random() < 0.3:
                                         try:
-                                            WarmupLog.log(account_id, 'info', "Opening comments...", stage=3, action='view_comments')
+                                            WarmupLog.log(
+                                                account_id, 
+                                                'info', 
+                                                f"💬 Opening comments ({msg.replies.replies} replies) on: {post_url}", 
+                                                stage=3, 
+                                                action='view_comments'
+                                            )
                                             # Transition delay
                                             await asyncio.sleep(random.uniform(1.5, 3.0))
                                             
                                             # Fetch comments (enter discussion)
                                             comments = await client.get_messages(chan.username, reply_to=msg.id, limit=random.randint(5, 12))
+                                            
+                                            # Log comment count
+                                            WarmupLog.log(
+                                                account_id,
+                                                'info',
+                                                f"📝 Read {len(comments)} comments",
+                                                stage=3,
+                                                action='read_comments'
+                                            )
                                             
                                             # Scroll micro-delays in comments
                                             for _ in range(random.randint(2, 5)):
@@ -316,7 +354,13 @@ def execute_stage_3_task(self, account_id):
                                     # 15% chance to Forward to Saved Messages (classic "save for later")
                                     if random.random() < 0.15:
                                         try:
-                                            WarmupLog.log(account_id, 'info', "Forwarding post to Saved Messages...", stage=3, action='forward_saved')
+                                            WarmupLog.log(
+                                                account_id,
+                                                'info',
+                                                f"✈️ Forwarding to Saved: {text_preview} | {post_url}",
+                                                stage=3,
+                                                action='forward_saved'
+                                            )
                                             await asyncio.sleep(random.uniform(1, 2))
                                             await client.forward_messages('me', msg)
                                             await asyncio.sleep(random.uniform(1, 2))
