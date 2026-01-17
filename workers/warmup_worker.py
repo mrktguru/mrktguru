@@ -252,16 +252,109 @@ def execute_stage_3_task(self, account_id):
                             WarmupLog.log(account_id, 'info', f"Processing channel: {chan.title or chan.username}", stage=3, action='process_channel_start')
                             
                             if chan.action == 'subscribe':
-                                # Subscribe logic
+                                # Subscribe to channel
+                                WarmupLog.log(account_id, 'info', f"Subscribing to {chan.username}...", stage=3, action='subscribe_start')
                                 await asyncio.sleep(random.uniform(10, 20))
                                 await client(JoinChannelRequest(chan.username))
                                 WarmupLog.log(account_id, 'success', f"Subscribed to {chan.username}", stage=3, action='subscribe_success')
                                 
-                                # Basic reading for subscribed
-                                read_count = chan.read_count or 5
+                                # Detailed reading with logging (same as Visit)
                                 await asyncio.sleep(random.uniform(5, 10))
-                                await client.get_messages(chan.username, limit=read_count)
-                                WarmupLog.log(account_id, 'success', f"Read {read_count} posts in {chan.username}", stage=3, action='read_posts_success')
+                                limit = chan.read_count or random.randint(3, 6)
+                                msgs = await client.get_messages(chan.username, limit=limit)
+                                
+                                for msg in msgs:
+                                    # Build post URL
+                                    post_url = f"https://t.me/{chan.username}/{msg.id}"
+                                    
+                                    # Get text preview (first 80 chars)
+                                    text_preview = ""
+                                    if msg.message:
+                                        text_preview = msg.message[:80].replace('\n', ' ')
+                                        if len(msg.message) > 80:
+                                            text_preview += "..."
+                                    elif msg.media:
+                                        text_preview = "[Media post]"
+                                    else:
+                                        text_preview = "[Empty post]"
+                                    
+                                    # Log post read
+                                    WarmupLog.log(
+                                        account_id, 
+                                        'info', 
+                                        f"📖 Reading: {text_preview} | {post_url}", 
+                                        stage=3, 
+                                        action='read_post'
+                                    )
+                                    
+                                    # Simulate reading post
+                                    read_time = random.uniform(2, 8)
+                                    await asyncio.sleep(read_time)
+                                    
+                                    # 30% chance to open comments
+                                    if msg.replies and msg.replies.replies > 0 and random.random() < 0.3:
+                                        try:
+                                            WarmupLog.log(
+                                                account_id, 
+                                                'info', 
+                                                f"💬 Opening comments ({msg.replies.replies} replies) on: {post_url}", 
+                                                stage=3, 
+                                                action='view_comments'
+                                            )
+                                            await asyncio.sleep(random.uniform(1.5, 3.0))
+                                            comments = await client.get_messages(chan.username, reply_to=msg.id, limit=random.randint(5, 12))
+                                            
+                                            WarmupLog.log(
+                                                account_id,
+                                                'info',
+                                                f"📝 Read {len(comments)} comments",
+                                                stage=3,
+                                                action='read_comments'
+                                            )
+                                            
+                                            for _ in range(random.randint(2, 5)):
+                                                await asyncio.sleep(random.uniform(1, 3))
+                                                
+                                            # 30% chance to view commenter profile
+                                            if comments and random.random() < 0.3:
+                                                comment = random.choice(comments)
+                                                if comment.sender_id:
+                                                    try:
+                                                        WarmupLog.log(
+                                                            account_id,
+                                                            'info',
+                                                            f"👤 Viewing commenter profile (ID: {comment.sender_id})",
+                                                            stage=3,
+                                                            action='view_profile'
+                                                        )
+                                                        await asyncio.sleep(random.uniform(1, 2))
+                                                        await client.get_entity(comment.sender_id)
+                                                        await asyncio.sleep(random.uniform(4, 10))
+                                                        await asyncio.sleep(random.uniform(1, 2))
+                                                    except:
+                                                        pass
+                                            
+                                            await asyncio.sleep(random.uniform(1.5, 3.0))
+                                        except:
+                                            pass
+                                    
+                                    # 15% chance to forward to Saved
+                                    if random.random() < 0.15:
+                                        try:
+                                            WarmupLog.log(
+                                                account_id,
+                                                'info',
+                                                f"✈️ Forwarding to Saved: {text_preview} | {post_url}",
+                                                stage=3,
+                                                action='forward_saved'
+                                            )
+                                            await asyncio.sleep(random.uniform(1, 2))
+                                            await client.forward_messages('me', msg)
+                                            await asyncio.sleep(random.uniform(1, 2))
+                                        except:
+                                            pass
+                                
+                                WarmupLog.log(account_id, 'success', f"Completed interaction with {chan.username}", stage=3, action='subscribe_complete')
                                 
                             else:  # view_only / visit
                                 WarmupLog.log(account_id, 'info', f"Visiting {chan.username}...", stage=3, action='visit_start')
