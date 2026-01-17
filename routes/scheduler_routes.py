@@ -413,8 +413,8 @@ def run_node_immediately(account_id):
         # Since I am not 100% sure of WarmupExecutor signatures without reading it, 
         # I will instantiate it and try to call a generic dispatcher if it exists, or individual methods.
         # Based on file listing, `warmup_executor.py` exists.
-        
-        result = executor.execute_immediate(account, node_type, config)
+        import asyncio
+        result = asyncio.run(executor.execute_immediate(account, node_type, config))
         
         if result.get('success'):
             return jsonify({'message': 'Executed', 'result': result.get('message', 'OK')}), 200
