@@ -299,7 +299,14 @@ class WarmupExecutor:
             if account.proxy_id:
                 proxy_rec = Proxy.query.get(account.proxy_id)
                 if proxy_rec:
-                    proxy = proxy_rec.get_telethon_dict()
+                    # Construct dict for telethon_helper (expects 'type', 'host', etc.)
+                    proxy = {
+                        'type': proxy_rec.type,
+                        'host': proxy_rec.host,
+                        'port': proxy_rec.port,
+                        'username': proxy_rec.username,
+                        'password': proxy_rec.password
+                    }
             
             # Create Client
             client = get_telethon_client(account.id, proxy)
