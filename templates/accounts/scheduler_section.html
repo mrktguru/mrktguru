@@ -46,6 +46,12 @@
                             <i class="bi bi-person-plus"></i> Import
                         </div>
                     </div>
+                    <!-- Search & Filter -->
+                    <div class="node-item draggable mb-2" data-node-type="search_filter">
+                        <div class="card card-body p-2 small">
+                            <i class="bi bi-search"></i> Search & Filter
+                        </div>
+                    </div>
                     <div class="node-item draggable mb-2" data-node-type="send_message">
                         <div class="card card-body p-2 small">
                             <i class="bi bi-chat"></i> Send Message
@@ -472,6 +478,10 @@
         if (node.config.count) summary.push(`${node.config.count}x`);
         if (node.config.channels) summary.push(`${node.config.channels.split(',').length} chs`);
         if (node.config.photo_path) summary.push('📷 set');
+        if (node.config.search_input) {
+            const lines = node.config.search_input.split('\n').filter(l => l.trim()).length;
+            summary.push(`🔍 ${lines} items`);
+        }
         return summary.length ? `<span class="d-block text-muted small" style="font-size:0.65rem">${summary.join(' • ')}</span>` : '';
     }
 
@@ -481,6 +491,7 @@
             'username': '@Username',
             'photo': '📷 Photo',
             'import_contacts': '📞 Import',
+            'search_filter': '🔍 Search & Filter',
             'send_message': '💬 Message',
             'subscribe': '📺 Subscribe',
             'visit': '👁️ Visit',
@@ -594,7 +605,35 @@
             html += `
                 <div class="mb-3">
                     <label class="form-label">Bio Text</label>
-                    <textarea class="form-control" name="bio_text" rows="3">${defaultBio}</textarea>
+                    <textarea class="form-control" name="bio_text" rows="3" placeholder="About me">${defaultBio}</textarea>
+                </div>
+            `;
+        }
+        else if (type === 'search_filter') {
+            html += `
+                <div class="mb-3">
+                    <label class="form-label">Strategy</label>
+                    <select class="form-select" name="strategy">
+                        <option value="hybrid" ${config.strategy === 'hybrid' ? 'selected' : ''}>Hybrid (30/70 Split)</option>
+                        <option value="organic" ${config.strategy === 'organic' ? 'selected' : ''}>Organic (Generic Keywords)</option>
+                        <option value="targeted" ${config.strategy === 'targeted' ? 'selected' : ''}>Targeted (Direct Links)</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Keywords/Links (one per line)</label>
+                    <textarea class="form-control" name="search_input" rows="6" placeholder="Interior Design\nNews NYC\nt.me/channel\n@username">${config.search_input || ''}</textarea>
+                    <small class="form-text text-muted">
+                        Keywords: "Interior Design", "News NYC"<br>
+                        Links: t.me/username or @username
+                    </small>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Language</label>
+                    <select class="form-select" name="language">
+                        <option value="AUTO" ${config.language === 'AUTO' ? 'selected' : ''}>Auto-detect</option>
+                        <option value="EN" ${config.language === 'EN' ? 'selected' : ''}>English</option>
+                        <option value="RU" ${config.language === 'RU' ? 'selected' : ''}>Russian</option>
+                    </select>
                 </div>
             `;
         }

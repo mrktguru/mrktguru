@@ -320,9 +320,14 @@ class WarmupExecutor:
             if node_type == 'bio':
                 return await execute_warmup_action(client, account.id, self._execute_bio, estimated_duration=30, config=config)
             elif node_type == 'username':
-                return await execute_warmup_action(client, account.id, self._execute_username, estimated_duration=30, config=config)
+                return await execute_warmup_action(client, account.id,  self._execute_username, estimated_duration=30, config=config)
             elif node_type == 'photo':
                 return await execute_warmup_action(client, account.id, self._execute_photo, estimated_duration=45, config=config)
+            elif node_type == 'search_filter':
+                # Import SearchFilterExecutor
+                from utils.search_filter_executor import SearchFilterExecutor
+                executor = SearchFilterExecutor()
+                return await execute_warmup_action(client, account.id, executor.execute_search_filter, estimated_duration=120, config=config)
             elif node_type == 'send_message':
                 return {'success': False, 'error': 'Message execution not yet implemented in immediate mode'}
             else:
