@@ -144,6 +144,9 @@ class SearchFilterExecutor:
         4. Pick random candidate from top-5
         5. Deep inspection
         """
+        from telethon.tl.functions.contacts import SearchRequest as ContactsSearch
+        from telethon.tl.types import Channel
+        
         try:
             logger.info(f"Account {account_id}: Starting organic search for '{keyword}'")
             WarmupLog.log(account_id, 'info', f'Searching: {keyword}', action='search_start')
@@ -151,8 +154,8 @@ class SearchFilterExecutor:
             # 1. Emulate typing (with 15% chance of typo)
             await self._emulate_typing_with_errors(keyword, error_rate=0.15)
             
-            # 2. Search request
-            results = await client(SearchRequest(
+            # 2. Global search request using contacts.Search
+            results = await client(ContactsSearch(
                 q=keyword,
                 limit=20
             ))
@@ -162,22 +165,39 @@ class SearchFilterExecutor:
                 WarmupLog.log(account_id, 'warning', f"No search results for keyword: {keyword}", action='search_empty')
                 return {'success': False, 'error': 'No results'}
             
+            logger.info(f"Found {len(results.results)} raw results for '{keyword}'")
+            
             # 3. Simulate scrolling (2-5 sec pause)
             await asyncio.sleep(random.uniform(2, 5))
             
-            # 4. Pre-filter and select
+            # 4. Extract channels from results
             valid_results = []
-            for result in results.results[:10]:  # Check top 10
+            for result in results.results[:20]:  # Check top 20
+                # Get the actual channel entity from chats dict
                 peer = result.peer
-                chat = results.chats.get(getattr(peer, 'channel_id', None) or getattr(peer, 'chat_id', None))
+                chat_id = None
                 
-                if not chat:
+                if hasattr(peer, 'channel_id'):
+                    chat_id = peer.channel_id
+                elif hasattr(peer, 'chat_id'):
+                    chat_id = peer.chat_id
+                else:
+                    continue
+                
+                # Find channel in results.chats
+                chat = None
+                for c in results.chats:
+                    if c.id == chat_id:
+                        chat = c
+                        break
+                
+                if not chat or not isinstance(chat, Channel):
                     continue
                 
                 # Pre-filter
-                chat._custom_stopwords = stopwords  # Pass to pre_filter via attribute
                 if self._pre_filter(chat, stopwords):
                     valid_results.append(chat)
+                    logger.info(f"Added to valid results: {getattr(chat, 'title', 'Unknown')}")
                 else:
                     # Log why filtered
                     reason = self._get_prefilter_reason(chat, stopwords)
@@ -191,13 +211,15 @@ class SearchFilterExecutor:
             WarmupLog.log(account_id, 'info', f"Found {len(valid_results)} valid channels for keyword: {keyword}", action='search_found')
             
             # Pick random from top-5 (or all if less than 5)
-            candidate = random.choice(valid_results[:5])
+            candidate = random.choice(valid_results[:min(5, len(valid_results))])
+            logger.info(f"Selected candidate: {getattr(candidate, 'title', 'Unknown')}")
             
             # 5. Deep inspection
             return await self._deep_inspection(client, account_id, candidate, language, 'SEARCH')
             
         except Exception as e:
-            logger.error(f"Organic search failed: {e}")
+            logger.error(f"Organic search failed: {e}", exc_info=True)
+            WarmupLog.log(account_id, 'error', f"Search error for '{keyword}': {str(e)}", action='search_error')
             return {'success': False, 'error': str(e)}
     
     async def _direct_link(self, client, account_id, link, language, stopwords):
