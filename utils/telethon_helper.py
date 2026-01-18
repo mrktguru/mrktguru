@@ -129,12 +129,47 @@ def get_telethon_client(account_id, proxy=None):
         print(f"✅ Using proxy for account {account_id}: {account.proxy.host}:{account.proxy.port} (type: {account.proxy.type})")
     
     # ==================== SESSION CONFIGURATION ====================
-    # Use StringSession from PostgreSQL to avoid SQLite file locks
-    session_string = account.session_string or ''
+    # Support both StringSession (DB storage) and SQLite file (TData import)
+    session = None
     
-    # Create client with StringSession instead of file path
+    if account.session_string:
+        # Preferred: StringSession stored in DB
+        session = StringSession(account.session_string)
+        print(f"DEBUG: Using StringSession for account {account_id}")
+    elif account.session_file_path:
+        # Legacy/TData: SQLite file path
+        # Ensure path is absolute
+        if os.path.isabs(account.session_file_path):
+            session_path = account.session_file_path
+        else:
+            # Assuming relative to app root or check existence
+            session_path = os.path.abspath(account.session_file_path)
+            
+        print(f"DEBUG: Checking session file: {session_path}")
+        
+        if os.path.exists(session_path):
+            session = session_path  # Telethon accepts str path for SQLiteSession
+            print(f"DEBUG: Using SQLite session file for account {account_id}")
+        else:
+            print(f"WARNING: Session file not found at {session_path}")
+            # If we create a new session here, it will be empty.
+            # But maybe we want that for initial login?
+            # For TData import, the file MUST exist.
+            if account.source_type == 'tdata':
+                 # Try to find it relative to cwd if absolute check failed
+                 if os.path.exists(account.session_file_path):
+                      session = account.session_file_path
+                 else:
+                      raise ValueError(f"Session file missing for TData account: {account.session_file_path}")
+            else:
+                 session = StringSession('')
+    else:
+        # Default empty session
+        session = StringSession('')
+
+    # Create client
     client = TelegramClient(
-        StringSession(session_string),
+        session,
         api_id,
         api_hash,
         device_model=device_model,
