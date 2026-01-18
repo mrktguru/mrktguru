@@ -33,42 +33,45 @@ class SearchFilterExecutor:
             client: Telethon client
             account_id: Account ID
             config: Node configuration dict with keys:
-                - strategy: 'organic', 'targeted', 'hybrid'
-                - search_input: multi-line string of keywords/links
+                - keywords: multi-line string of search keywords
+                - links: multi-line string of direct links/usernames
+                - stopwords: comma-separated blacklist words
                 - language: 'EN', 'RU', 'AUTO'
         
         Returns:
             dict with success, message, discovered_count
         """
         try:
-            strategy = config.get('strategy', 'hybrid')
-            search_input = config.get('search_input', '').strip()
+            keywords_str = config.get('keywords', '').strip()
+            links_str = config.get('links', '').strip()
             language = config.get('language', 'AUTO')
             stopwords_str = config.get('stopwords', '').strip()
             
             # Parse stopwords
             stopwords = [w.strip().lower() for w in stopwords_str.split(',') if w.strip()] if stopwords_str else []
             
-            if not search_input:
-                return {'success': False, 'error': 'No search input provided'}
+            # Parse keywords and links
+            keywords = [line.strip() for line in keywords_str.split('\n') if line.strip()]
+            links = [line.strip() for line in links_str.split('\n') if line.strip()]
             
-            # Parse input lines
-            lines = [line.strip() for line in search_input.split('\n') if line.strip()]
+            if not keywords and not links:
+                return {'success': False, 'error': 'No keywords or links provided'}
             
             discovered_count = 0
             
-            for line in lines:
-                # Determine if link or keyword
-                if 't.me/' in line or line.startswith('@'):
-                    # Scenario B: Direct link
-                    result = await self._direct_link(client, account_id, line, language, stopwords)
-                else:
-                    # Scenario A: Organic search
-                    result = await self._organic_search(client, account_id, line, language, stopwords)
-                
+            # Process keywords (organic search)
+            for keyword in keywords:
+                result = await self._organic_search(client, account_id, keyword, language, stopwords)
                 if result.get('success'):
                     discovered_count += 1
-                
+                # Delay between searches (3-8 sec)
+                await asyncio.sleep(random.uniform(3, 8))
+            
+            # Process links (direct resolution)
+            for link in links:
+                result = await self._direct_link(client, account_id, link, language, stopwords)
+                if result.get('success'):
+                    discovered_count += 1
                 # Delay between searches (3-8 sec)
                 await asyncio.sleep(random.uniform(3, 8))
             

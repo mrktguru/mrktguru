@@ -318,7 +318,8 @@
 <script>
     (function () {
         // Scheduler JavaScript - wrapped in IIFE to avoid conflicts
-        const schedulerAccountId = {{ account.id }};
+        const schedulerAccountId = {{ account.id }
+    };
 
     // Account Data for Pre-filling
     const accountData = {
@@ -477,9 +478,11 @@
         if (node.config.count) summary.push(`${node.config.count}x`);
         if (node.config.channels) summary.push(`${node.config.channels.split(',').length} chs`);
         if (node.config.photo_path) summary.push('📷 set');
-        if (node.config.search_input) {
-            const lines = node.config.search_input.split('\n').filter(l => l.trim()).length;
-            summary.push(`🔍 ${lines} items`);
+        if (node.config.keywords || node.config.links) {
+            const kwCount = node.config.keywords ? node.config.keywords.split('\n').filter(l => l.trim()).length : 0;
+            const linkCount = node.config.links ? node.config.links.split('\n').filter(l => l.trim()).length : 0;
+            if (kwCount > 0) summary.push(`🔍 ${kwCount} kw`);
+            if (linkCount > 0) summary.push(`🔗 ${linkCount} links`);
         }
         return summary.length ? `<span class="d-block text-muted small" style="font-size:0.65rem">${summary.join(' • ')}</span>` : '';
     }
@@ -611,20 +614,14 @@
         else if (type === 'search_filter') {
             html += `
                 <div class="mb-3">
-                    <label class="form-label">Strategy</label>
-                    <select class="form-select" name="strategy">
-                        <option value="hybrid" ${config.strategy === 'hybrid' ? 'selected' : ''}>Hybrid (30/70 Split)</option>
-                        <option value="organic" ${config.strategy === 'organic' ? 'selected' : ''}>Organic (Generic Keywords)</option>
-                        <option value="targeted" ${config.strategy === 'targeted' ? 'selected' : ''}>Targeted (Direct Links)</option>
-                    </select>
+                    <label class="form-label">Keywords (one per line)</label>
+                    <textarea class="form-control" name="keywords" rows="3" placeholder="Interior Design\nNews NYC\nCrypto Trading">${config.keywords || ''}</textarea>
+                    <small class="form-text text-muted">Generic keywords for organic search</small>
                 </div>
                 <div class="mb-3">
-                    <label class="form-label">Keywords/Links (one per line)</label>
-                    <textarea class="form-control" name="search_input" rows="6" placeholder="Interior Design\nNews NYC\nt.me/channel\n@username">${config.search_input || ''}</textarea>
-                    <small class="form-text text-muted">
-                        Keywords: "Interior Design", "News NYC"<br>
-                        Links: t.me/username or @username
-                    </small>
+                    <label class="form-label">Links (one per line)</label>
+                    <textarea class="form-control" name="links" rows="3" placeholder="t.me/example_channel\n@username\nhttps://t.me/another">${config.links || ''}</textarea>
+                    <small class="form-text text-muted">Direct channel links or usernames</small>
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Blacklist (comma-separated)</label>
