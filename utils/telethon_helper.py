@@ -202,6 +202,14 @@ async def verify_session(account_id):
         # Step 1: minimal verification
         me = await client.get_me()
         
+        if not me:
+            return {
+                "success": False,
+                "user": None,
+                "error": "Session appears valid but not logged in (get_me returned None)",
+                "error_type": "not_logged_in"
+            }
+        
         user_data = {
             "id": me.id,
             "first_name": me.first_name,
