@@ -43,7 +43,17 @@
                             <br><small class="text-danger">{{ candidate.error_reason }}</small>
                             {% endif %}
                         </td>
-                        <td>{{ candidate.participants_count or 'N/A' }}</td>
+                        <td>
+                            {% if candidate.participants_count is none %}
+                            <span class="badge bg-secondary">Unknown</span>
+                            {% elif candidate.participants_count == 0 %}
+                            <span class="badge bg-info"
+                                title="Participant count not available (likely a very large channel)">Large
+                                Channel</span>
+                            {% else %}
+                            {{ '{:,}'.format(candidate.participants_count) }}
+                            {% endif %}
+                        </td>
                         <td>
                             {% if candidate.last_post_date %}
                             {{ candidate.last_post_date.strftime('%Y-%m-%d') }}
