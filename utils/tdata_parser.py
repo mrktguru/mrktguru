@@ -323,11 +323,10 @@ class TDataParser:
             return client.session.save()
             
         # Run async in sync wrapper
+        # Run async in sync wrapper
         try:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            session_string = loop.run_until_complete(_convert())
-            loop.close()
+            # Use asyncio.run for safe execution (handles loop creation/cleanup)
+            session_string = asyncio.run(_convert())
             return session_string
         except Exception as e:
             # Check for unauthorized error specifically (by string or import if available)
