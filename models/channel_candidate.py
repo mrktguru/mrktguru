@@ -32,6 +32,7 @@ class ChannelCandidate(db.Model):
     participants_count = db.Column(db.Integer)
     last_post_date = db.Column(db.DateTime)
     can_send_messages = db.Column(db.Boolean, default=True)
+    error_reason = db.Column(db.Text)  # Error message if status = 'FAILED'
     
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
@@ -61,6 +62,7 @@ class ChannelCandidate(db.Model):
             'participants_count': self.participants_count,
             'last_post_date': self.last_post_date.isoformat() if self.last_post_date else None,
             'can_send_messages': self.can_send_messages,
+            'error_reason': self.error_reason,
             'last_visit_ts': self.last_visit_ts.isoformat() if self.last_visit_ts else None,
             'created_at': self.created_at.isoformat() if self.created_at else None
         }

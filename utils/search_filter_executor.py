@@ -6,11 +6,13 @@ import asyncio
 import random
 import re
 import logging
+import json
 from datetime import datetime, timedelta
 from telethon.tl.functions.contacts import SearchRequest, ResolveUsernameRequest
 from telethon.tl.types import Channel, Chat, User
 from models.channel_candidate import ChannelCandidate
 from models.warmup_log import WarmupLog
+from models.activity_log import AccountActivityLog
 from database import db
 
 logger = logging.getLogger(__name__)
@@ -57,13 +59,36 @@ class SearchFilterExecutor:
             if not keywords and not links:
                 return {'success': False, 'error': 'No keywords or links provided'}
             
+            # Initialize counters
+            attempted_count = len(keywords) + len(links)
             discovered_count = 0
+            failed_count = 0
+            
+            # Log start
+            WarmupLog.log(account_id, 'info', f'Search & Filter starting: {len(keywords)} keywords, {len(links)} links', action='search_filter_start')
+            AccountActivityLog(
+                account_id=account_id,
+                action_type='search_filter_start',
+                action_category='warmup',
+                status='info',
+                description=f'Starting Search & Filter: {len(keywords)} keywords, {len(links)} links'
+            )
+            db.session.add(AccountActivityLog(
+                account_id=account_id,
+                action_type='search_filter_start',
+                action_category='warmup',
+                status='info',
+                description=f'Starting Search & Filter: {len(keywords)} keywords, {len(links)} links'
+            ))
+            db.session.commit()
             
             # Process keywords (organic search)
             for keyword in keywords:
                 result = await self._organic_search(client, account_id, keyword, language, stopwords)
                 if result.get('success'):
                     discovered_count += 1
+                else:
+                    failed_count += 1
                 # Delay between searches (3-8 sec)
                 await asyncio.sleep(random.uniform(3, 8))
             
@@ -72,15 +97,35 @@ class SearchFilterExecutor:
                 result = await self._direct_link(client, account_id, link, language, stopwords)
                 if result.get('success'):
                     discovered_count += 1
+                else:
+                    failed_count += 1
                 # Delay between searches (3-8 sec)
                 await asyncio.sleep(random.uniform(3, 8))
             
-            WarmupLog.log(account_id, 'success', f'Search & Filter completed: {discovered_count} channels discovered')
+            # Log completion with detailed stats
+            completion_msg = f'Search & Filter completed: {discovered_count} discovered, {failed_count} failed out of {attempted_count} attempts'
+            WarmupLog.log(account_id, 'success', completion_msg)
+            
+            db.session.add(AccountActivityLog(
+                account_id=account_id,
+                action_type='search_filter_complete',
+                action_category='warmup',
+                status='success',
+                description=completion_msg,
+                details=json.dumps({
+                    'attempted': attempted_count,
+                    'discovered': discovered_count,
+                    'failed': failed_count
+                })
+            ))
+            db.session.commit()
             
             return {
                 'success': True,
-                'message': f'Discovered {discovered_count} channels',
-                'discovered_count': discovered_count
+                'message': f'Discovered {discovered_count} channels ({failed_count} failed)',
+                'discovered_count': discovered_count,
+                'failed_count': failed_count,
+                'attempted_count': attempted_count
             }
             
         except Exception as e:
@@ -183,15 +228,36 @@ class SearchFilterExecutor:
                 logger.info(f"Resolved @{username}: {getattr(entity, 'title', 'Unknown')} (ID: {entity.id})")
                 WarmupLog.log(account_id, 'info', f"Resolved: {getattr(entity, 'title', username)}", action='resolve_success')
             except Exception as e:
+                error_msg = str(e)
                 logger.warning(f"Failed to resolve @{username}: {e}")
-                WarmupLog.log(account_id, 'error', f"Channel not found or private: @{username} - {str(e)}", action='resolve_failed')
-                return {'success': False, 'error': f'Failed to resolve: {str(e)}'}
+                WarmupLog.log(account_id, 'error', f"Channel not found or private: @{username} - {error_msg}", action='resolve_failed')
+                
+                # Save failed attempt to DB
+                await self._save_failed_candidate(account_id, username, error_msg, language, 'LINK')
+                
+                # Log to activity log
+                db.session.add(AccountActivityLog(
+                    account_id=account_id,
+                    action_type='channel_resolve_failed',
+                    action_category='warmup',
+                    target=f'@{username}',
+                    status='failed',
+                    description=f'Failed to resolve channel: @{username}',
+                    error_message=error_msg
+                ))
+                db.session.commit()
+                
+                return {'success': False, 'error': f'Failed to resolve: {error_msg}'}
             
             # 4. Deep inspection
             # Pre-filter before deep inspection
             if not self._pre_filter(entity, stopwords):
                 reason = self._get_prefilter_reason(entity, stopwords)
                 WarmupLog.log(account_id, 'warning', f"Pre-filtered @{username}: {reason}", action='prefilter_reject')
+                
+                # Save as failed (filtered)
+                await self._save_failed_candidate(account_id, username, f"Filtered: {reason}", language, 'LINK')
+                
                 return {'success': False, 'error': f'Filtered: {reason}'}
             
             return await self._deep_inspection(client, account_id, entity, language, 'LINK')
@@ -242,6 +308,18 @@ class SearchFilterExecutor:
             
             logger.info(f"Account {account_id}: Successfully discovered and saved '{entity.title}'")
             WarmupLog.log(account_id, 'success', f"Discovered: {entity.title}", action='discovered')
+            
+            # Log successful discovery to activity log
+            db.session.add(AccountActivityLog(
+                account_id=account_id,
+                action_type='channel_discovered',
+                action_category='warmup',
+                target=entity.title,
+                status='success',
+                description=f'Discovered channel: @{getattr(entity, "username", "unknown")}',
+                details=json.dumps({'peer_id': entity.id, 'origin': origin})
+            ))
+            db.session.commit()
             
             return {'success': True, 'entity_id': entity.id, 'title': entity.title}
             
@@ -380,6 +458,44 @@ class SearchFilterExecutor:
             
         except Exception as e:
             logger.error(f"Failed to save candidate: {e}", exc_info=True)
+            db.session.rollback()
+    
+    async def _save_failed_candidate(self, account_id, username, error_message, language, origin):
+        """Save failed channel attempt to database for tracking"""
+        try:
+            # Check if already exists
+            existing = ChannelCandidate.query.filter_by(
+                account_id=account_id,
+                username=username
+            ).first()
+            
+            if existing:
+                # Update existing with failure info
+                existing.status = 'FAILED'
+                existing.last_visit_ts = datetime.utcnow()
+                existing.error_reason = error_message
+                db.session.commit()
+                logger.info(f"Updated existing candidate as FAILED: @{username}")
+            else:
+                # Create new with FAILED status
+                candidate = ChannelCandidate(
+                    account_id=account_id,
+                    peer_id=0,  # Unknown
+                    access_hash=0,  # Unknown
+                    username=username,
+                    title=f"[Failed] {username}",
+                    type='UNKNOWN',
+                    language=language,
+                    origin=origin,
+                    status='FAILED',
+                    error_reason=error_message
+                )
+                db.session.add(candidate)
+                db.session.commit()
+                logger.info(f"Saved failed candidate to DB: @{username}")
+                
+        except Exception as e:
+            logger.error(f"Failed to save failed candidate: {e}", exc_info=True)
             db.session.rollback()
     
     def _extract_username(self, link):
