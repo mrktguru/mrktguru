@@ -286,6 +286,49 @@ class TDataParser:
         try:
             if os.path.exists(extract_dir):
                 shutil.rmtree(extract_dir)
-                logger.info(f"Cleaned up temp directory: {extract_dir}")
         except Exception as e:
             logger.warning(f"Failed to cleanup temp directory: {e}")
+
+    @staticmethod
+    def convert_to_session_string(tdata_path: str) -> str:
+        """
+        Convert TData folder to Telethon StringSession using opentele native conversion.
+        This runs the async conversion in a synchronous wrapper.
+        
+        Args:
+            tdata_path: Path to extracted tdata folder
+            
+        Returns:
+            str: The session string
+        """
+        import asyncio
+        from telethon.sessions import StringSession
+        from opentele.td import TDesktop
+        
+        # Define async conversion logic
+        async def _convert():
+            logger.info(f"Native converting TData from: {tdata_path}")
+            tdesk = TDesktop(tdata_path)
+            
+            # Check if loaded
+            if not tdesk.isLoaded():
+                raise Exception("Failed to load TData (encrypted or invalid)")
+                
+            # Convert to Telethon client with StringSession
+            # Note: We don't specify API ID/Hash to let opentele use defaults (Official Desktop)
+            # or it uses what's in TData.
+            client = await tdesk.ToTelethon(session=StringSession())
+            
+            # Save and return string
+            return client.session.save()
+            
+        # Run async in sync wrapper
+        try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            session_string = loop.run_until_complete(_convert())
+            loop.close()
+            return session_string
+        except Exception as e:
+            logger.error(f"Native TData conversion failed: {e}")
+            raise Exception(f"Native conversion failed: {str(e)}")
