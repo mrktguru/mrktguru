@@ -74,6 +74,10 @@
                                 <i class="bi bi-box-arrow-up-right"></i> Open
                             </a>
                             {% endif %}
+                            <button class="btn btn-sm btn-outline-danger"
+                                onclick="deleteChannelCandidate({{ candidate.id }}, '{{ candidate.title | e }}')">
+                                <i class="bi bi-trash"></i> Delete
+                            </button>
                         </td>
                     </tr>
                     {% endfor %}
@@ -88,3 +92,32 @@
         {% endif %}
     </div>
 </div>
+
+<script>
+    async function deleteChannelCandidate(candidateId, channelTitle) {
+        if (!confirm(`Delete "${channelTitle}" from discovered channels?`)) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`/accounts/channel_candidates/${candidateId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                // Reload page to refresh the list
+                location.reload();
+            } else {
+                alert('Error deleting channel: ' + (data.error || 'Unknown error'));
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Error deleting channel: ' + error.message);
+        }
+    }
+</script>
