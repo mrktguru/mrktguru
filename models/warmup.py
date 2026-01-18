@@ -74,24 +74,24 @@ class WarmupChannelTheme(db.Model):
         return f'<WarmupChannelTheme {self.name}>'
 
 
-# class AccountWarmupChannel(db.Model):
-#     """Channels assigned to account for warmup reading (LEGACY - TABLE DROPPED)"""
-#     __tablename__ = 'account_warmup_channels'
-#     
-#     id = db.Column(db.Integer, primary_key=True)
-#     account_id = db.Column(db.Integer, db.ForeignKey('accounts.id'), nullable=False, index=True)
-#     channel_username = db.Column(db.String(255), nullable=False)
-#     source = db.Column(db.String(50), default='manual')  # manual, theme:news, theme:tech, etc.
-#     is_active = db.Column(db.Boolean, default=True)
-#     last_read_at = db.Column(db.DateTime)
-#     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-#     
-#     # Relationships - renamed to avoid conflict with new warmup system
-#     # account = db.relationship('Account', backref=db.backref('warmup_channels_old', lazy='dynamic'))
-#     
-#     __table_args__ = (
-#         db.UniqueConstraint('account_id', 'channel_username', name='_account_warmup_channel_uc'),
-#     )
-#     
-#     def __repr__(self):
-#         return f'<AccountWarmupChannel {self.channel_username} for {self.account_id}>'
+class AccountWarmupChannel(db.Model):
+    """Channels assigned to account for warmup reading"""
+    __tablename__ = 'account_warmup_channels'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    account_id = db.Column(db.Integer, db.ForeignKey('accounts.id'), nullable=False, index=True)
+    channel_username = db.Column(db.String(255), nullable=False)
+    source = db.Column(db.String(50), default='manual')  # manual, theme:news, theme:tech, etc.
+    is_active = db.Column(db.Boolean, default=True)
+    last_read_at = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    account = db.relationship('Account', backref=db.backref('warmup_channels_old', lazy='dynamic'))
+    
+    __table_args__ = (
+        db.UniqueConstraint('account_id', 'channel_username', name='_account_warmup_channel_uc'),
+    )
+    
+    def __repr__(self):
+        return f'<AccountWarmupChannel {self.channel_username} for {self.account_id}>'
