@@ -330,5 +330,11 @@ class TDataParser:
             loop.close()
             return session_string
         except Exception as e:
+            # Check for unauthorized error specifically (by string or import if available)
+            error_str = str(e)
+            if "TDesktopUnauthorized" in error_str:
+                logger.warning(f"TData unauthorized: {e}")
+                raise Exception("This TData session is invalid or logged out (Unauthorized)")
+            
             logger.error(f"Native TData conversion failed: {e}")
             raise Exception(f"Native conversion failed: {str(e)}")
