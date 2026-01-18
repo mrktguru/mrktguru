@@ -248,101 +248,95 @@
 
                     <dt class="col-sm-4">App Version:</dt>
                     <dd class="col-sm-8">{{ account.tdata_metadata.app_version or 'N/A' }}</dd>
-                    {% elif account.device_profile %}
-                    <dl class="row mb-0">
-                        <dt class="col-sm-4">Device Model:</dt>
-                        <dd class="col-sm-8">{{ account.device_profile.device_model or 'N/A' }}</dd>
 
-                        <dt class="col-sm-4">System Version:</dt>
-                        <dd class="col-sm-8">{{ account.device_profile.system_version or 'N/A' }}</dd>
+                    <dt class="col-sm-4">Language:</dt>
+                    <dd class="col-sm-8">{{ account.tdata_metadata.lang_code or 'N/A' }} / {{
+                        account.tdata_metadata.system_lang_code or 'N/A' }}</dd>
+                </dl>
+                {% elif account.device_profile %}
+                <dl class="row mb-0">
+                    <dt class="col-sm-4">Device Model:</dt>
+                    <dd class="col-sm-8">{{ account.device_profile.device_model or 'N/A' }}</dd>
 
-                        <dt class="col-sm-4">App Version:</dt>
-                        <dd class="col-sm-8">{{ account.device_profile.app_version or 'N/A' }}</dd>
+                    <dt class="col-sm-4">System Version:</dt>
+                    <dd class="col-sm-8">{{ account.device_profile.system_version or 'N/A' }}</dd>
 
-                        <dt class="col-sm-4">Lang Code:</dt>
-                        <dd class="col-sm-8">{{ account.device_profile.lang_code or 'N/A' }}</dd>
-                        {% else %}
+                    <dt class="col-sm-4">App Version:</dt>
+                    <dd class="col-sm-8">{{ account.device_profile.app_version or 'N/A' }}</dd>
 
-                        <dt class="col-sm-4">Language:</dt>
-                        <dd class="col-sm-8">{{ account.tdata_metadata.lang_code or 'N/A' }} / {{
-                            account.tdata_metadata.system_lang_code or 'N/A' }}</dd>
-                    </dl>
-                    {% elif account.device_profile %}
-                    <dl class="row mb-0">
-                        <dt class="col-sm-4">Device Model:</dt>
-                        <dd class="col-sm-8">{{ account.device_profile.device_model }}</dd>
-
-                        <dt class="col-sm-4">System Version:</dt>
-                        <dd class="col-sm-8">{{ account.device_profile.system_version }}</dd>
-
-                        <dt class="col-sm-4">App Version:</dt>
-                        <dd class="col-sm-8">{{ account.device_profile.app_version }}</dd>
-
-                        <dt class="col-sm-4">Language:</dt>
-                        <dd class="col-sm-8">{{ account.device_profile.lang_code }} / {{
-                            account.device_profile.system_lang_code }}</dd>
-                    </dl>
-                    {% else %}
-                    <p class="text-muted">No device profile</p>
-                    {% endif %}
-            </div>
-        </div>
-
-        <div class="card mb-3">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">Proxy Assignment</h5>
-            </div>
-            <div class="card-body">
-                <form method="POST" action="{{ url_for('accounts.assign_proxy', account_id=account.id) }}">
-                    <div class="row">
-                        <div class="col-md-9">
-                            <select class="form-select" name="proxy_id">
-                                <option value="">No proxy</option>
-                                {% for proxy in proxies %}
-                                <option value="{{ proxy.id }}" {% if account.proxy_id==proxy.id %}selected{% endif %}>
-                                    {% if proxy.country %}🌍 {{ proxy.country }} - {% endif %}{{ proxy.type }}://{{
-                                    proxy.host }}:{{ proxy.port }}
-                                    {% if proxy.current_ip %}({{ proxy.current_ip }}){% endif %}
-                                </option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <div class="col-md-3">
-                            <button type="submit" class="btn btn-primary w-100">Update</button>
-                        </div>
-                    </div>
-                </form>
-
-                {% if account.proxy %}
-                <div class="mt-3 p-3 bg-light rounded">
-                    <div class="d-flex justify-content-between align-items-start">
-                        <div>
-                            <strong>Current Proxy:</strong><br>
-                            {% if account.proxy.country %}<span class="badge bg-info">🌍 {{ account.proxy.country
-                                }}</span> {% endif %}
-                            Type: {{ account.proxy.type }}<br>
-                            Host: {{ account.proxy.host }}:{{ account.proxy.port }}<br>
-                            IP: <span id="proxy-ip">{{ account.proxy.current_ip or 'Unknown' }}</span>
-                            <button class="btn btn-sm btn-outline-primary ms-2" id="refresh-ip-btn"
-                                onclick="refreshProxyIP({{ account.proxy.id }})">
-                                <i class="bi bi-arrow-clockwise"></i> Refresh IP
-                            </button>
-                            <br>
-                            Status: <span
-                                class="badge bg-{{ 'success' if account.proxy.status == 'active' else 'danger' }}">
-                                {{ account.proxy.status }}
-                            </span>
-                        </div>
-                    </div>
-                </div>
+                    <dt class="col-sm-4">Lang Code:</dt>
+                    <dd class="col-sm-8">{{ account.device_profile.lang_code or 'N/A' }}</dd>
+                </dl>
+                {% else %}
+                <p class="text-muted mb-0">No device profile</p>
                 {% endif %}
             </div>
+
+            <dt class="col-sm-4">Language:</dt>
+            <dd class="col-sm-8">{{ account.device_profile.lang_code }} / {{
+                account.device_profile.system_lang_code }}</dd>
+            </dl>
+            {% else %}
+            <p class="text-muted">No device profile</p>
+            {% endif %}
         </div>
+    </div>
+
+    <div class="card mb-3">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Proxy Assignment</h5>
+        </div>
+        <div class="card-body">
+            <form method="POST" action="{{ url_for('accounts.assign_proxy', account_id=account.id) }}">
+                <div class="row">
+                    <div class="col-md-9">
+                        <select class="form-select" name="proxy_id">
+                            <option value="">No proxy</option>
+                            {% for proxy in proxies %}
+                            <option value="{{ proxy.id }}" {% if account.proxy_id==proxy.id %}selected{% endif %}>
+                                {% if proxy.country %}🌍 {{ proxy.country }} - {% endif %}{{ proxy.type }}://{{
+                                proxy.host }}:{{ proxy.port }}
+                                {% if proxy.current_ip %}({{ proxy.current_ip }}){% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <button type="submit" class="btn btn-primary w-100">Update</button>
+                    </div>
+                </div>
+            </form>
+
+            {% if account.proxy %}
+            <div class="mt-3 p-3 bg-light rounded">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <strong>Current Proxy:</strong><br>
+                        {% if account.proxy.country %}<span class="badge bg-info">🌍 {{ account.proxy.country
+                            }}</span> {% endif %}
+                        Type: {{ account.proxy.type }}<br>
+                        Host: {{ account.proxy.host }}:{{ account.proxy.port }}<br>
+                        IP: <span id="proxy-ip">{{ account.proxy.current_ip or 'Unknown' }}</span>
+                        <button class="btn btn-sm btn-outline-primary ms-2" id="refresh-ip-btn"
+                            onclick="refreshProxyIP({{ account.proxy.id }})">
+                            <i class="bi bi-arrow-clockwise"></i> Refresh IP
+                        </button>
+                        <br>
+                        Status: <span
+                            class="badge bg-{{ 'success' if account.proxy.status == 'active' else 'danger' }}">
+                            {{ account.proxy.status }}
+                        </span>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
 
 
 
 
-        <!-- WARMUP DISABLED - OLD SYSTEM
+    <!-- WARMUP DISABLED - OLD SYSTEM
         Conversation Pairs section hidden
         Will be reimplemented in new balanced warmup system
         
@@ -352,7 +346,7 @@
         END WARMUP DISABLED -->
 
 
-        <!-- WARMUP DISABLED - OLD SYSTEM
+    <!-- WARMUP DISABLED - OLD SYSTEM
         Recent Warmup Activity section hidden
         Will be reimplemented in new balanced warmup system
         
@@ -363,12 +357,12 @@
         {% endif %}
         END WARMUP DISABLED -->
 
-        <!-- NEW WARMUP SYSTEM -->
-        {% include 'accounts/warmup_section.html' %}
+    <!-- NEW WARMUP SYSTEM -->
+    {% include 'accounts/warmup_section.html' %}
 
-        <!-- SCHEDULER UI -->
-        {% include 'accounts/scheduler_section.html' %}
-    </div>
+    <!-- SCHEDULER UI -->
+    {% include 'accounts/scheduler_section.html' %}
+</div>
 </div>
 
 <!-- Add Subscription Modal -->
