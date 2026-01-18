@@ -222,9 +222,28 @@ class SearchFilterExecutor:
             # 2. Pause "app switch" (2-4 sec)
             await asyncio.sleep(random.uniform(2, 4))
             
-            # 3. Resolve entity
+            # 3. Resolve entity - try multiple formats
             try:
-                entity = await client.get_entity(username)
+                # Try different formats for better compatibility
+                entity = None
+                last_error = None
+                
+                # Method 1: Try with @ prefix first, then without, then full URL
+                for format_attempt in [f'@{username}', username, f'https://t.me/{username}']:
+                    try:
+                        logger.debug(f"Trying to resolve: {format_attempt}")
+                        entity = await client.get_entity(format_attempt)
+                        logger.info(f"✓ Resolved @{username} using format: {format_attempt}")
+                        break  # Success!
+                    except Exception as attempt_error:
+                        last_error = attempt_error
+                        logger.debug(f"Failed with {format_attempt}: {attempt_error}")
+                        continue
+                
+                # If all attempts failed, raise the last error
+                if not entity:
+                    raise last_error if last_error else Exception("Could not resolve entity")
+                
                 logger.info(f"Resolved @{username}: {getattr(entity, 'title', 'Unknown')} (ID: {entity.id})")
                 WarmupLog.log(account_id, 'info', f"Resolved: {getattr(entity, 'title', username)}", action='resolve_success')
             except Exception as e:
