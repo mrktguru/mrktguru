@@ -547,6 +547,16 @@ def delete(account_id):
         
         # Delete channel candidates (fix for NotNullViolation)
         db.session.execute(db.text("DELETE FROM channel_candidates WHERE account_id = :aid"), {"aid": account_id})
+
+        # Delete warmup logs (fix for NotNullViolation)
+        db.session.execute(db.text("DELETE FROM warmup_logs WHERE account_id = :aid"), {"aid": account_id})
+        
+        # Delete other dependencies to be safe
+        db.session.execute(db.text("DELETE FROM warmup_settings WHERE account_id = :aid"), {"aid": account_id})
+        db.session.execute(db.text("DELETE FROM tdata_metadata WHERE account_id = :aid"), {"aid": account_id})
+        db.session.execute(db.text("DELETE FROM warmup_channels WHERE account_id = :aid"), {"aid": account_id})
+        db.session.execute(db.text("DELETE FROM warmup_stages WHERE account_id = :aid"), {"aid": account_id})
+        db.session.execute(db.text("DELETE FROM warmup_schedules WHERE account_id = :aid"), {"aid": account_id})
         
         # Delete session file and journal if exist
         if os.path.exists(account.session_file_path):
