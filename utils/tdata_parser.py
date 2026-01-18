@@ -330,12 +330,19 @@ class TDataParser:
 
         def thread_target():
             try:
+                logger.info("Conversion thread started")
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
                 session = loop.run_until_complete(_convert())
                 loop.close()
-                result_container['result'] = session
-            except Exception as thread_e:
+                if not session:
+                    result_container['error'] = Exception("Generated session string is empty")
+                else:
+                    result_container['result'] = session
+                logger.info("Conversion thread finished successfully")
+            except BaseException as thread_e:
+                # Catch EVERYTHING including GeneratorExit, etc.
+                logger.error(f"Conversion thread crashed: {thread_e}")
                 result_container['error'] = thread_e
 
         t = threading.Thread(target=thread_target)
@@ -353,4 +360,7 @@ class TDataParser:
             logger.error(f"Native TData conversion failed: {e}")
             raise Exception(f"Native conversion failed: {str(e)}")
             
-        return result_container.get('result')
+        result = result_container.get('result')
+        if not result:
+             raise Exception("Thread finished but returned no result (Unknown error)")
+        return result
