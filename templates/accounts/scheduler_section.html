@@ -271,6 +271,37 @@
         max-height: 80vh;
         overflow-y: auto;
     }
+
+    /* Executing state */
+    .scheduled-node.executing {
+        background: #fff3cd !important;
+        border-color: #ffc107 !important;
+        animation: pulse 1.5s infinite;
+    }
+
+    /* Success state */
+    .scheduled-node.node-success {
+        background: #d1e7dd !important;
+        border-color: #198754 !important;
+    }
+
+    /* Error state */
+    .scheduled-node.node-error {
+        background: #f8d7da !important;
+        border-color: #dc3545 !important;
+    }
+
+    @keyframes pulse {
+
+        0%,
+        100% {
+            opacity: 1;
+        }
+
+        50% {
+            opacity: 0.7;
+        }
+    }
 </style>
 
 <!-- Node Configuration Modal -->
@@ -318,7 +349,8 @@
 <script>
     (function () {
         // Scheduler JavaScript - wrapped in IIFE to avoid conflicts
-        const schedulerAccountId = {{ account.id }};
+        const schedulerAccountId = {{ account.id }
+    };
 
     // Account Data for Pre-filling
     const accountData = {
@@ -712,32 +744,89 @@
             config: tempConfig
         };
 
-        const btn = document.getElementById('runNodeNowBtn');
-        const originalText = btn.innerHTML;
-        btn.disabled = true;
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Running...';
+        // CLOSE MODAL IMMEDIATELY
+        configModal.hide();
 
-        try {
-            const resp = await fetch(`/scheduler/accounts/${schedulerAccountId}/run_node`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-            const data = await resp.json();
+        // Show running status on node element in calendar
+        if (currentNode.el) {
+            currentNode.el.classList.add('executing');
+            const originalHTML = currentNode.el.innerHTML;
+            currentNode.el.innerHTML = `
+                <div class="d-flex align-items-center gap-2">
+                    <span class="spinner-border spinner-border-sm text-primary"></span>
+                    <strong>${getNodeLabel(currentNode.node_type)}</strong>
+                    <span class="badge bg-warning text-dark">Running...</span>
+                </div>
+            `;
 
-            if (resp.ok) {
-                alert('✅ Node executed successfully!\nResult: ' + (data.result || 'OK'));
-                configModal.hide();
-            } else {
-                alert('❌ Execution failed: ' + data.error);
+            try {
+                const resp = await fetch(`/scheduler/accounts/${schedulerAccountId}/run_node`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await resp.json();
+
+                if (resp.ok) {
+                    // Success - update node to show success
+                    currentNode.el.classList.remove('executing');
+                    currentNode.el.classList.add('node-success');
+                    updateNodeVisuals(currentNode.el, currentNode, currentNodeDay);
+
+                    // Show success toast
+                    showToast('✅ Success', `Node executed successfully! ${data.result || data.message || ''}`, 'success');
+                } else {
+                    // Error - restore original and show error
+                    currentNode.el.classList.remove('executing');
+                    currentNode.el.classList.add('node-error');
+                    currentNode.el.innerHTML = originalHTML;
+
+                    showToast('❌ Error', data.error || 'Execution failed', 'danger');
+                }
+            } catch (err) {
+                console.error(err);
+                currentNode.el.classList.remove('executing');
+                currentNode.el.classList.add('node-error');
+                currentNode.el.innerHTML = originalHTML;
+
+                showToast('❌ Error', 'Execution error: ' + err.message, 'danger');
             }
-        } catch (err) {
-            console.error(err);
-            alert('❌ Execution error: ' + err);
-        } finally {
-            btn.disabled = false;
-            btn.innerHTML = originalText;
         }
+    }
+
+    // Helper function to show Bootstrap toast notifications
+    function showToast(title, message, type = 'info') {
+        const toastContainer = document.getElementById('toast-container') || createToastContainer();
+
+        const toast = document.createElement('div');
+        toast.className = `toast align-items-center text-white bg-${type} border-0`;
+        toast.setAttribute('role', 'alert');
+        toast.innerHTML = `
+            <div class="d-flex">
+                <div class="toast-body">
+                    <strong>${title}</strong><br>
+                    ${message}
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+            </div>
+        `;
+
+        toastContainer.appendChild(toast);
+        const bsToast = new bootstrap.Toast(toast, { delay: 5000 });
+        bsToast.show();
+
+        // Remove from DOM after hidden
+        toast.addEventListener('hidden.bs.toast', () => toast.remove());
+    }
+
+    function createToastContainer() {
+        const container = document.createElement('div');
+        container.id = 'toast-container';
+        container.className = 'toast-container position-fixed top-0 end-0 p-3';
+        container.style.zIndex = '9999';
+        document.body.appendChild(container);
+        return container;
     }
 
     function saveConfig() {
