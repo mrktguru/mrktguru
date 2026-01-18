@@ -537,7 +537,11 @@ def delete(account_id):
         db.session.execute(db.text("DELETE FROM dm_messages WHERE account_id = :aid"), {"aid": account_id})
         
         # Delete warmup-related records
-        db.session.execute(db.text("DELETE FROM account_warmup_channels WHERE account_id = :aid"), {"aid": account_id})
+        try:
+            db.session.execute(db.text("DELETE FROM account_warmup_channels WHERE account_id = :aid"), {"aid": account_id})
+        except Exception:
+            # Ignore if table doesn't exist (legacy/migration issue)
+            pass
         db.session.execute(db.text("DELETE FROM warmup_activities WHERE account_id = :aid"), {"aid": account_id})
         db.session.execute(db.text("DELETE FROM conversation_pairs WHERE account_a_id = :aid OR account_b_id = :aid"), {"aid": account_id})
         
