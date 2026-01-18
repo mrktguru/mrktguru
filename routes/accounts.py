@@ -1464,3 +1464,29 @@ def sync_profile_from_telegram(account_id):
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
         loop.close()
+
+
+@accounts_bp.route('/channel_candidates/<int:candidate_id>', methods=['DELETE'])
+@login_required
+def delete_channel_candidate(candidate_id):
+    """Delete a channel candidate from the database"""
+    try:
+        from models.channel_candidate import ChannelCandidate
+        
+        candidate = ChannelCandidate.query.get(candidate_id)
+        
+        if not candidate:
+            return jsonify({'error': 'Channel candidate not found'}), 404
+        
+        channel_title = candidate.title
+        db.session.delete(candidate)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Channel "{channel_title}" deleted successfully'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
