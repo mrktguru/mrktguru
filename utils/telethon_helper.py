@@ -187,14 +187,25 @@ def get_telethon_client(account_id, proxy=None):
     )
     
     # Save session back to DB on disconnect (if modified)
+    # Save session back to DB on disconnect (if modified)
     original_disconnect = client.disconnect
+    
+    # Store initial state for comparison
+    using_string_session = isinstance(session, StringSession)
+    initial_session_string = account.session_string or ''
+
     async def disconnect_and_save():
-        # Save session string before disconnecting
-        if client.session and client.is_connected():
+        # Save session string before disconnecting IF using StringSession
+        if using_string_session and client.session and client.is_connected():
+            # For StringSession, save() returns the string
             new_session_string = client.session.save()
-            if new_session_string != session_string:
-                account.session_string = new_session_string
-                db.session.commit()
+            if new_session_string and new_session_string != initial_session_string:
+                try:
+                    account.session_string = new_session_string
+                    db.session.commit()
+                except Exception as e:
+                    print(f"Error saving session string: {e}")
+                    db.session.rollback()
         await original_disconnect()
     
     client.disconnect = disconnect_and_save
