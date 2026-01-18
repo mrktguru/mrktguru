@@ -479,12 +479,11 @@
             });
     }
 
-    // Check Account Health Function (separate from verification) corrected new2
+    // Check Account Health Function (separate from verification)
     function checkAccountHealth(method) {
-        const accountId = {{ account.id }};
-    }
+        const accountId = {{ account.id }
+    };
 
-    }
     const methodNames = {
         'self_check': 'Self-Check',
         'public_channel': 'Public Channel',
@@ -513,10 +512,10 @@
                 const alert = document.createElement('div');
                 alert.className = 'alert alert-success alert-dismissible fade show mt-3';
                 alert.innerHTML = `
-                    <strong>✅ Account is Alive!</strong> Check via ${methodNames[method]} successful.
-                    <br><small>Duration: ${data.duration || 'N/A'} | User: ${userDisplay}</small>
-                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                `;
+                        <strong>✅ Account is Alive!</strong> Check via ${methodNames[method]} successful.
+                        <br><small>Duration: ${data.duration || 'N/A'} | User: ${userDisplay}</small>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    `;
                 btn.parentElement.parentElement.appendChild(alert);
 
                 // Auto-dismiss after 10 seconds
@@ -538,9 +537,9 @@
                 const alert = document.createElement('div');
                 alert.className = `alert ${alertClass} alert-dismissible fade show mt-3`;
                 alert.innerHTML = `
-                    <strong>${icon} ${errorType === 'cooldown' ? 'Cooldown Active' : 'Error'}</strong> ${data.error}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                `;
+                        <strong>${icon} ${errorType === 'cooldown' ? 'Cooldown Active' : 'Error'}</strong> ${data.error}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    `;
                 btn.parentElement.parentElement.appendChild(alert);
 
                 // Auto-dismiss after 10 seconds
@@ -552,9 +551,9 @@
             const alert = document.createElement('div');
             alert.className = 'alert alert-danger alert-dismissible fade show mt-3';
             alert.innerHTML = `
-                <strong>❌ Network Error!</strong> ${error.message}
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            `;
+                    <strong>❌ Network Error!</strong> ${error.message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                `;
             btn.parentElement.parentElement.appendChild(alert);
             setTimeout(() => alert.remove(), 5000);
         })
