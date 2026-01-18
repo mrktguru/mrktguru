@@ -248,29 +248,43 @@
 
                     <dt class="col-sm-4">App Version:</dt>
                     <dd class="col-sm-8">{{ account.tdata_metadata.app_version or 'N/A' }}</dd>
+                    {% elif account.device_profile %}
+                    <dl class="row mb-0">
+                        <dt class="col-sm-4">Device Model:</dt>
+                        <dd class="col-sm-8">{{ account.device_profile.device_model or 'N/A' }}</dd>
 
-                    <dt class="col-sm-4">Language:</dt>
-                    <dd class="col-sm-8">{{ account.tdata_metadata.lang_code or 'N/A' }} / {{
-                        account.tdata_metadata.system_lang_code or 'N/A' }}</dd>
-                </dl>
-                {% elif account.device_profile %}
-                <dl class="row mb-0">
-                    <dt class="col-sm-4">Device Model:</dt>
-                    <dd class="col-sm-8">{{ account.device_profile.device_model }}</dd>
+                        <dt class="col-sm-4">System Version:</dt>
+                        <dd class="col-sm-8">{{ account.device_profile.system_version or 'N/A' }}</dd>
 
-                    <dt class="col-sm-4">System Version:</dt>
-                    <dd class="col-sm-8">{{ account.device_profile.system_version }}</dd>
+                        <dt class="col-sm-4">App Version:</dt>
+                        <dd class="col-sm-8">{{ account.device_profile.app_version or 'N/A' }}</dd>
 
-                    <dt class="col-sm-4">App Version:</dt>
-                    <dd class="col-sm-8">{{ account.device_profile.app_version }}</dd>
+                        <dt class="col-sm-4">Lang Code:</dt>
+                        <dd class="col-sm-8">{{ account.device_profile.lang_code or 'N/A' }}</dd>
+                        {% else %}
 
-                    <dt class="col-sm-4">Language:</dt>
-                    <dd class="col-sm-8">{{ account.device_profile.lang_code }} / {{
-                        account.device_profile.system_lang_code }}</dd>
-                </dl>
-                {% else %}
-                <p class="text-muted">No device profile</p>
-                {% endif %}
+                        <dt class="col-sm-4">Language:</dt>
+                        <dd class="col-sm-8">{{ account.tdata_metadata.lang_code or 'N/A' }} / {{
+                            account.tdata_metadata.system_lang_code or 'N/A' }}</dd>
+                    </dl>
+                    {% elif account.device_profile %}
+                    <dl class="row mb-0">
+                        <dt class="col-sm-4">Device Model:</dt>
+                        <dd class="col-sm-8">{{ account.device_profile.device_model }}</dd>
+
+                        <dt class="col-sm-4">System Version:</dt>
+                        <dd class="col-sm-8">{{ account.device_profile.system_version }}</dd>
+
+                        <dt class="col-sm-4">App Version:</dt>
+                        <dd class="col-sm-8">{{ account.device_profile.app_version }}</dd>
+
+                        <dt class="col-sm-4">Language:</dt>
+                        <dd class="col-sm-8">{{ account.device_profile.lang_code }} / {{
+                            account.device_profile.system_lang_code }}</dd>
+                    </dl>
+                    {% else %}
+                    <p class="text-muted">No device profile</p>
+                    {% endif %}
             </div>
         </div>
 
@@ -480,7 +494,8 @@
 
     // Check Account Health Function (separate from verification) corrected new2
     function checkAccountHealth(method) {
-        const accountId = {{ account.id }};
+        const accountId = {{ account.id }
+    };
     }
 
     }
