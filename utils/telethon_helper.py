@@ -197,19 +197,35 @@ async def verify_session(account_id):
     
     client = None
     try:
+        print(f"DEBUG: verify_session started for account {account_id}")
         client = get_telethon_client(account_id)
         await client.connect()
         
+        if not client.is_connected():
+             raise Exception("Client failed to connect")
+
         # Step 1: minimal verification
+        print("DEBUG: Calling get_me()...")
         me = await client.get_me()
+        print(f"DEBUG: get_me() returned: {me}")
         
-        if not me:
+        if me is None:
+            print("DEBUG: me is None!")
             return {
                 "success": False,
                 "user": None,
-                "error": "Session appears valid but not logged in (get_me returned None)",
+                "error": "Session valid but not logged in (get_me returned None) - PLEASE RELOGIN",
                 "error_type": "not_logged_in"
             }
+            
+        if not hasattr(me, 'id'):
+             print(f"DEBUG: me has no id! Type: {type(me)}")
+             return {
+                "success": False,
+                "user": None,
+                "error": f"Invalid user object returned: {type(me)}",
+                "error_type": "invalid_response"
+             }
         
         user_data = {
             "id": me.id,
