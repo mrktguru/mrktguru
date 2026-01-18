@@ -262,10 +262,12 @@
 </style>
 
 
-.node-config-modal {
-max-height: 80vh;
-overflow-y: auto;
-}
+<style>
+    .node-config-modal {
+        padding: 1rem;
+        max-height: 80vh;
+        overflow-y: auto;
+    }
 </style>
 
 <!-- Node Configuration Modal -->
@@ -313,7 +315,8 @@ overflow-y: auto;
 <script>
     (function () {
         // Scheduler JavaScript - wrapped in IIFE to avoid conflicts
-        const schedulerAccountId = {{ account.id }};
+        const schedulerAccountId = {{ account.id }
+    };
 
     // Account Data for Pre-filling
     const accountData = {
