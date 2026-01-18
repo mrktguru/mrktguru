@@ -114,6 +114,7 @@ class SearchFilterExecutor:
             
             if not results or not results.results:
                 logger.info(f"Account {account_id}: No results for '{keyword}'")
+                WarmupLog.log(account_id, 'warning', f"No search results for keyword: {keyword}", action='search_empty')
                 return {'success': False, 'error': 'No results'}
             
             # 3. Simulate scrolling (2-5 sec pause)
@@ -132,10 +133,17 @@ class SearchFilterExecutor:
                 chat._custom_stopwords = stopwords  # Pass to pre_filter via attribute
                 if self._pre_filter(chat, stopwords):
                     valid_results.append(chat)
+                else:
+                    # Log why filtered
+                    reason = self._get_prefilter_reason(chat, stopwords)
+                    logger.info(f"Pre-filtered '{getattr(chat, 'title', 'Unknown')}': {reason}")
             
             if not valid_results:
-                logger.info(f"Account {account_id}: No valid results after filtering")
+                logger.info(f"Account {account_id}: No valid results after filtering for '{keyword}'")
+                WarmupLog.log(account_id, 'warning', f"All search results filtered out for: {keyword}", action='search_filtered')
                 return {'success': False, 'error': 'All results filtered out'}
+            
+            WarmupLog.log(account_id, 'info', f"Found {len(valid_results)} valid channels for keyword: {keyword}", action='search_found')
             
             # Pick random from top-5 (or all if less than 5)
             candidate = random.choice(valid_results[:5])
@@ -174,6 +182,7 @@ class SearchFilterExecutor:
                 entity = await client.get_entity(username)
             except Exception as e:
                 logger.warning(f"Failed to resolve @{username}: {e}")
+                WarmupLog.log(account_id, 'error', f"Channel not found or private: @{username} - {str(e)}", action='resolve_failed')
                 return {'success': False, 'error': f'Failed to resolve: {str(e)}'}
             
             # 4. Deep inspection
@@ -208,7 +217,7 @@ class SearchFilterExecutor:
             
             if not validation['is_valid']:
                 logger.info(f"Account {account_id}: Entity {entity.id} rejected: {validation['reason']}")
-                WarmupLog.log(account_id, 'info', f"Rejected {entity.title}: {validation['reason']}", action='filtered')
+                WarmupLog.log(account_id, 'warning', f"Channel rejected '{entity.title}': {validation['reason']}", action='validation_failed')
                 return {'success': False, 'error': validation['reason']}
             
             # Save to database
@@ -246,6 +255,27 @@ class SearchFilterExecutor:
         # Calculate read time based on message count
         read_time = min(len(messages) * random.uniform(1, 2), 15)  # Max 15 sec
         await asyncio.sleep(read_time)
+    
+    def _get_prefilter_reason(self, entity, stopwords=None):
+        """Get reason why entity was pre-filtered"""
+        from telethon.tl.types import User
+        
+        # Check bots
+        if isinstance(entity, User) and entity.bot:
+            return "Bot account"
+        
+        # Check if already left
+        if hasattr(entity, 'left') and entity.left:
+            return "Already left this channel"
+        
+        # Check title for stopwords
+        if stopwords:
+            title = getattr(entity, 'title', '').lower()
+            for word in stopwords:
+                if word in title:
+                    return f"Blacklisted word '{word}' in title"
+        
+        return "Unknown reason"
     
     def _pre_filter(self, entity, stopwords=None):
         """Pre-filter checks (before deep inspection)"""
