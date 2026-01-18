@@ -223,106 +223,47 @@ def configure_tdata(account_id):
                     flash(f"⚠️ Invalid auth_key format: {e}", "warning")
             
             # ==================== CREATE SESSION FILE FROM TDATA ====================
-            # Create Telethon session file from TData auth_key using direct SQLite
+            # ==================== CREATE SESSION FILE FROM TDATA ====================
+            # Use native opentele conversion to StringSession (Robust & Modern)
             try:
-                import sqlite3
+                logger.info(f"Converting TData to StringSession for account {account_id}")
                 
-                logger.info(f"Creating session file from TData for account {account_id}")
+                if not account.tdata_archive_path or not os.path.exists(account.tdata_archive_path):
+                     raise Exception("TData archive file missing")
+                     
+                # 1. Extract archive to temp
+                temp_dir = f"uploads/temp_convert_{uuid.uuid4()}"
+                extract_result = TDataParser.extract_archive(account.tdata_archive_path, temp_dir)
+                tdata_path = extract_result['tdata_path']
                 
-                # Get decrypted auth_key
-                auth_key_bytes = decrypt_auth_key(account.tdata_metadata.auth_key)
+                # 2. Convert to string session
+                session_string = TDataParser.convert_to_session_string(tdata_path)
                 
-                # Create session file path
-                session_dir = f"uploads/sessions/{account.phone}"
-                os.makedirs(session_dir, exist_ok=True)
-                session_file = os.path.join(session_dir, f"{account.phone}.session")
+                if not session_string:
+                     raise Exception("Conversion returned empty session string")
+                     
+                # 3. Save to DB
+                account.session_string = session_string
                 
-                # Get TData metadata
-                tdata = account.tdata_metadata
+                # 4. Clear legacy file path if present (we switched to DB storage)
+                if account.session_file_path and os.path.exists(account.session_file_path):
+                     try:
+                         os.remove(account.session_file_path)
+                     except:
+                         pass
+                account.session_file_path = None
                 
-                # DC server mapping
-                dc_servers = {
-                    1: ('149.154.175.53', 443),
-                    2: ('149.154.167.51', 443),
-                    3: ('149.154.175.100', 443),
-                    4: ('149.154.167.91', 443),
-                    5: ('91.108.56.130', 443),
-                }
+                # 5. Cleanup temp
+                TDataParser.cleanup_temp(temp_dir)
                 
-                dc_id = tdata.dc_id or 2
-                server_address, port = dc_servers.get(dc_id, dc_servers[2])
+                logger.info(f"✅ Session string generated and saved successfully")
+                flash("✅ TData converted to session successfully!", "success")
                 
-                # Create SQLite session file directly
-                conn = sqlite3.connect(session_file)
-                c = conn.cursor()
-                
-                # Create sessions table (Telethon format)
-                c.execute('''
-                    CREATE TABLE IF NOT EXISTS sessions (
-                        dc_id INTEGER PRIMARY KEY,
-                        server_address TEXT,
-                        port INTEGER,
-                        auth_key BLOB,
-                        takeout_id INTEGER
-                    )
-                ''')
-                
-                # Create version table
-                c.execute('CREATE TABLE IF NOT EXISTS version (version INTEGER PRIMARY KEY)')
-                c.execute('INSERT OR REPLACE INTO version VALUES (8)')  # Telethon session version
-                
-                # Create update_state table (required by Telethon)
-                c.execute('''
-                    CREATE TABLE IF NOT EXISTS update_state (
-                        id INTEGER PRIMARY KEY,
-                        pts INTEGER,
-                        qts INTEGER,
-                        date INTEGER,
-                        seq INTEGER
-                    )
-                ''')
-                
-                # Create entities table (required by Telethon)
-                c.execute('''
-                    CREATE TABLE IF NOT EXISTS entities (
-                        id INTEGER PRIMARY KEY,
-                        hash INTEGER NOT NULL,
-                        username TEXT,
-                        phone INTEGER,
-                        name TEXT,
-                        date INTEGER
-                    )
-                ''')
-                
-                # Create sent_files table (required by Telethon)
-                c.execute('''
-                    CREATE TABLE IF NOT EXISTS sent_files (
-                        md5_digest BLOB,
-                        file_size INTEGER,
-                        type INTEGER,
-                        id INTEGER,
-                        hash INTEGER,
-                        PRIMARY KEY (md5_digest, file_size, type)
-                    )
-                ''')
-                
-                # Insert DC and auth_key
-                logger.info(f"DEBUG: Creating session with DC={dc_id}, Server={server_address}:{port}")
-                logger.info(f"DEBUG: Auth Key Length: {len(auth_key_bytes)} bytes")
-                
-                c.execute('''
-                    INSERT OR REPLACE INTO sessions (dc_id, server_address, port, auth_key, takeout_id)
-                    VALUES (?, ?, ?, ?, NULL)
-                ''', (dc_id, server_address, port, auth_key_bytes))
-                
-                conn.commit()
-                conn.close()
-                
-                # Update account session path
-                account.session_file_path = session_file
-                
-                logger.info(f"✅ Session file created: {session_file} (DC: {dc_id})")
-                flash("✅ Session file created from TData", "success")
+            except Exception as e:
+                logger.error(f"Session conversion error: {e}", exc_info=True)
+                flash(f"⚠️ Warning: Could not create session: {str(e)}", "warning")
+                if 'temp_dir' in locals():
+                     TDataParser.cleanup_temp(temp_dir)
                 
             except Exception as e:
                 logger.error(f"Session creation error: {e}", exc_info=True)
