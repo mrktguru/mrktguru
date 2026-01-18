@@ -282,10 +282,6 @@ class SearchFilterExecutor:
         if isinstance(entity, User) and entity.bot:
             return "Bot account"
         
-        # Check if already left
-        if hasattr(entity, 'left') and entity.left:
-            return "Already left this channel"
-        
         # Check title for stopwords
         if stopwords:
             title = getattr(entity, 'title', '').lower()
@@ -299,10 +295,6 @@ class SearchFilterExecutor:
         """Pre-filter checks (before deep inspection)"""
         # Skip bots
         if isinstance(entity, User) and entity.bot:
-            return False
-        
-        # Skip if already left
-        if hasattr(entity, 'left') and entity.left:
             return False
         
         # Check title for stopwords
