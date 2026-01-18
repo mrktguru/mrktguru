@@ -186,7 +186,8 @@ async def verify_session(account_id):
         FloodWaitError, 
         UserDeactivatedError, 
         UserDeactivatedBanError,
-        AuthKeyError
+        AuthKeyError,
+        ApiKeyInvalidError
     )
     from models.account import Account
     from database import db
@@ -250,8 +251,15 @@ async def verify_session(account_id):
         return {
             "success": False,
             "user": None,
-            "error": "Session is invalid (AuthKeyError)",
+            "error": "Session is invalid (AuthKeyError) - session file mismatch",
             "error_type": "invalid_session"
+        }
+    except ApiKeyInvalidError as e:
+        return {
+            "success": False,
+            "user": None,
+            "error": "The API ID/Hash is invalid or revoked by Telegram",
+            "error_type": "invalid_api_key"
         }
     except Exception as e:
         return {
