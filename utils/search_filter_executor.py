@@ -180,6 +180,8 @@ class SearchFilterExecutor:
             # 3. Resolve entity
             try:
                 entity = await client.get_entity(username)
+                logger.info(f"Resolved @{username}: {getattr(entity, 'title', 'Unknown')} (ID: {entity.id})")
+                WarmupLog.log(account_id, 'info', f"Resolved: {getattr(entity, 'title', username)}", action='resolve_success')
             except Exception as e:
                 logger.warning(f"Failed to resolve @{username}: {e}")
                 WarmupLog.log(account_id, 'error', f"Channel not found or private: @{username} - {str(e)}", action='resolve_failed')
@@ -188,7 +190,9 @@ class SearchFilterExecutor:
             # 4. Deep inspection
             # Pre-filter before deep inspection
             if not self._pre_filter(entity, stopwords):
-                return {'success': False, 'error': 'Filtered by stopwords'}
+                reason = self._get_prefilter_reason(entity, stopwords)
+                WarmupLog.log(account_id, 'warning', f"Pre-filtered @{username}: {reason}", action='prefilter_reject')
+                return {'success': False, 'error': f'Filtered: {reason}'}
             
             return await self._deep_inspection(client, account_id, entity, language, 'LINK')
             
@@ -206,8 +210,17 @@ class SearchFilterExecutor:
             origin: 'SEARCH' or 'LINK'
         """
         try:
+            logger.info(f"Starting deep inspection for: {getattr(entity, 'title', 'Unknown')} (ID: {entity.id})")
+            WarmupLog.log(account_id, 'info', f"Inspecting: {getattr(entity, 'title', 'Unknown')}", action='inspect_start')
+            
             # Get messages (= "visit" for Telegram)
-            messages = await client.get_messages(entity, limit=10)
+            try:
+                messages = await client.get_messages(entity, limit=10)
+                logger.info(f"Retrieved {len(messages)} messages")
+            except Exception as msg_err:
+                logger.error(f"Failed to get messages: {msg_err}")
+                WarmupLog.log(account_id, 'error', f"Cannot read messages: {str(msg_err)}", action='messages_failed')
+                return {'success': False, 'error': f'Cannot read messages: {str(msg_err)}'}
             
             # Emulate reading
             await self._emulate_reading(messages)
@@ -221,7 +234,11 @@ class SearchFilterExecutor:
                 return {'success': False, 'error': validation['reason']}
             
             # Save to database
-            await self._save_candidate(account_id, entity, messages, language, origin, validation)
+            try:
+                await self._save_candidate(account_id, entity, messages, language, origin, validation)
+            except Exception as save_err:
+                logger.error(f"Failed to save candidate: {save_err}", exc_info=True)
+                WarmupLog.log(account_id, 'error', f"Failed to save to DB: {str(save_err)}", action='save_failed')
             
             logger.info(f"Account {account_id}: Successfully discovered and saved '{entity.title}'")
             WarmupLog.log(account_id, 'success', f"Discovered: {entity.title}", action='discovered')
@@ -229,7 +246,8 @@ class SearchFilterExecutor:
             return {'success': True, 'entity_id': entity.id, 'title': entity.title}
             
         except Exception as e:
-            logger.error(f"Deep inspection failed: {e}")
+            logger.error(f"Deep inspection failed: {e}", exc_info=True)
+            WarmupLog.log(account_id, 'error', f"Inspection error: {str(e)}", action='inspect_error')
             return {'success': False, 'error': str(e)}
     
     # ==================== HELPER METHODS ====================
