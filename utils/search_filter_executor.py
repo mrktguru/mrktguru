@@ -64,21 +64,17 @@ class SearchFilterExecutor:
             discovered_count = 0
             failed_count = 0
             
-            # Log start
+            logger.info(f"Account {account_id}: Starting Search & Filter - {len(keywords)} keywords, {len(links)} links")
             WarmupLog.log(account_id, 'info', f'Search & Filter starting: {len(keywords)} keywords, {len(links)} links', action='search_filter_start')
-            AccountActivityLog(
-                account_id=account_id,
-                action_type='search_filter_start',
-                action_category='warmup',
-                status='info',
-                description=f'Starting Search & Filter: {len(keywords)} keywords, {len(links)} links'
-            )
+            
+            # Create activity log for start
             db.session.add(AccountActivityLog(
                 account_id=account_id,
                 action_type='search_filter_start',
                 action_category='warmup',
                 status='info',
-                description=f'Starting Search & Filter: {len(keywords)} keywords, {len(links)} links'
+                description=f'Starting Search & Filter: {len(keywords)} keywords, {len(links)} links',
+                details=json.dumps({'keywords': keywords, 'links': links})
             ))
             db.session.commit()
             
@@ -173,14 +169,13 @@ class SearchFilterExecutor:
             # 4. Extract channels from results
             valid_results = []
             for result in results.results[:20]:  # Check top 20
-                # Get the actual channel entity from chats dict
-                peer = result.peer
+                # result itself is the Peer object
                 chat_id = None
                 
-                if hasattr(peer, 'channel_id'):
-                    chat_id = peer.channel_id
-                elif hasattr(peer, 'chat_id'):
-                    chat_id = peer.chat_id
+                if hasattr(result, 'channel_id'):
+                    chat_id = result.channel_id
+                elif hasattr(result, 'chat_id'):
+                    chat_id = result.chat_id
                 else:
                     continue
                 
