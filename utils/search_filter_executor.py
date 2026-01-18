@@ -15,9 +15,6 @@ from database import db
 
 logger = logging.getLogger(__name__)
 
-# Blacklist keywords for filtering
-STOPWORDS = ['casino', 'abuz', 'dark', 'scam', 'porn', 'xxx', 'dating', 'naked']
-
 
 class SearchFilterExecutor:
     """
@@ -47,6 +44,10 @@ class SearchFilterExecutor:
             strategy = config.get('strategy', 'hybrid')
             search_input = config.get('search_input', '').strip()
             language = config.get('language', 'AUTO')
+            stopwords_str = config.get('stopwords', '').strip()
+            
+            # Parse stopwords
+            stopwords = [w.strip().lower() for w in stopwords_str.split(',') if w.strip()] if stopwords_str else []
             
             if not search_input:
                 return {'success': False, 'error': 'No search input provided'}
@@ -60,10 +61,10 @@ class SearchFilterExecutor:
                 # Determine if link or keyword
                 if 't.me/' in line or line.startswith('@'):
                     # Scenario B: Direct link
-                    result = await self._direct_link(client, account_id, line, language)
+                    result = await self._direct_link(client, account_id, line, language, stopwords)
                 else:
                     # Scenario A: Organic search
-                    result = await self._organic_search(client, account_id, line, language)
+                    result = await self._organic_search(client, account_id, line, language, stopwords)
                 
                 if result.get('success'):
                     discovered_count += 1
@@ -84,7 +85,7 @@ class SearchFilterExecutor:
             WarmupLog.log(account_id, 'error', f'Search & Filter failed: {str(e)}')
             return {'success': False, 'error': str(e)}
     
-    async def _organic_search(self, client, account_id, keyword, language):
+    async def _organic_search(self, client, account_id, keyword, language, stopwords):
         """
         Scenario A: Organic search using contacts.Search
         
@@ -125,7 +126,8 @@ class SearchFilterExecutor:
                     continue
                 
                 # Pre-filter
-                if self._pre_filter(chat):
+                chat._custom_stopwords = stopwords  # Pass to pre_filter via attribute
+                if self._pre_filter(chat, stopwords):
                     valid_results.append(chat)
             
             if not valid_results:
@@ -142,7 +144,7 @@ class SearchFilterExecutor:
             logger.error(f"Organic search failed: {e}")
             return {'success': False, 'error': str(e)}
     
-    async def _direct_link(self, client, account_id, link, language):
+    async def _direct_link(self, client, account_id, link, language, stopwords):
         """
         Scenario B: Direct link resolution
         
@@ -172,6 +174,10 @@ class SearchFilterExecutor:
                 return {'success': False, 'error': f'Failed to resolve: {str(e)}'}
             
             # 4. Deep inspection
+            # Pre-filter before deep inspection
+            if not self._pre_filter(entity, stopwords):
+                return {'success': False, 'error': 'Filtered by stopwords'}
+            
             return await self._deep_inspection(client, account_id, entity, language, 'LINK')
             
         except Exception as e:
@@ -238,7 +244,7 @@ class SearchFilterExecutor:
         read_time = min(len(messages) * random.uniform(1, 2), 15)  # Max 15 sec
         await asyncio.sleep(read_time)
     
-    def _pre_filter(self, entity):
+    def _pre_filter(self, entity, stopwords=None):
         """Pre-filter checks (before deep inspection)"""
         # Skip bots
         if isinstance(entity, User) and entity.bot:
@@ -249,8 +255,9 @@ class SearchFilterExecutor:
             return False
         
         # Check title for stopwords
-        title = getattr(entity, 'title', '').lower()
-        if any(word in title for word in STOPWORDS):
+        if stopwords:
+            title = getattr(entity, 'title', '').lower()
+            if any(word in title for word in stopwords):
             return False
         
         return True

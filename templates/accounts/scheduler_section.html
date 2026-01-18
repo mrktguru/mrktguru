@@ -628,6 +628,13 @@
                     </small>
                 </div>
                 <div class="mb-3">
+                    <label class="form-label">Blacklist (comma-separated)</label>
+                    <input type="text" class="form-control" name="stopwords" 
+                        value="${config.stopwords || 'casino, abuz, dark, scam, porn, xxx, dating, naked'}" 
+                        placeholder="casino, scam, porn">
+                    <small class="form-text text-muted">Channels containing these words in title will be skipped</small>
+                </div>
+                <div class="mb-3">
                     <label class="form-label">Language</label>
                     <select class="form-select" name="language">
                         <option value="AUTO" ${config.language === 'AUTO' ? 'selected' : ''}>Auto-detect</option>
