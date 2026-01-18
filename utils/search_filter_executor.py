@@ -404,16 +404,40 @@ class SearchFilterExecutor:
     
     async def _validate(self, entity, messages):
         """Deep validation checks"""
+        from telethon.tl.functions.channels import GetFullChannelRequest
+        
         # Check type (Channel or Megagroup)
         if not isinstance(entity, Channel):
             return {'is_valid': False, 'reason': 'Not a channel/group'}
         
         # Check size - handle None from Telegram API
-        participants_count = getattr(entity, 'participants_count', None) or 0
-        if participants_count < 500:
-            return {'is_valid': False, 'reason': f'Too small ({participants_count} members)'}
-        if participants_count > 30000:
-            return {'is_valid': False, 'reason': f'Too large ({participants_count} members)'}
+        # For large channels, basic entity doesn't include participants_count
+        participants_count = getattr(entity, 'participants_count', None)
+        
+        # If participants_count is None or 0, try to get full channel info
+        if not participants_count:
+            try:
+                from telethon.tl.functions.channels import GetFullChannelRequest
+                full_channel = await self.client.get_entity(entity)
+                full_info = await self.client(GetFullChannelRequest(channel=entity))
+                participants_count = getattr(full_info.full_chat, 'participants_count', None)
+                logger.info(f"Retrieved full channel info: {participants_count} participants")
+            except Exception as e:
+                logger.warning(f"Could not get full channel info: {e}")
+                # If we can't get participant count, skip size validation
+                # (likely a large channel where count is hidden)
+                participants_count = None
+        
+        # Only validate size if we have the count
+        if participants_count is not None:
+            if participants_count < 500:
+                return {'is_valid': False, 'reason': f'Too small ({participants_count} members)'}
+            if participants_count > 30000:
+                return {'is_valid': False, 'reason': f'Too large ({participants_count} members)'}
+        else:
+            # For channels without participant count (large channels), assume valid
+            logger.info("Participant count unavailable, skipping size validation")
+            participants_count = 0  # Set to 0 for DB storage
         
         # Check liveness (last post < 7 days)
         if messages and len(messages) > 0:
@@ -434,7 +458,7 @@ class SearchFilterExecutor:
         
         return {
             'is_valid': True,
-            'participants_count': participants_count,
+            'participants_count': participants_count or 0,
             'last_post_date': messages[0].date if messages and len(messages) > 0 else None,
             'can_send_messages': can_send_messages
         }
