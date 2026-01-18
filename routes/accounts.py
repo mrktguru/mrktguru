@@ -327,6 +327,11 @@ def verify(account_id):
     
     account = Account.query.get_or_404(account_id)
     
+    # Pre-check: Ensure session is configured
+    if not account.session_string and not (account.session_file_path and os.path.exists(account.session_file_path)):
+        flash("Cannot verify: No session data configured. Please configure TData or login.", "error")
+        return redirect(url_for('accounts.detail', account_id=account_id))
+    
     # 1. Cooldown check (5 minutes)
     if hasattr(account, 'last_verification_attempt') and account.last_verification_attempt:
         seconds_since = (datetime.now() - account.last_verification_attempt).total_seconds()
