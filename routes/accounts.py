@@ -545,6 +545,9 @@ def delete(account_id):
         db.session.execute(db.text("DELETE FROM warmup_activities WHERE account_id = :aid"), {"aid": account_id})
         db.session.execute(db.text("DELETE FROM conversation_pairs WHERE account_a_id = :aid OR account_b_id = :aid"), {"aid": account_id})
         
+        # Delete channel candidates (fix for NotNullViolation)
+        db.session.execute(db.text("DELETE FROM channel_candidates WHERE account_id = :aid"), {"aid": account_id})
+        
         # Delete session file and journal if exist
         if os.path.exists(account.session_file_path):
             os.remove(account.session_file_path)
