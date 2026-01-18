@@ -258,7 +258,7 @@ class SearchFilterExecutor:
         if stopwords:
             title = getattr(entity, 'title', '').lower()
             if any(word in title for word in stopwords):
-            return False
+                return False
         
         return True
     
