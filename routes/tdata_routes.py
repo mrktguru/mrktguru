@@ -251,7 +251,8 @@ def configure_tdata(account_id):
                          os.remove(account.session_file_path)
                      except:
                          pass
-                account.session_file_path = None
+                # Set to empty string because DB column is NOT NULL
+                account.session_file_path = ''
                 
                 # 5. Cleanup temp
                 TDataParser.cleanup_temp(temp_dir)
