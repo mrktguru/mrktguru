@@ -408,19 +408,22 @@ class SearchFilterExecutor:
         if not isinstance(entity, Channel):
             return {'is_valid': False, 'reason': 'Not a channel/group'}
         
-        # Check size
-        participants_count = getattr(entity, 'participants_count', 0)
+        # Check size - handle None from Telegram API
+        participants_count = getattr(entity, 'participants_count', None) or 0
         if participants_count < 500:
             return {'is_valid': False, 'reason': f'Too small ({participants_count} members)'}
         if participants_count > 30000:
             return {'is_valid': False, 'reason': f'Too large ({participants_count} members)'}
         
         # Check liveness (last post < 7 days)
-        if messages:
+        if messages and len(messages) > 0:
             last_post_date = messages[0].date
-            days_ago = (datetime.now() - last_post_date).days
-            if days_ago > 7:
-                return {'is_valid': False, 'reason': f'Inactive ({days_ago} days since last post)'}
+            if last_post_date:
+                days_ago = (datetime.now() - last_post_date).days
+                if days_ago > 7:
+                    return {'is_valid': False, 'reason': f'Inactive ({days_ago} days since last post)'}
+            else:
+                return {'is_valid': False, 'reason': 'No post date available'}
         else:
             return {'is_valid': False, 'reason': 'No messages found'}
         
@@ -432,7 +435,7 @@ class SearchFilterExecutor:
         return {
             'is_valid': True,
             'participants_count': participants_count,
-            'last_post_date': messages[0].date if messages else None,
+            'last_post_date': messages[0].date if messages and len(messages) > 0 else None,
             'can_send_messages': can_send_messages
         }
     
