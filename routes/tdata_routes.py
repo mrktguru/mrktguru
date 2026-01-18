@@ -307,6 +307,9 @@ def configure_tdata(account_id):
                 ''')
                 
                 # Insert DC and auth_key
+                logger.info(f"DEBUG: Creating session with DC={dc_id}, Server={server_address}:{port}")
+                logger.info(f"DEBUG: Auth Key Length: {len(auth_key_bytes)} bytes")
+                
                 c.execute('''
                     INSERT OR REPLACE INTO sessions (dc_id, server_address, port, auth_key, takeout_id)
                     VALUES (?, ?, ?, ?, NULL)
