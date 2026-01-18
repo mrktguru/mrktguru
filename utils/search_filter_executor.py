@@ -329,14 +329,15 @@ class SearchFilterExecutor:
             WarmupLog.log(account_id, 'success', f"Discovered: {entity.title}", action='discovered')
             
             # Log successful discovery to activity log
+            channel_username = getattr(entity, 'username', None) or f"id_{entity.id}"
             db.session.add(AccountActivityLog(
                 account_id=account_id,
                 action_type='channel_discovered',
                 action_category='warmup',
                 target=entity.title,
                 status='success',
-                description=f'Discovered channel: @{getattr(entity, "username", "unknown")}',
-                details=json.dumps({'peer_id': entity.id, 'origin': origin})
+                description=f'Discovered channel: @{channel_username}',
+                details=json.dumps({'peer_id': entity.id, 'origin': origin, 'username': channel_username})
             ))
             db.session.commit()
             
