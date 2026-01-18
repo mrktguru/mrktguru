@@ -264,6 +264,7 @@ def upload():
 def detail(account_id):
     """Account details with warmup info"""
     from models.warmup import ConversationPair, WarmupActivity
+    from models.channel_candidate import ChannelCandidate
     
     account = Account.query.get_or_404(account_id)
     proxies = Proxy.query.filter_by(status="active").all()
@@ -300,13 +301,19 @@ def detail(account_id):
         account_id=account_id
     ).order_by(WarmupActivity.timestamp.desc()).limit(10).all()
     
+    # Get discovered channel candidates
+    channel_candidates = ChannelCandidate.query.filter_by(
+        account_id=account_id
+    ).order_by(ChannelCandidate.created_at.desc()).limit(20).all()
+    
     return render_template(
         "accounts/detail.html",
         account=account,
         proxies=proxies,
         conversation_partners=conversation_partners,
         other_accounts=other_accounts,
-        recent_activities=recent_activities
+        recent_activities=recent_activities,
+        channel_candidates=channel_candidates
     )
 
 

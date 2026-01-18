@@ -1,0 +1,84 @@
+{%extends "base.html" %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="bi bi-list-check"></i> Discovered Channels</h5>
+        <span class="badge bg-primary">{{ candidates|length }} channels</span>
+    </div>
+    <div class="card-body">
+        {% if candidates %}
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Channel</th>
+                        <th>Status</th>
+                        <th>Members</th>
+                        <th>Last Post</th>
+                        <th>Origin</th>
+                        <th>Discovered</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for candidate in candidates %}
+                    <tr>
+                        <td>
+                            <strong>{{ candidate.title or 'Unknown' }}</strong>
+                            {% if candidate.username %}
+                            <br><small class="text-muted">@{{ candidate.username }}</small>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if candidate.status == 'NEW' %}
+                            <span class="badge bg-info">{{ candidate.status }}</span>
+                            {% elif candidate.status == 'VISITED' %}
+                            <span class="badge bg-primary">{{ candidate.status }}</span>
+                            {% elif candidate.status == 'SUBSCRIBED' %}
+                            <span class="badge bg-success">{{ candidate.status }}</span>
+                            {% elif candidate.status == 'FAILED' %}
+                            <span class="badge bg-danger">{{ candidate.status }}</span>
+                            {% else %}
+                            <span class="badge bg-secondary">{{ candidate.status }}</span>
+                            {% endif %}
+                            {% if candidate.error_reason %}
+                            <br><small class="text-danger">{{ candidate.error_reason }}</small>
+                            {% endif %}
+                        </td>
+                        <td>{{ candidate.participants_count or 'N/A' }}</td>
+                        <td>
+                            {% if candidate.last_post_date %}
+                            {{ candidate.last_post_date.strftime('%Y-%m-%d') }}
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="badge bg-{{ 'primary' if candidate.origin == 'SEARCH' else 'secondary' }}">
+                                {{ candidate.origin }}
+                            </span>
+                        </td>
+                        <td>{{ candidate.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                        <td>
+                            {% if candidate.username %}
+                            <a href="https://t.me/{{ candidate.username }}" target="_blank"
+                                class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-box-arrow-up-right"></i> Open
+                            </a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted mb-0">
+            <i class="bi bi-info-circle"></i> No channels discovered yet. Run a Search & Filter node to discover
+            channels.
+        </p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

@@ -353,6 +353,9 @@
     <!-- NEW WARMUP SYSTEM -->
     {% include 'accounts/warmup_section.html' %}
 
+    <!-- DISCOVERED CHANNELS -->
+    {% include 'accounts/channel_candidates_section.html' %}
+
     <!-- SCHEDULER UI -->
     {% include 'accounts/scheduler_section.html' %}
 </div>
@@ -481,7 +484,8 @@
 
     // Check Account Health Function (separate from verification)
     function checkAccountHealth(method) {
-        const accountId = {{ account.id }};
+        const accountId = {{ account.id }
+    };
     const methodNames = {
         'self_check': 'Self-Check',
         'public_channel': 'Public Channel',
