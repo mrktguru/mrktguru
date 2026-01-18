@@ -56,7 +56,8 @@ async def test_conversion():
             
             # Convert to session
             print("Converting to Telethon session...")
-            client = await tdesk.ToTelethon(session=StringSession(), flag=UseCurrentSession)
+            # Let opentele use defaults (UseCurrentSession is usually default)
+            client = await tdesk.ToTelethon(session=StringSession())
             
             session_str = client.session.save()
             print(f"✅ GENERATED STRING SESSION: {session_str[:20]}...")
