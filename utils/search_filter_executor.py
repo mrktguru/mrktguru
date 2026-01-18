@@ -443,6 +443,11 @@ class SearchFilterExecutor:
         if messages and len(messages) > 0:
             last_post_date = messages[0].date
             if last_post_date:
+                # Handle timezone-aware datetimes from Telegram
+                # Convert to naive datetime for comparison
+                if last_post_date.tzinfo is not None:
+                    last_post_date = last_post_date.replace(tzinfo=None)
+                
                 days_ago = (datetime.now() - last_post_date).days
                 if days_ago > 7:
                     return {'is_valid': False, 'reason': f'Inactive ({days_ago} days since last post)'}
