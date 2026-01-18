@@ -81,10 +81,8 @@ class SearchFilterExecutor:
             # Process keywords (organic search)
             for keyword in keywords:
                 result = await self._organic_search(client, account_id, keyword, language, stopwords)
-                if result.get('success'):
-                    discovered_count += 1
-                else:
-                    failed_count += 1
+                discovered_count += result.get('discovered_count', 0)
+                failed_count += result.get('failed_count', 0)
                 # Delay between searches (3-8 sec)
                 await asyncio.sleep(random.uniform(3, 8))
             
@@ -201,21 +199,43 @@ class SearchFilterExecutor:
             if not valid_results:
                 logger.info(f"Account {account_id}: No valid results after filtering for '{keyword}'")
                 WarmupLog.log(account_id, 'warning', f"All search results filtered out for: {keyword}", action='search_filtered')
-                return {'success': False, 'error': 'All results filtered out'}
+                return {'success': False, 'error': 'All results filtered out', 'discovered_count': 0}
             
             WarmupLog.log(account_id, 'info', f"Found {len(valid_results)} valid channels for keyword: {keyword}", action='search_found')
             
-            # Pick random from top-5 (or all if less than 5)
-            candidate = random.choice(valid_results[:min(5, len(valid_results))])
-            logger.info(f"Selected candidate: {getattr(candidate, 'title', 'Unknown')}")
+            # Process ALL found channels (or limit to first 5 for performance)
+            discovered_channels = []
+            failed_channels = []
             
-            # 5. Deep inspection
-            return await self._deep_inspection(client, account_id, candidate, language, 'SEARCH')
+            for i, candidate in enumerate(valid_results[:5]):  # Limit to top 5 to avoid excessive API calls
+                logger.info(f"Processing channel {i+1}/{min(5, len(valid_results))}: {getattr(candidate, 'title', 'Unknown')}")
+                
+                # Deep inspection
+                result = await self._deep_inspection(client, account_id, candidate, language, 'SEARCH')
+                
+                if result.get('success'):
+                    discovered_channels.append(candidate.title)
+                else:
+                    failed_channels.append({'title': candidate.title, 'reason': result.get('error')})
+                
+                # Delay between inspections (3-6 sec) to avoid flood
+                if i < min(4, len(valid_results) - 1):  # Don't delay after last one
+                    await asyncio.sleep(random.uniform(3, 6))
+            
+            logger.info(f"Search for '{keyword}': {len(discovered_channels)} discovered, {len(failed_channels)} failed")
+            
+            return {
+                'success': len(discovered_channels) > 0,
+                'discovered_count': len(discovered_channels),
+                'failed_count': len(failed_channels),
+                'discovered_channels': discovered_channels,
+                'failed_channels': failed_channels
+            }
             
         except Exception as e:
             logger.error(f"Organic search failed: {e}", exc_info=True)
             WarmupLog.log(account_id, 'error', f"Search error for '{keyword}': {str(e)}", action='search_error')
-            return {'success': False, 'error': str(e)}
+            return {'success': False, 'error': str(e), 'discovered_count': 0}
     
     async def _direct_link(self, client, account_id, link, language, stopwords):
         """
@@ -450,7 +470,7 @@ class SearchFilterExecutor:
         if participants_count is not None:
             if participants_count < 500:
                 return {'is_valid': False, 'reason': f'Too small ({participants_count} members)'}
-            if participants_count > 30000:
+            if participants_count > 5000000:  # Increased from 30k to 5M
                 return {'is_valid': False, 'reason': f'Too large ({participants_count} members)'}
         else:
             # For channels without participant count (large channels), assume valid
