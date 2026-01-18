@@ -85,7 +85,7 @@
                             </li>
                             <li>
                                 <a class="dropdown-item" href="#"
-                                    onclick="checkAccountHealth('self_check'); return false;">
+                                    onclick="checkAccountHealth('self_check', {{ account.id }}); return false;">
                                     <span class="badge bg-success me-2">⭐ Safest</span>
                                     <strong>Self-Check</strong>
                                     <br><small class="text-muted">Via Saved Messages • ~5-10s • Best for new
@@ -94,7 +94,7 @@
                             </li>
                             <li>
                                 <a class="dropdown-item" href="#"
-                                    onclick="checkAccountHealth('public_channel'); return false;">
+                                    onclick="checkAccountHealth('public_channel', {{ account.id }}); return false;">
                                     <span class="badge bg-info me-2">⭐ Safe</span>
                                     <strong>Public Channel</strong>
                                     <br><small class="text-muted">Read @telegram • ~3-5s • Daily checks</small>
@@ -104,7 +104,8 @@
                                 <hr class="dropdown-divider">
                             </li>
                             <li>
-                                <a class="dropdown-item" href="#" onclick="checkAccountHealth('get_me'); return false;">
+                                <a class="dropdown-item" href="#"
+                                    onclick="checkAccountHealth('get_me', {{ account.id }}); return false;">
                                     <span class="badge bg-warning me-2">⭐⭐ Moderate</span>
                                     <strong>Get Me</strong>
                                     <br><small class="text-muted">With delays • ~10-25s • Max 1 per 2-3h</small>
@@ -477,93 +478,6 @@
             })
             .finally(() => {
                 // Re-enable button
-                btn.disabled = false;
-                btn.innerHTML = originalText;
-            });
-    }
-
-    // Check Account Health Function (separate from verification)
-    function checkAccountHealth(method) {
-        const accountId = {{ account.id }
-    };
-    const methodNames = {
-        'self_check': 'Self-Check',
-        'public_channel': 'Public Channel',
-        'get_me': 'Get Me'
-    };
-
-    // Show loading state
-    const btn = document.querySelector('.btn-outline-success.dropdown-toggle');
-    const originalText = btn.innerHTML;
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Checking...';
-
-    // Make AJAX request
-    fetch(`/accounts/${accountId}/verify-safe`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: `method=${method}`
-    })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                // Success - show alert (NO reload, just health check)
-                const userDisplay = data.user.username ? '@' + data.user.username : (data.user.first_name || 'ID: ' + data.user.id);
-                const alert = document.createElement('div');
-                alert.className = 'alert alert-success alert-dismissible fade show mt-3';
-                alert.innerHTML = `
-                        <strong>✅ Account is Alive!</strong> Check via ${methodNames[method]} successful.
-                        <br><small>Duration: ${data.duration || 'N/A'} | User: ${userDisplay}</small>
-                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                    `;
-                btn.parentElement.parentElement.appendChild(alert);
-
-                // Auto-dismiss after 10 seconds
-                setTimeout(() => alert.remove(), 10000);
-            } else {
-                // Error - show error message
-                const errorType = data.error_type || 'error';
-                let alertClass = 'alert-danger';
-                let icon = '❌';
-
-                if (errorType === 'cooldown') {
-                    alertClass = 'alert-warning';
-                    icon = '⏱️';
-                } else if (errorType === 'flood_wait') {
-                    alertClass = 'alert-warning';
-                    icon = '⚠️';
-                }
-
-                const alert = document.createElement('div');
-                alert.className = `alert ${alertClass} alert-dismissible fade show mt-3`;
-                alert.innerHTML = `
-                        <strong>${icon} ${errorType === 'cooldown' ? 'Cooldown Active' : 'Error'}</strong> ${data.error}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                    `;
-                btn.parentElement.parentElement.appendChild(alert);
-
-                // Auto-dismiss after 10 seconds
-                setTimeout(() => alert.remove(), 10000);
-            }
-        })
-        .catch(error => {
-            // Network error
-            const alert = document.createElement('div');
-            alert.className = 'alert alert-danger alert-dismissible fade show mt-3';
-            alert.innerHTML = `
-                    <strong>❌ Network Error!</strong> ${error.message}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                `;
-            btn.parentElement.parentElement.appendChild(alert);
-            setTimeout(() => alert.remove(), 5000);
-        })
-        .finally(() => {
-            // Re-enable button
-            btn.disabled = false;
-            btn.innerHTML = originalText;
-        });
     }
 
     // Sync Profile Logic
