@@ -323,13 +323,28 @@ class TDataParser:
             return client.session.save()
             
         # Run async in sync wrapper
-        # Run async in sync wrapper
-        try:
-            # Use asyncio.run for safe execution (handles loop creation/cleanup)
-            session_string = asyncio.run(_convert())
-            return session_string
-        except Exception as e:
-            # Check for unauthorized error specifically (by string or import if available)
+        # Run async in separate thread to guarantee loop isolation
+        # This prevents 502 errors if main thread has a loop that gets closed or corrupted
+        import threading
+        result_container = {}
+
+        def thread_target():
+            try:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                session = loop.run_until_complete(_convert())
+                loop.close()
+                result_container['result'] = session
+            except Exception as thread_e:
+                result_container['error'] = thread_e
+
+        t = threading.Thread(target=thread_target)
+        t.start()
+        t.join()
+
+        if 'error' in result_container:
+            e = result_container['error']
+            # Check for unauthorized error specifically
             error_str = str(e)
             if "TDesktopUnauthorized" in error_str:
                 logger.warning(f"TData unauthorized: {e}")
@@ -337,3 +352,5 @@ class TDataParser:
             
             logger.error(f"Native TData conversion failed: {e}")
             raise Exception(f"Native conversion failed: {str(e)}")
+            
+        return result_container.get('result')
