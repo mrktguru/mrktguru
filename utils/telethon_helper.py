@@ -1115,3 +1115,160 @@ async def sync_official_profile(account_id):
         if client and client.is_connected():
             await client.disconnect()
 
+
+async def set_2fa_password(account_id, password):
+    """
+    Set 2FA password with human behavior emulation
+    """
+    from telethon.tl.functions.account import UpdatePasswordSettingsRequest
+    from telethon.tl.types import InputCheckPasswordEmpty
+    from telethon.errors import PasswordHashInvalidError
+    from utils.human_behavior import random_sleep, simulate_typing, simulate_scrolling
+    
+    client = None
+    try:
+        client = get_telethon_client(account_id)
+        await client.connect()
+        
+        if not await client.is_user_authorized():
+            return {"success": False, "error": "User not authorized"}
+            
+        # Human behavior: Pause before action
+        await random_sleep(2, 4, "opening settings")
+        
+        # Human behavior: Simulate scrolling/exploring
+        await simulate_scrolling((2, 4))
+        
+        # Human behavior: "Typing" the password
+        await simulate_typing(len(password))
+        
+        try:
+            # Using Telethon's helper which is much easier than raw requests
+            await client.edit_2fa(new_password=password)
+            
+            await random_sleep(1, 2, "saving settings")
+            return {"success": True}
+            
+        except Exception as e:
+            # If it requires current password, this will fail
+            return {"success": False, "error": str(e)}
+            
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+    finally:
+        if client and client.is_connected():
+            await client.disconnect()
+
+
+async def get_active_sessions(account_id):
+    """
+    Get active sessions for account
+    """
+    from telethon.tl.functions.account import GetAuthorizationsRequest
+    from utils.human_behavior import random_sleep
+
+    client = None
+    try:
+        client = get_telethon_client(account_id)
+        await client.connect()
+        
+        if not await client.is_user_authorized():
+            return {"success": False, "error": "User not authorized"}
+        
+        # Human behavior: Opening devices list
+        await random_sleep(1, 2, "loading sessions")
+
+        # Get sessions
+        result = await client(GetAuthorizationsRequest())
+        
+        sessions = []
+        for auth in result.authorizations:
+            sessions.append({
+                "hash": auth.hash,
+                "device_model": auth.device_model,
+                "platform": auth.platform,
+                "system_version": auth.system_version,
+                "api_id": auth.api_id,
+                "app_name": auth.app_name,
+                "app_version": auth.app_version,
+                "date_created": auth.date_created.isoformat(),
+                "date_active": auth.date_active.isoformat(),
+                "ip": auth.ip,
+                "country": auth.country,
+                "region": auth.region,
+                "current": auth.current
+            })
+            
+        return {"success": True, "sessions": sessions}
+        
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+    finally:
+        if client and client.is_connected():
+            await client.disconnect()
+
+
+async def terminate_session(account_id, session_hash):
+    """
+    Terminate a specific session with human emulation
+    """
+    from telethon.tl.functions.account import ResetAuthorizationRequest
+    from utils.human_behavior import random_sleep, simulate_mouse_move
+    
+    client = None
+    try:
+        client = get_telethon_client(account_id)
+        await client.connect()
+        
+        if not await client.is_user_authorized():
+            return {"success": False, "error": "User not authorized"}
+            
+        # Emulation
+        await random_sleep(1, 3, "selecting session")
+        await simulate_mouse_move()
+        
+        # Terminate
+        await client(ResetAuthorizationRequest(hash=int(session_hash)))
+        
+        await random_sleep(0.5, 1.5, "confirming termination")
+        
+        return {"success": True}
+        
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+    finally:
+        if client and client.is_connected():
+            await client.disconnect()
+
+
+async def terminate_all_sessions(account_id):
+    """
+    Terminate all OTHER sessions with human emulation
+    """
+    from telethon.tl.functions.auth import ResetAuthorizationsRequest
+    from utils.human_behavior import random_sleep, simulate_scrolling
+    
+    client = None
+    try:
+        client = get_telethon_client(account_id)
+        await client.connect()
+        
+        if not await client.is_user_authorized():
+            return {"success": False, "error": "User not authorized"}
+            
+        # Emulation
+        await random_sleep(1, 3, "reviewing sessions")
+        await simulate_scrolling((1, 3))
+        
+        # Terminate others
+        await client(ResetAuthorizationsRequest())
+        
+        await random_sleep(1, 2, "cleanup")
+        
+        return {"success": True}
+        
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+    finally:
+        if client and client.is_connected():
+            await client.disconnect()

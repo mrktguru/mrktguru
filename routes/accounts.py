@@ -1532,3 +1532,124 @@ def delete_channel_candidate(candidate_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
+
+@accounts_bp.route("/<int:account_id>/set-2fa", methods=["POST"])
+@login_required
+def set_2fa(account_id):
+    """Set 2FA password with human emulation"""
+    from utils.telethon_helper import set_2fa_password
+    import string
+    import random
+    import asyncio
+    
+    account = Account.query.get_or_404(account_id)
+    
+    # Generate 10-char password (letters + numbers)
+    chars = string.ascii_letters + string.digits
+    password = ''.join(random.choice(chars) for _ in range(10))
+    
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    
+    try:
+        result = loop.run_until_complete(set_2fa_password(account_id, password))
+        
+        if result['success']:
+            account.two_fa_password = password
+            db.session.commit()
+            
+            flash(f"✅ 2FA Password Set Successfully: {password}", "success")
+        else:
+            flash(f"❌ Failed to set 2FA: {result.get('error')}", "error")
+            
+    except Exception as e:
+        flash(f"Error: {str(e)}", "error")
+    finally:
+        loop.close()
+        
+    return redirect(url_for('accounts.detail', account_id=account_id))
+
+
+@accounts_bp.route("/<int:account_id>/sessions", methods=["GET"])
+@login_required
+def get_sessions(account_id):
+    """Get active sessions (JSON)"""
+    from utils.telethon_helper import get_active_sessions
+    import asyncio
+    
+    # Run async helper
+    # We use a new loop because Flask is synchronous here
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    
+    try:
+        result = loop.run_until_complete(get_active_sessions(account_id))
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
+    finally:
+        loop.close()
+
+
+@accounts_bp.route("/<int:account_id>/sessions/terminate", methods=["POST"])
+@login_required
+def terminate_sessions_route(account_id):
+    """Terminate session(s)"""
+    from utils.telethon_helper import terminate_session, terminate_all_sessions
+    import asyncio
+    
+    session_hash = request.form.get('session_hash')
+    terminate_all = request.form.get('terminate_all') == 'true'
+    
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    
+    try:
+        if terminate_all:
+            result = loop.run_until_complete(terminate_all_sessions(account_id))
+        elif session_hash:
+            result = loop.run_until_complete(terminate_session(account_id, session_hash))
+        else:
+            return jsonify({"success": False, "error": "No session hash provided"})
+            
+        return jsonify(result)
+        
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
+    finally:
+        loop.close()
+
+@accounts_bp.route("/<int:account_id>/remove-2fa", methods=["POST"])
+@login_required
+def remove_2fa(account_id):
+    """Remove 2FA password with human emulation"""
+    from utils.telethon_helper import remove_2fa_password
+    import asyncio
+    
+    account = Account.query.get_or_404(account_id)
+    
+    current_password = account.two_fa_password
+    if not current_password:
+        flash("Local 2FA password record is missing. Cannot automatically remove.", "error")
+        return redirect(url_for('accounts.detail', account_id=account_id))
+    
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    
+    try:
+        result = loop.run_until_complete(remove_2fa_password(account_id, current_password))
+        
+        if result['success']:
+            account.two_fa_password = None
+            db.session.commit()
+            
+            flash("✅ 2FA Password Removed Successfully", "success")
+        else:
+            flash(f"❌ Failed to remove 2FA: {result.get('error')}", "error")
+            
+    except Exception as e:
+        flash(f"Error: {str(e)}", "error")
+    finally:
+        loop.close()
+        
+    return redirect(url_for('accounts.detail', account_id=account_id))

@@ -48,6 +48,7 @@ class Account(db.Model):
     source_type = db.Column(db.String(20), default='session')  # 'session' or 'tdata'
     tdata_archive_path = db.Column(db.String(500))  # Path to original .zip
     phone_code_hash = db.Column(db.String(255))  # For interactive phone login
+    two_fa_password = db.Column(db.String(255))  # Local record of 2FA password
     
     # Relationships
     proxy = db.relationship('Proxy', backref=db.backref('accounts', lazy='dynamic'))
