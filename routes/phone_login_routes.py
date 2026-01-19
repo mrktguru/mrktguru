@@ -121,6 +121,17 @@ def request_code():
         
     db.session.commit()
     
+    current_app.logger.info(f"========== PHONE LOGIN ATTEMPT ==========")
+    current_app.logger.info(f"Target Phone: '{phone}'")
+    current_app.logger.info(f"API ID: {api_id_val} (Type: {type(api_id_val)})")
+    mask_hash = f"{api_hash_val[:5]}...{api_hash_val[-5:]}" if api_hash_val else "None"
+    current_app.logger.info(f"API Hash: {mask_hash}")
+    
+    if proxy_config:
+         current_app.logger.info(f"Proxy Configured: {proxy_config.get('addr')}:{proxy_config.get('port')} ({proxy_config.get('proxy_type')})")
+    else:
+         current_app.logger.info("No Proxy Configured (Direct Connection)")
+    
     # Init Client
     session = StringSession()
     client = TelegramClient(session, api_id_val, api_hash_val, proxy=proxy_config)
