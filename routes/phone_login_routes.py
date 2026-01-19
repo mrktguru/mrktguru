@@ -102,7 +102,7 @@ def request_code():
             import python_socks
             current_app.logger.info(f"PHONE_LOGIN DEBUG: Using Proxy ID {proxy_obj.id}: {proxy_obj.host}:{proxy_obj.port} ({proxy_obj.type})")
             
-            proxy_type = python_socks.PROXY_TYPE_SOCKS5 if 'socks5' in proxy_obj.type.lower() else python_socks.PROXY_TYPE_HTTP
+            proxy_type = python_socks.ProxyType.SOCKS5 if 'socks5' in proxy_obj.type.lower() else python_socks.ProxyType.HTTP
             
             proxy_config = {
                 'proxy_type': proxy_type,
