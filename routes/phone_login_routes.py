@@ -58,6 +58,7 @@ def request_code():
     api_hash_val = 'b18441a1bb607e12738205e450b8ad6b'
     
     current_app.logger.info(f"PHONE_LOGIN DEBUG: api_cred_id received: {api_cred_id}")
+    current_app.logger.info(f"PHONE_LOGIN DEBUG: Phone number: {phone}")
 
     # Try using selected credential
     api_credential = None
