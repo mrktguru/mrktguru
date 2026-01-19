@@ -1,8 +1,7 @@
 // Account Detail Page JavaScript
 // This file contains all interactive functionality for the account detail page
 
-// Initialize account ID from template
-let accountId;
+// accountId is initialized in the template inline script
 
 // Proxy IP refresh functionality
 function refreshProxyIP(proxyId) {
