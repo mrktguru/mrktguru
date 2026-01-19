@@ -478,6 +478,9 @@
             })
             .finally(() => {
                 // Re-enable button
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            });
     }
 
     // Sync Profile Logic
