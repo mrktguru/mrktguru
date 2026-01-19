@@ -35,3 +35,16 @@ class Proxy(db.Model):
             'username': self.username,
             'password': self.password,
         }
+    
+    @property
+    def flag(self):
+        """Get emoji flag for country"""
+        if not self.country or len(self.country) != 2:
+            return ""
+        try:
+            base = 127397
+            first = ord(self.country[0].upper()) + base
+            second = ord(self.country[1].upper()) + base
+            return chr(first) + chr(second)
+        except:
+            return ""

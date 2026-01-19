@@ -288,8 +288,7 @@
                             <option value="">No proxy</option>
                             {% for proxy in proxies %}
                             <option value="{{ proxy.id }}" {% if account.proxy_id==proxy.id %}selected{% endif %}>
-                                {% if proxy.country %}🌍 {{ proxy.country }} - {% endif %}{{ proxy.type }}://{{
-                                proxy.host }}:{{ proxy.port }}
+                                {{ proxy.flag }} {{ proxy.type }}://{{ proxy.host }}:{{ proxy.port }}
                                 {% if proxy.current_ip %}({{ proxy.current_ip }}){% endif %}
                             </option>
                             {% endfor %}

@@ -196,8 +196,7 @@
                                 <option value="">No Proxy</option>
                                 {% for proxy in proxies %}
                                 <option value="{{ proxy.id }}">
-                                    {% if proxy.country %}🌍 {{ proxy.country }} - {% endif %}{{ proxy.host }}:{{
-                                    proxy.port }} ({{ proxy.type }})
+                                    {{ proxy.flag }} {{ proxy.host }}:{{ proxy.port }} ({{ proxy.type }})
                                     {% if proxy.is_mobile %}[Mobile]{% endif %}
                                 </option>
                                 {% endfor %}

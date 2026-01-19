@@ -29,7 +29,7 @@
                             <option value="">-- No Proxy --</option>
                             {% for proxy in proxies %}
                             <option value="{{ proxy.id }}">
-                                {{ proxy.type }}://{{ proxy.host }}:{{ proxy.port }}
+                                {{ proxy.flag }} {{ proxy.type }}://{{ proxy.host }}:{{ proxy.port }}
                                 ({{ proxy.accounts.count() }} accounts)
                             </option>
                             {% endfor %}
