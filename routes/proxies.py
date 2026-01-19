@@ -3,7 +3,7 @@ from utils.decorators import login_required
 from models.proxy import Proxy
 from database import db
 from utils.validators import validate_proxy
-from utils.proxy_helper import test_proxy_connection, rotate_mobile_proxy
+from utils.proxy_helper import test_proxy_connection, rotate_mobile_proxy, extract_country_from_username
 
 proxies_bp = Blueprint('proxies', __name__)
 
@@ -13,7 +13,8 @@ proxies_bp = Blueprint('proxies', __name__)
 def list_proxies():
     """List all proxies"""
     proxies = Proxy.query.order_by(Proxy.created_at.desc()).all()
-    return render_template('proxies/list.html', proxies=proxies)
+    from utils.proxy_helper import get_country_flag
+    return render_template('proxies/list.html', proxies=proxies, get_country_flag=get_country_flag)
 
 
 @proxies_bp.route('/add', methods=['GET', 'POST'])
@@ -33,6 +34,9 @@ def add():
             flash(result, 'error')
             return render_template('proxies/add.html')
         
+        # Extract country from username
+        country = extract_country_from_username(result.get('username'))
+        
         # Create proxy
         proxy = Proxy(
             type=result['type'],
@@ -43,6 +47,7 @@ def add():
             is_mobile=is_mobile,
             rotation_url=rotation_url,
             rotation_interval=rotation_interval,
+            country=country,
             notes=notes
         )
         
@@ -55,7 +60,13 @@ def add():
             proxy.current_ip = test_result['ip']
             proxy.status = 'active'
             db.session.commit()
-            flash(f'Proxy added successfully. IP: {test_result["ip"]}', 'success')
+            
+            flag = ""
+            if country:
+                from utils.proxy_helper import get_country_flag
+                flag = get_country_flag(country) or ""
+                
+            flash(f'Proxy added successfully {flag}. IP: {test_result["ip"]}', 'success')
         else:
             proxy.status = 'error'
             db.session.commit()
@@ -117,6 +128,9 @@ def update(proxy_id):
             proxy.username = result['username']
             proxy.password = result['password']
             
+            # Update country
+            proxy.country = extract_country_from_username(result.get('username'))
+            
             # Reset status to allow re-testing
             proxy.status = 'active'
             proxy.current_ip = None
@@ -139,7 +153,14 @@ def update(proxy_id):
             proxy.current_ip = test_result['ip']
             proxy.status = 'active'
             db.session.commit()
-            flash(f'Proxy updated and verified. IP: {test_result["ip"]}', 'success')
+            
+            # Flash with flag
+            flag = ""
+            if proxy.country:
+                from utils.proxy_helper import get_country_flag
+                flag = get_country_flag(proxy.country) or ""
+            
+            flash(f'Proxy updated and verified {flag}. IP: {test_result["ip"]}', 'success')
         else:
             proxy.status = 'error'
             db.session.commit()
@@ -201,13 +222,17 @@ def bulk_import():
         if existing:
             continue
         
+        # Extract country
+        country = extract_country_from_username(result.get('username'))
+        
         # Create proxy
         proxy = Proxy(
             type=result['type'],
             host=result['host'],
             port=result['port'],
             username=result['username'],
-            password=result['password']
+            password=result['password'],
+            country=country
         )
         
         db.session.add(proxy)

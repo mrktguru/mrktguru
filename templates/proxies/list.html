@@ -61,6 +61,11 @@
                     <tr>
                         <td>
                             <span class="badge bg-secondary">{{ proxy.type }}</span>
+                            {% if proxy.country and get_country_flag %}
+                            <span class="ms-1" title="{{ proxy.country }}" style="font-size: 1.2em;">
+                                {{ get_country_flag(proxy.country) }}
+                            </span>
+                            {% endif %}
                         </td>
                         <td>
                             <code>{{ proxy.host }}:{{ proxy.port }}</code>
