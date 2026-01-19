@@ -186,7 +186,7 @@ def verify_safe(account_id):
         
         return jsonify({
             'success': False,
-            'error': str(e),
+            'error': str(e) + "\n\nTRACEBACK:\n" + __import__('traceback').format_exc(),
             'error_type': 'system_error'
         }), 500
         
