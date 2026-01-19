@@ -199,3 +199,13 @@ function performTermination(hash, isAll) {
         })
         .catch(err => alert('Network error: ' + err.message));
 }
+
+// Auto-load sessions when page loads
+document.addEventListener('DOMContentLoaded', function () {
+    // Check if sessions container exists (we're on account detail page)
+    const sessionsContainer = document.getElementById('sessions-container');
+    if (sessionsContainer && accountId) {
+        console.log('Auto-loading sessions on page load...');
+        loadSessions();
+    }
+});
