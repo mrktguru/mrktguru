@@ -1,5 +1,6 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
-from flask_login import login_required, current_user
+from utils.decorators import login_required
+from flask_login import current_user
 from database import db
 from models.account import Account
 from models.proxy import Proxy
