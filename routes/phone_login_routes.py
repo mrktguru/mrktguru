@@ -7,7 +7,31 @@ from models.proxy import Proxy
 from models.api_credential import ApiCredential
 from telethon import TelegramClient
 from telethon.sessions import StringSession
-import asyncio
+from telethon.errors import SessionPasswordNeededError
+
+    async def _sign_in():
+        await client.connect()
+        # Telethon sign_in needs phone, code, and phone_code_hash
+        try:
+            user = await client.sign_in(
+                phone=account.phone,
+                code=code,
+                phone_code_hash=account.phone_code_hash
+            )
+            return user
+        except SessionPasswordNeededError:
+             if password:
+                 return await client.sign_in(password=password)
+             else:
+                 raise ValueError("2FA Required")
+        except Exception as e:
+            # Fallback for other errors or if password fails
+            if "password" in str(e).lower() or "TwoStep" in str(e):
+                 if password:
+                     return await client.sign_in(password=password)
+                 else:
+                     raise ValueError("2FA Required")
+            raise e
 import os
 
 phone_login_bp = Blueprint('phone_login', __name__, 
