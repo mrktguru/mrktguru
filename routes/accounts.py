@@ -377,7 +377,7 @@ def verify(account_id):
             user = result['user']
             account.telegram_id = user['id']
             account.first_name = user['first_name']
-            account.last_name = user['last_name']
+            account.last_name = user.get('last_name') or account.last_name
             account.username = user['username']
             account.status = 'active'
             
@@ -468,7 +468,7 @@ def sync_from_telegram(account_id):
             # Update fields
             account.telegram_id = me.id if hasattr(me, "id") else account.telegram_id
             account.first_name = getattr(me, "first_name", None) or account.first_name
-            account.last_name = getattr(me, "last_name", None)
+            account.last_name = getattr(me, "last_name", None) or account.last_name
             account.username = getattr(me, "username", None)
             
             # Get bio (about)
