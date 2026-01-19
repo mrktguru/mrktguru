@@ -44,9 +44,10 @@ class Account(db.Model):
     # API Credentials (for TData import)
     api_credential_id = db.Column(db.Integer, db.ForeignKey('api_credentials.id'))
     
-    # TData Import
+    # TData Import & Phone Login
     source_type = db.Column(db.String(20), default='session')  # 'session' or 'tdata'
     tdata_archive_path = db.Column(db.String(500))  # Path to original .zip
+    phone_code_hash = db.Column(db.String(255))  # For interactive phone login
     
     # Relationships
     proxy = db.relationship('Proxy', backref=db.backref('accounts', lazy='dynamic'))
