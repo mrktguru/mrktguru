@@ -67,8 +67,10 @@ def create_app():
     from routes.api_credentials import api_credentials_bp
     from routes.warmup_routes import warmup_bp
     from routes.scheduler_routes import scheduler_bp
+    from routes.phone_login_routes import phone_login_bp
     
     app.register_blueprint(auth_bp)
+    app.register_blueprint(phone_login_bp)
     app.register_blueprint(dashboard_bp, url_prefix="/dashboard")
     app.register_blueprint(accounts_bp, url_prefix="/accounts")
     app.register_blueprint(proxies_bp, url_prefix="/proxies")
