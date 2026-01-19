@@ -94,9 +94,28 @@ def request_code():
         )
         db.session.add(account)
     
+    proxy_config = None
     if proxy_id:
         account.proxy_id = proxy_id
-        
+        proxy_obj = Proxy.query.get(proxy_id)
+        if proxy_obj:
+            import python_socks
+            current_app.logger.info(f"PHONE_LOGIN DEBUG: Using Proxy ID {proxy_obj.id}: {proxy_obj.host}:{proxy_obj.port} ({proxy_obj.type})")
+            
+            proxy_type = python_socks.PROXY_TYPE_SOCKS5 if 'socks5' in proxy_obj.type.lower() else python_socks.PROXY_TYPE_HTTP
+            
+            proxy_config = {
+                'proxy_type': proxy_type,
+                'addr': proxy_obj.host,
+                'port': proxy_obj.port,
+                'rdns': True
+            }
+            
+            if proxy_obj.username and proxy_obj.password:
+                proxy_config['username'] = proxy_obj.username
+                proxy_config['password'] = proxy_obj.password
+                current_app.logger.info(f"PHONE_LOGIN DEBUG: Proxy has authentication")
+    
     if api_credential:
         account.api_credential_id = api_credential.id
         
@@ -104,7 +123,7 @@ def request_code():
     
     # Init Client
     session = StringSession()
-    client = TelegramClient(session, api_id_val, api_hash_val)
+    client = TelegramClient(session, api_id_val, api_hash_val, proxy=proxy_config)
     
     async def _send_code():
         await client.connect()
