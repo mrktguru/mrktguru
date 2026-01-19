@@ -49,8 +49,27 @@ def request_code():
     """Step 2: Connect and request auth code"""
     phone = request.form.get('phone')
     proxy_id = request.form.get('proxy_id')
-    api_id_val = int(request.form.get('api_id', 2040))
-    api_hash_val = request.form.get('api_hash', 'b18441a1bb607e12738205e450b8ad6b')
+    api_cred_id = request.form.get('api_cred_id')
+    
+    # Defaults
+    api_id_val = 2040
+    api_hash_val = 'b18441a1bb607e12738205e450b8ad6b'
+    
+    # Try using selected credential
+    api_credential = None
+    if api_cred_id:
+        api_credential = ApiCredential.query.get(api_cred_id)
+        if api_credential:
+            api_id_val = api_credential.api_id
+            api_hash_val = api_credential.api_hash
+            
+    # Fallback to manual input or env vars
+    if not api_credential:
+         manual_id = request.form.get('api_id')
+         if manual_id:
+             api_id_val = int(manual_id)
+             api_hash_val = request.form.get('api_hash')
+
 
     if not phone:
         flash("Phone number required", "error")
@@ -69,6 +88,9 @@ def request_code():
     
     if proxy_id:
         account.proxy_id = proxy_id
+        
+    if api_credential:
+        account.api_credential_id = api_credential.id
         
     db.session.commit()
     
@@ -128,11 +150,13 @@ def submit_code(account_id):
     
     # Re-hydrate client
     session = StringSession(account.session_string)
-    # TODO: We need API ID/Hash. Store in account or assume default?
-    # For now assuming default or we should have stored it. 
-    # Let's use standard ID for simplicity or fetch if we stored credential ID.
-    api_id = 2040 
+    # Retrieve correct API ID/Hash
+    api_id = 2040
     api_hash = 'b18441a1bb607e12738205e450b8ad6b'
+    
+    if account.api_credential and account.api_credential.api_id:
+        api_id = account.api_credential.api_id
+        api_hash = account.api_credential.api_hash
     
     client = TelegramClient(session, api_id, api_hash)
     
