@@ -49,8 +49,12 @@ def decrypt_api_hash(encrypted: str) -> str:
         return ""
     
     f = Fernet(get_encryption_key())
-    decrypted = f.decrypt(encrypted.encode())
-    return decrypted.decode()
+    try:
+        decrypted = f.decrypt(encrypted.encode())
+        return decrypted.decode()
+    except Exception:
+        # Fallback: return original string if decryption fails (assuming it's plain text)
+        return encrypted
 
 
 def encrypt_auth_key(auth_key: bytes) -> bytes:
