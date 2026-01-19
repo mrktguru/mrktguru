@@ -55,6 +55,8 @@ def request_code():
     api_id_val = 2040
     api_hash_val = 'b18441a1bb607e12738205e450b8ad6b'
     
+    print(f"DEBUG: api_cred_id received: {api_cred_id}")
+
     # Try using selected credential
     api_credential = None
     if api_cred_id:
@@ -62,6 +64,9 @@ def request_code():
         if api_credential:
             api_id_val = api_credential.api_id
             api_hash_val = api_credential.api_hash
+            print(f"DEBUG: Using credential DB ID={api_credential.id}: {api_credential.name} ({api_id_val})")
+    
+    print(f"DEBUG: Final API ID used: {api_id_val}")
             
     # Fallback to manual input or env vars
     if not api_credential:
