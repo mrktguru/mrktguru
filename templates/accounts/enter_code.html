@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block title %}Enter Code - Telegram System{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h4 class="mb-0"><i class="bi bi-shield-lock"></i> Enter Verification Code</h4>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-success">
+                    <i class="bi bi-check-circle"></i>
+                    Code requested for <strong>{{ account.phone }}</strong>
+                </div>
+
+                <form method="POST" action="{{ url_for('phone_login.submit_code', account_id=account.id) }}">
+                    <div class="mb-3">
+                        <label for="code" class="form-label">Telegram Code</label>
+                        <input type="text" class="form-control form-control-lg text-center" id="code" name="code"
+                            placeholder="12345" required autocomplete="off" autofocus>
+                        <div class="form-text">Check your other Telegram sessions or SMS.</div>
+                    </div>
+
+                    {% if ask_password or request.args.get('ask_password') %}
+                    <div class="mb-3">
+                        <label for="password" class="form-label text-danger">Two-Step Verification Password</label>
+                        <input type="password" class="form-control" id="password" name="password"
+                            placeholder="Enter cloud password">
+                    </div>
+                    {% else %}
+                    <div class="mb-3">
+                        <a href="#" onclick="$('#2fa_field').show(); return false;" class="text-muted small">
+                            Have a Two-Step Verification password?
+                        </a>
+                        <div id="2fa_field" style="display:none;" class="mt-2">
+                            <label for="password" class="form-label">Cloud Password</label>
+                            <input type="password" class="form-control" id="password" name="password">
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="bi bi-box-arrow-in-right"></i> Login
+                        </button>
+                        <a href="{{ url_for('accounts.list_accounts') }}" class="btn btn-outline-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
