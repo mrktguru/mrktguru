@@ -196,8 +196,30 @@ def submit_code(account_id):
     if account.api_credential and account.api_credential.api_id:
         api_id = account.api_credential.api_id
         api_hash = account.api_credential.api_hash
+        
+    # Re-construct proxy config from account
+    proxy_config = None
+    if account.proxy_id:
+        proxy_obj = Proxy.query.get(account.proxy_id)
+        if proxy_obj:
+            import python_socks
+            from flask import current_app
+            current_app.logger.info(f"PHONE_LOGIN SUBMIT DEBUG: Using Proxy ID {proxy_obj.id}: {proxy_obj.host}:{proxy_obj.port}")
+            
+            proxy_type = python_socks.ProxyType.SOCKS5 if 'socks5' in proxy_obj.type.lower() else python_socks.ProxyType.HTTP
+            
+            proxy_config = {
+                'proxy_type': proxy_type,
+                'addr': proxy_obj.host,
+                'port': proxy_obj.port,
+                'rdns': True
+            }
+            
+            if proxy_obj.username and proxy_obj.password:
+                proxy_config['username'] = proxy_obj.username
+                proxy_config['password'] = proxy_obj.password
     
-    client = TelegramClient(session, api_id, api_hash)
+    client = TelegramClient(session, api_id, api_hash, proxy=proxy_config)
     
     async def _sign_in():
         await client.connect()
