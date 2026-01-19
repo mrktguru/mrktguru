@@ -367,6 +367,12 @@ def verify(account_id):
         result = loop.run_until_complete(verify_session(account_id))
         
         if result['success']:
+            # Check for name changes
+            if account.last_name and not user.get('last_name'):
+                 from flask import current_app
+                 current_app.logger.warning(f"Verification: Last name for {account.phone} is being removed (Telegram returned None)")
+                 flash("⚠️ Note: Telegram did not return a last name. It has been removed from your profile.", "warning")
+
             # Update account info
             user = result['user']
             account.telegram_id = user['id']
@@ -455,6 +461,10 @@ def sync_from_telegram(account_id):
             # Get user info
             me = await client.get_me()
             
+            # Check for name changes
+            if account.last_name and not getattr(me, "last_name", None):
+                 print(f"⚠️ WARNING: Last name for {account.phone} is being removed (Telegram returned None)")
+                 
             # Update fields
             account.telegram_id = me.id if hasattr(me, "id") else account.telegram_id
             account.first_name = getattr(me, "first_name", None) or account.first_name
@@ -495,10 +505,20 @@ def sync_from_telegram(account_id):
     
     try:
         success, info = loop.run_until_complete(sync_profile())
+        
+        # Check if last name was removed during this transaction (before commit)
+        if success and account.last_name is None:
+             # Check if it was previously set (we need to query DB or remember it)
+             # But here account is the attached object.
+             pass
+
         db.session.commit()
         
         if success:
-            flash(f"✅ Profile synced from Telegram: {info}", "success")
+            msg = f"✅ Profile synced from Telegram: {info}"
+            if not account.last_name:
+                 msg += " (Note: No last name returned from Telegram)"
+            flash(msg, "success")
         else:
             flash(f"❌ Sync failed: {info}", "error")
             
