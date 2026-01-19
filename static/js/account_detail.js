@@ -97,6 +97,7 @@ function syncProfile() {
 
 // Sessions Management Logic
 function loadSessions() {
+    console.log('loadSessions called, accountId:', accountId);
     const container = document.getElementById('sessions-container');
     const loading = document.getElementById('sessions-loading');
     const listDiv = document.getElementById('sessions-list');
@@ -106,21 +107,29 @@ function loadSessions() {
     loading.classList.remove('d-none');
     listDiv.classList.add('d-none');
 
+    console.log('Fetching sessions from:', `/accounts/${accountId}/sessions`);
     fetch(`/accounts/${accountId}/sessions`)
-        .then(res => res.json())
+        .then(res => {
+            console.log('Response status:', res.status);
+            return res.json();
+        })
         .then(data => {
+            console.log('Sessions data received:', data);
             loading.classList.add('d-none');
             btn.classList.remove('d-none'); // Show button again (to reload)
             btn.innerHTML = '<i class="bi bi-arrow-clockwise"></i> Refresh Sessions';
 
             if (data.success) {
+                console.log('Rendering', data.sessions.length, 'sessions');
                 renderSessions(data.sessions);
                 listDiv.classList.remove('d-none');
             } else {
+                console.error('Error from server:', data.error);
                 alert('Error loading sessions: ' + data.error);
             }
         })
         .catch(err => {
+            console.error('Network error:', err);
             loading.classList.add('d-none');
             btn.classList.remove('d-none');
             alert('Network error: ' + err.message);
