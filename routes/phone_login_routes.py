@@ -137,6 +137,7 @@ def request_code():
         return redirect(url_for('phone_login.enter_code', account_id=account.id))
         
     except Exception as e:
+        current_app.logger.error(f"PHONE_LOGIN ERROR: Failed to send code: {str(e)}", exc_info=True)
         flash(f"Failed to send code: {str(e)}", "error")
         return redirect(url_for('phone_login.add_phone'))
 
