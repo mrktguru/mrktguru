@@ -127,6 +127,10 @@ def get_telethon_client(account_id, proxy=None):
             "password": account.proxy.password,
         }
         print(f"✅ Using proxy for account {account_id}: {account.proxy.host}:{account.proxy.port} (type: {account.proxy.type})")
+        
+        # CRITICAL DEBUG: Log exact proxy dict
+        with open('/tmp/proxy_debug.log', 'a') as f:
+            f.write(f"PROXY DICT PASSED TO TELETHON: {proxy_dict}\n")
     
     # ==================== SESSION CONFIGURATION ====================
     # Support both StringSession (DB storage) and SQLite file (TData import)
