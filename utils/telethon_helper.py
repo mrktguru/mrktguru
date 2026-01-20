@@ -118,12 +118,17 @@ def get_telethon_client(account_id, proxy=None):
         }
     elif account.proxy:
         import socks
-        proxy_type = socks.SOCKS5 if account.proxy.type == "socks5" else socks.HTTP
         
-        # CRITICAL: Telethon requires tuple format, NOT dict!
+        # CRITICAL: Import socks module FIRST
+        # Telethon requires actual socks.SOCKS5/HTTP objects, NOT integers!
+        if account.proxy.type == "socks5":
+            proxy_type_obj = socks.SOCKS5
+        else:
+            proxy_type_obj = socks.HTTP
+        
         # Format: (proxy_type, addr, port, rdns, username, password)
         proxy_dict = (
-            proxy_type,
+            proxy_type_obj,  # Use actual socks.SOCKS5 object, not integer!
             account.proxy.host,
             account.proxy.port,
             True,  # rdns - resolve DNS through proxy
@@ -135,6 +140,7 @@ def get_telethon_client(account_id, proxy=None):
         # CRITICAL DEBUG: Log exact proxy tuple
         with open('/tmp/proxy_debug.log', 'a') as f:
             f.write(f"PROXY TUPLE PASSED TO TELETHON: {proxy_dict}\n")
+            f.write(f"PROXY TYPE OBJECT: {proxy_type_obj} (type: {type(proxy_type_obj)})\n")
     
     # ==================== SESSION CONFIGURATION ====================
     # Support both StringSession (DB storage) and SQLite file (TData import)
