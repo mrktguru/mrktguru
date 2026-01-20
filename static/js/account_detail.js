@@ -120,6 +120,8 @@ function loadSessions() {
 
             if (data.success) {
                 console.log('Rendering', data.sessions.length, 'sessions');
+                // Save to localStorage
+                localStorage.setItem(`sessions_${accountId}`, JSON.stringify(data.sessions));
                 renderSessions(data.sessions);
                 listDiv.classList.remove('d-none');
             } else {
@@ -199,3 +201,28 @@ function performTermination(hash, isAll) {
         })
         .catch(err => alert('Network error: ' + err.message));
 }
+
+// Restore sessions from localStorage on page load
+document.addEventListener('DOMContentLoaded', function () {
+    if (!accountId) return;
+
+    const savedSessions = localStorage.getItem(`sessions_${accountId}`);
+    if (savedSessions) {
+        try {
+            const sessions = JSON.parse(savedSessions);
+            console.log('Restoring', sessions.length, 'sessions from localStorage');
+
+            // Update button text
+            const container = document.getElementById('sessions-container');
+            const btn = container.querySelector('button');
+            btn.innerHTML = '<i class="bi bi-arrow-clockwise"></i> Refresh Sessions';
+
+            // Render sessions
+            renderSessions(sessions);
+            document.getElementById('sessions-list').classList.remove('d-none');
+        } catch (e) {
+            console.error('Failed to restore sessions:', e);
+            localStorage.removeItem(`sessions_${accountId}`);
+        }
+    }
+});
