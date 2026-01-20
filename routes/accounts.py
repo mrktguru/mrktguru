@@ -367,14 +367,15 @@ def verify(account_id):
         result = loop.run_until_complete(verify_session(account_id))
         
         if result['success']:
+            # Update account info
+            user = result['user']
+            
             # Check for name changes
             if account.last_name and not user.get('last_name'):
                  from flask import current_app
                  current_app.logger.warning(f"Verification: Last name for {account.phone} is being removed (Telegram returned None)")
                  flash("⚠️ Note: Telegram did not return a last name. It has been removed from your profile.", "warning")
 
-            # Update account info
-            user = result['user']
             account.telegram_id = user['id']
             account.first_name = user['first_name']
             account.last_name = user.get('last_name') or account.last_name
