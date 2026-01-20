@@ -119,18 +119,22 @@ def get_telethon_client(account_id, proxy=None):
     elif account.proxy:
         import socks
         proxy_type = socks.SOCKS5 if account.proxy.type == "socks5" else socks.HTTP
-        proxy_dict = {
-            "proxy_type": proxy_type,
-            "addr": account.proxy.host,
-            "port": account.proxy.port,
-            "username": account.proxy.username,
-            "password": account.proxy.password,
-        }
+        
+        # CRITICAL: Telethon requires tuple format, NOT dict!
+        # Format: (proxy_type, addr, port, rdns, username, password)
+        proxy_dict = (
+            proxy_type,
+            account.proxy.host,
+            account.proxy.port,
+            True,  # rdns - resolve DNS through proxy
+            account.proxy.username,
+            account.proxy.password
+        )
         print(f"✅ Using proxy for account {account_id}: {account.proxy.host}:{account.proxy.port} (type: {account.proxy.type})")
         
-        # CRITICAL DEBUG: Log exact proxy dict
+        # CRITICAL DEBUG: Log exact proxy tuple
         with open('/tmp/proxy_debug.log', 'a') as f:
-            f.write(f"PROXY DICT PASSED TO TELETHON: {proxy_dict}\n")
+            f.write(f"PROXY TUPLE PASSED TO TELETHON: {proxy_dict}\n")
     
     # ==================== SESSION CONFIGURATION ====================
     # Support both StringSession (DB storage) and SQLite file (TData import)
