@@ -290,13 +290,14 @@ class TDataParser:
             logger.warning(f"Failed to cleanup temp directory: {e}")
 
     @staticmethod
-    def convert_to_session_string(tdata_path: str) -> str:
+    def convert_to_session_string(tdata_path: str, proxy_tuple: tuple = None) -> str:
         """
         Convert TData folder to Telethon StringSession using opentele native conversion.
         This runs the async conversion in a synchronous wrapper.
         
         Args:
             tdata_path: Path to extracted tdata folder
+            proxy_tuple: Optional proxy tuple ('socks5', 'host', port, True, 'user', 'pass')
             
         Returns:
             str: The session string
@@ -308,6 +309,11 @@ class TDataParser:
         # Define async conversion logic
         async def _convert():
             logger.info(f"Native converting TData from: {tdata_path}")
+            if proxy_tuple:
+                logger.info(f"🔒 TData conversion WILL USE PROXY: {proxy_tuple[1]}:{proxy_tuple[2]}")
+            else:
+                logger.warning("⚠️ TData conversion WITHOUT PROXY - SERVER IP WILL BE EXPOSED!")
+                
             tdesk = TDesktop(tdata_path)
             
             # Check if loaded
@@ -315,9 +321,11 @@ class TDataParser:
                 raise Exception("Failed to load TData (encrypted or invalid)")
                 
             # Convert to Telethon client with StringSession
-            # Note: We don't specify API ID/Hash to let opentele use defaults (Official Desktop)
-            # or it uses what's in TData.
-            client = await tdesk.ToTelethon(session=StringSession())
+            # CRITICAL: Pass proxy to prevent IP leak during conversion!
+            client = await tdesk.ToTelethon(
+                session=StringSession(),
+                proxy=proxy_tuple  # ← CRITICAL: Proxy for TData conversion
+            )
             
             # Save and return string
             return client.session.save()

@@ -236,8 +236,25 @@ def configure_tdata(account_id):
                 extract_result = TDataParser.extract_archive(account.tdata_archive_path, temp_dir)
                 tdata_path = extract_result['tdata_path']
                 
-                # 2. Convert to string session
-                session_string = TDataParser.convert_to_session_string(tdata_path)
+                # 2. Build proxy tuple if proxy is assigned
+                proxy_tuple = None
+                if account.proxy:
+                    # Format: ('socks5', 'host', port, True, 'username', 'password')
+                    proxy_type_str = 'socks5' if account.proxy.type == 'socks5' else 'http'
+                    proxy_tuple = (
+                        proxy_type_str,
+                        account.proxy.host,
+                        account.proxy.port,
+                        True,  # rdns
+                        account.proxy.username,
+                        account.proxy.password
+                    )
+                    logger.info(f"🔒 TData conversion will use proxy: {account.proxy.host}:{account.proxy.port}")
+                else:
+                    logger.warning("⚠️ TData conversion WITHOUT PROXY - SERVER IP WILL BE EXPOSED!")
+                
+                # 3. Convert to string session WITH PROXY
+                session_string = TDataParser.convert_to_session_string(tdata_path, proxy_tuple)
                 
                 if not session_string:
                      raise Exception("Conversion returned empty session string")
