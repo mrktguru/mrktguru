@@ -103,7 +103,7 @@ def run_dm_campaign(self, campaign_id):
             ))
             
             # Update status
-            if result["status"] == "success":
+            if result.get("success"):
                 target.status = "sent"
                 target.sent_at = datetime.utcnow()
                 target.sent_by_account_id = account.id
@@ -112,17 +112,17 @@ def run_dm_campaign(self, campaign_id):
                 
                 print(f"✅ DM sent successfully to @{target.username}")
                 
-            elif result["status"] == "flood_wait":
-                # Put account on cooldown
-                account.status = "cooldown"
-                print(f"❌ Account {account.phone} got FloodWait")
-                
             else:
+                # Check if it's a flood wait error
+                error_msg = result.get("error", "")
+                if "FloodWait" in str(error_msg) or "flood" in str(error_msg).lower():
+                    account.status = "cooldown"
+                    print(f"❌ Account {account.phone} got FloodWait")
+                
                 target.status = "error"
-                target.error_message = result.get("error")
+                target.error_message = error_msg
                 campaign.error_count += 1
                 
-                error_msg = result.get("error")
                 print(f"❌ Error sending to @{target.username}: {error_msg}")
             
             db.session.commit()
