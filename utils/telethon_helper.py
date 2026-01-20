@@ -243,16 +243,28 @@ async def verify_session(account_id):
     client = None
     try:
         print(f"DEBUG: verify_session started for account {account_id}")
+        
+        # CRITICAL: Write to file for debugging
+        with open('/tmp/proxy_debug.log', 'a') as f:
+            f.write(f"\n=== VERIFY SESSION {account_id} ===\n")
+        
         client = get_telethon_client(account_id)
         
         # CRITICAL: Log proxy configuration
         from models.account import Account
         from database import db
         account = db.session.query(Account).get(account_id)
+        
+        proxy_status = "NO PROXY - SERVER IP EXPOSED!"
         if account and account.proxy:
+            proxy_status = f"PROXY: {account.proxy.host}:{account.proxy.port} ({account.proxy.country})"
             print(f"🔒 PROXY ACTIVE for verification: {account.proxy.host}:{account.proxy.port} ({account.proxy.country})")
         else:
             print(f"⚠️ WARNING: NO PROXY for account {account_id} - SERVER IP WILL BE EXPOSED!")
+        
+        # Write to file
+        with open('/tmp/proxy_debug.log', 'a') as f:
+            f.write(f"{proxy_status}\n")
         
         await client.connect()
         
