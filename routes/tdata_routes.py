@@ -307,6 +307,10 @@ def configure_tdata(account_id):
     ).all()
     proxies = Proxy.query.filter_by(status='active').all()
     
+    # Add account count to each proxy
+    for proxy in proxies:
+        proxy.account_count = Account.query.filter_by(proxy_id=proxy.id).count()
+    
     # Determine recommended API credential
     recommended_api_id = None
     if tdata.original_api_id:

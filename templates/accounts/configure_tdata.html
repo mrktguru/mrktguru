@@ -198,6 +198,9 @@
                                 <option value="{{ proxy.id }}">
                                     {{ proxy.flag }} {{ proxy.host }}:{{ proxy.port }} ({{ proxy.type }})
                                     {% if proxy.is_mobile %}[Mobile]{% endif %}
+                                    {% if proxy.account_count > 0 %}
+                                    - {{ proxy.account_count }} account{{ 's' if proxy.account_count != 1 else '' }}
+                                    {% endif %}
                                 </option>
                                 {% endfor %}
                             </select>
