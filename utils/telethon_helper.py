@@ -117,30 +117,33 @@ def get_telethon_client(account_id, proxy=None):
             "password": proxy.get("password"),
         }
     elif account.proxy:
-        import socks
+        # CRITICAL: Telethon expects proxy as tuple with STRING type identifier!
+        # Format: ('socks5' | 'http', addr, port, rdns, username, password)
+        # NOT: (socks.SOCKS5, ...) - that's just an integer!
         
-        # CRITICAL: Import socks module FIRST
-        # Telethon requires actual socks.SOCKS5/HTTP objects, NOT integers!
         if account.proxy.type == "socks5":
-            proxy_type_obj = socks.SOCKS5
+            proxy_type_str = 'socks5'
+        elif account.proxy.type == "http":
+            proxy_type_str = 'http'
         else:
-            proxy_type_obj = socks.HTTP
+            # Fallback to socks5 for any other type
+            proxy_type_str = 'socks5'
         
-        # Format: (proxy_type, addr, port, rdns, username, password)
+        # Telethon proxy tuple format
         proxy_dict = (
-            proxy_type_obj,  # Use actual socks.SOCKS5 object, not integer!
+            proxy_type_str,  # Use STRING 'socks5' or 'http'!
             account.proxy.host,
             account.proxy.port,
             True,  # rdns - resolve DNS through proxy
             account.proxy.username,
             account.proxy.password
         )
-        print(f"✅ Using proxy for account {account_id}: {account.proxy.host}:{account.proxy.port} (type: {account.proxy.type})")
+        print(f"✅ Using proxy for account {account_id}: {account.proxy.host}:{account.proxy.port} (type: {proxy_type_str})")
         
         # CRITICAL DEBUG: Log exact proxy tuple
         with open('/tmp/proxy_debug.log', 'a') as f:
             f.write(f"PROXY TUPLE PASSED TO TELETHON: {proxy_dict}\n")
-            f.write(f"PROXY TYPE OBJECT: {proxy_type_obj} (type: {type(proxy_type_obj)})\n")
+            f.write(f"PROXY TYPE STRING: '{proxy_type_str}' (type: {type(proxy_type_str)})\n")
     
     # ==================== SESSION CONFIGURATION ====================
     # Support both StringSession (DB storage) and SQLite file (TData import)
