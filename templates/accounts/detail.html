@@ -260,45 +260,140 @@
 
     <div class="col-md-8">
         <div class="card mb-3">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">Device Profile</h5>
-                <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#deviceModal">
-                    <i class="bi bi-pencil"></i> Edit Device
-                </button>
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-phone"></i> Device Fingerprint Override</h5>
             </div>
             <div class="card-body">
+                <!-- Device Profile Dropdown -->
+                <div class="mb-4">
+                    <label class="form-label fw-bold">Device Profile</label>
+                    <select class="form-select form-select-lg" id="deviceProfileSelect">
+                        <option value="original" {% if not account.device_profile %}selected{% endif %}>
+                            ✓ Use Original from TData
+                        </option>
+                        <optgroup label="📱 iOS Devices">
+                            <option value="iphone15_ios18" {% if account.device_profile and
+                                account.device_profile.device_model=='iPhone 15 Pro' %}selected{% endif %}>
+                                iPhone 15 Pro (iOS 18.2) - Latest
+                            </option>
+                            <option value="iphone14_ios17" {% if account.device_profile and
+                                account.device_profile.device_model=='iPhone 14 Pro' %}selected{% endif %}>
+                                iPhone 14 Pro (iOS 17.6)
+                            </option>
+                            <option value="iphone13_ios17" {% if account.device_profile and
+                                account.device_profile.device_model=='iPhone 13' %}selected{% endif %}>
+                                iPhone 13 (iOS 17.4)
+                            </option>
+                            <option value="iphone12_ios16" {% if account.device_profile and
+                                account.device_profile.device_model=='iPhone 12' %}selected{% endif %}>
+                                iPhone 12 (iOS 16.7)
+                            </option>
+                            <option value="iphone11_ios16" {% if account.device_profile and
+                                account.device_profile.device_model=='iPhone 11' %}selected{% endif %}>
+                                iPhone 11 (iOS 16.5)
+                            </option>
+                        </optgroup>
+                        <optgroup label="🤖 Android Devices">
+                            <option value="samsung_s24_android14" {% if account.device_profile and
+                                account.device_profile.device_model=='Samsung Galaxy S24 Ultra' %}selected{% endif %}>
+                                Samsung Galaxy S24 Ultra (Android 14)
+                            </option>
+                            <option value="samsung_s21_android13" {% if account.device_profile and
+                                account.device_profile.device_model=='Samsung Galaxy S21 Ultra' %}selected{% endif %}>
+                                Samsung Galaxy S21 Ultra (Android 13)
+                            </option>
+                            <option value="pixel8_android14" {% if account.device_profile and
+                                account.device_profile.device_model=='Google Pixel 8 Pro' %}selected{% endif %}>
+                                Google Pixel 8 Pro (Android 14)
+                            </option>
+                            <option value="xiaomi14_android14" {% if account.device_profile and
+                                account.device_profile.device_model=='Xiaomi 14 Pro' %}selected{% endif %}>
+                                Xiaomi 14 Pro (Android 14)
+                            </option>
+                        </optgroup>
+                        <optgroup label="💻 Desktop">
+                            <option value="windows11_desktop" {% if account.device_profile and
+                                account.device_profile.device_model=='Desktop' and 'Windows 11' in
+                                (account.device_profile.system_version or '' ) %}selected{% endif %}>
+                                Windows 11 Desktop
+                            </option>
+                            <option value="windows10_desktop" {% if account.device_profile and
+                                account.device_profile.device_model=='Desktop' and 'Windows 10' in
+                                (account.device_profile.system_version or '' ) %}selected{% endif %}>
+                                Windows 10 Desktop
+                            </option>
+                            <option value="macos_sonoma" {% if account.device_profile and
+                                account.device_profile.device_model=='Desktop' and 'macOS' in
+                                (account.device_profile.system_version or '' ) %}selected{% endif %}>
+                                macOS Sonoma
+                            </option>
+                        </optgroup>
+                    </select>
+                    <small class="form-text text-muted">Select a device preset to override the original TData
+                        fingerprint</small>
+                </div>
+
+                <!-- Selected Profile Display -->
+                <div class="bg-light p-3 rounded mb-3" id="selectedProfileDisplay">
+                    <h6 class="mb-3"><strong>Selected Profile:</strong></h6>
+                    <dl class="row mb-0">
+                        <dt class="col-sm-3">Device:</dt>
+                        <dd class="col-sm-9 text-primary" id="profile-device">
+                            {% if account.device_profile %}{{ account.device_profile.device_model }}
+                            {% elif account.tdata_metadata %}Original
+                            {% else %}N/A{% endif %}
+                        </dd>
+
+                        <dt class="col-sm-3">System:</dt>
+                        <dd class="col-sm-9 text-primary" id="profile-system">
+                            {% if account.device_profile %}{{ account.device_profile.system_version }}
+                            {% elif account.tdata_metadata %}Original
+                            {% else %}N/A{% endif %}
+                        </dd>
+
+                        <dt class="col-sm-3">App:</dt>
+                        <dd class="col-sm-9 text-primary" id="profile-app">
+                            {% if account.device_profile %}{{ account.device_profile.app_version }}
+                            {% elif account.tdata_metadata %}Original
+                            {% else %}N/A{% endif %}
+                        </dd>
+
+                        <dt class="col-sm-3">Language:</dt>
+                        <dd class="col-sm-9 text-primary" id="profile-language">
+                            {% if account.device_profile %}{{ account.device_profile.lang_code }} / {{
+                            account.device_profile.system_lang_code }}
+                            {% elif account.tdata_metadata %}{{ account.tdata_metadata.lang_code or 'en' }} / {{
+                            account.tdata_metadata.system_lang_code or 'en-US' }}
+                            {% else %}N/A{% endif %}
+                        </dd>
+                    </dl>
+                </div>
+
+                <!-- Original Device Fingerprint -->
                 {% if account.tdata_metadata %}
-                <dl class="row mb-0">
-                    <dt class="col-sm-4">Device Model:</dt>
-                    <dd class="col-sm-8">{{ account.tdata_metadata.device_model or 'N/A' }}</dd>
+                <div class="border-top pt-3">
+                    <h6 class="mb-3"><i class="bi bi-phone"></i> <strong>Original Device Fingerprint</strong></h6>
+                    <dl class="row mb-0">
+                        <dt class="col-sm-4">Device Model:</dt>
+                        <dd class="col-sm-8 text-danger">{{ account.tdata_metadata.device_model or 'Desktop' }}</dd>
 
-                    <dt class="col-sm-4">System Version:</dt>
-                    <dd class="col-sm-8">{{ account.tdata_metadata.system_version or 'N/A' }}</dd>
+                        <dt class="col-sm-4">System Version:</dt>
+                        <dd class="col-sm-8 text-danger">{{ account.tdata_metadata.system_version or 'N/A' }}</dd>
 
-                    <dt class="col-sm-4">App Version:</dt>
-                    <dd class="col-sm-8">{{ account.tdata_metadata.app_version or 'N/A' }}</dd>
+                        <dt class="col-sm-4">App Version:</dt>
+                        <dd class="col-sm-8 text-danger">{{ account.tdata_metadata.app_version or 'N/A' }}</dd>
 
-                    <dt class="col-sm-4">Language:</dt>
-                    <dd class="col-sm-8">{{ account.tdata_metadata.lang_code or 'N/A' }} / {{
-                        account.tdata_metadata.system_lang_code or 'N/A' }}</dd>
-                </dl>
-                {% elif account.device_profile %}
-                <dl class="row mb-0">
-                    <dt class="col-sm-4">Device Model:</dt>
-                    <dd class="col-sm-8">{{ account.device_profile.device_model or 'N/A' }}</dd>
+                        <dt class="col-sm-4">Device Brand:</dt>
+                        <dd class="col-sm-8 text-danger">{{ account.tdata_metadata.device_brand or 'N/A' }}</dd>
 
-                    <dt class="col-sm-4">System Version:</dt>
-                    <dd class="col-sm-8">{{ account.device_profile.system_version or 'N/A' }}</dd>
-
-                    <dt class="col-sm-4">App Version:</dt>
-                    <dd class="col-sm-8">{{ account.device_profile.app_version or 'N/A' }}</dd>
-
-                    <dt class="col-sm-4">Lang Code:</dt>
-                    <dd class="col-sm-8">{{ account.device_profile.lang_code or 'N/A' }}</dd>
-                </dl>
-                {% else %}
-                <p class="text-muted mb-0">No device profile</p>
+                        <dt class="col-sm-4">Language:</dt>
+                        <dd class="col-sm-8 text-danger">{{ account.tdata_metadata.lang_code or 'en' }} / {{
+                            account.tdata_metadata.system_lang_code or 'en-US' }}</dd>
+                    </dl>
+                </div>
                 {% endif %}
+
+
 
                 <hr class="my-3">
                 <h6 class="mb-3"><i class="bi bi-laptop"></i> Active Sessions</h6>
@@ -494,138 +589,178 @@
 {% endblock %}
 
 {% block modals %}
-<!-- DEBUG: MODALS BLOCK START -->
-<div id="modals-debug" style="display:none;">MODALS BLOCK RENDERED</div>
-<!-- Device Profile Edit Modal -->
-<div class="modal fade" id="deviceModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title"><i class="bi bi-laptop"></i> Edit Device Profile</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <form method="POST" action="{{ url_for('accounts.update_device', account_id=account.id) }}">
-                <div class="modal-body">
-                    <!-- Device Presets -->
-                    <div class="mb-3">
-                        <label class="form-label fw-bold">Device Preset</label>
-                        <select class="form-select" id="devicePreset">
-                            <option value="">Custom Device</option>
-                            <option value="ios">📱 iPhone 15 Pro Max (iOS 17.2)</option>
-                            <option value="android">🤖 Samsung Galaxy S24 Ultra (Android 14)</option>
-                            <option value="desktop">💻 Desktop (Windows 11)</option>
-                        </select>
-                        <small class="form-text text-muted">Select a preset or configure custom device below</small>
-                    </div>
-
-                    <hr class="my-3">
-
-                    <!-- Custom Device Fields -->
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Device Model *</label>
-                            <input type="text" class="form-control" name="device_model" id="device_model"
-                                value="{{ account.device_profile.device_model if account.device_profile else '' }}"
-                                placeholder="iPhone 15 Pro Max" required>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">System Version *</label>
-                            <input type="text" class="form-control" name="system_version" id="system_version"
-                                value="{{ account.device_profile.system_version if account.device_profile else '' }}"
-                                placeholder="iOS 17.2" required>
-                        </div>
-                    </div>
-
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">App Version *</label>
-                            <input type="text" class="form-control" name="app_version" id="app_version"
-                                value="{{ account.device_profile.app_version if account.device_profile else '' }}"
-                                placeholder="10.5.1" required>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Client Type *</label>
-                            <select class="form-select" name="client_type" id="client_type">
-                                <option value="desktop" {% if account.device_profile and
-                                    account.device_profile.client_type=='desktop' %}selected{% endif %}>Desktop</option>
-                                <option value="ios" {% if account.device_profile and
-                                    account.device_profile.client_type=='ios' %}selected{% endif %}>iOS</option>
-                                <option value="android" {% if account.device_profile and
-                                    account.device_profile.client_type=='android' %}selected{% endif %}>Android</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Language Code</label>
-                            <input type="text" class="form-control" name="lang_code" id="lang_code"
-                                value="{{ account.device_profile.lang_code if account.device_profile else 'en' }}"
-                                placeholder="en">
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">System Language</label>
-                            <input type="text" class="form-control" name="system_lang_code" id="system_lang_code"
-                                value="{{ account.device_profile.system_lang_code if account.device_profile else 'en-US' }}"
-                                placeholder="en-US">
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">
-                        <i class="bi bi-save"></i> Save Device Profile
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
 <script>
-    // Device Profile Presets - wait for DOM to be ready
+    // Device Profile Selector - Auto-save on change
     document.addEventListener('DOMContentLoaded', function () {
-        const devicePresetSelect = document.getElementById('devicePreset');
-        if (!devicePresetSelect) return;
+        const deviceSelect = document.getElementById('deviceProfileSelect');
+        if (!deviceSelect) return;
 
-        devicePresetSelect.addEventListener('change', function (e) {
-            const presets = {
-                ios: {
-                    device_model: 'iPhone 15 Pro Max',
-                    system_version: 'iOS 17.2',
-                    app_version: '10.5.1',
-                    lang_code: 'en',
-                    system_lang_code: 'en-US',
-                    client_type: 'ios'
-                },
-                android: {
-                    device_model: 'Samsung Galaxy S24 Ultra',
-                    system_version: 'Android 14',
-                    app_version: '10.5.0',
-                    lang_code: 'en',
-                    system_lang_code: 'en-US',
-                    client_type: 'android'
-                },
-                desktop: {
-                    device_model: 'Desktop',
-                    system_version: 'Windows 11',
-                    app_version: '4.16.8 x64',
-                    lang_code: 'en',
-                    system_lang_code: 'en-US',
-                    client_type: 'desktop'
-                }
-            };
-
-            const preset = presets[e.target.value];
-            if (preset) {
-                document.getElementById('device_model').value = preset.device_model;
-                document.getElementById('system_version').value = preset.system_version;
-                document.getElementById('app_version').value = preset.app_version;
-                document.getElementById('lang_code').value = preset.lang_code;
-                document.getElementById('system_lang_code').value = preset.system_lang_code;
-                document.getElementById('client_type').value = preset.client_type;
+        // Device presets data
+        const devicePresets = {
+            original: null, // Will delete device_profile to use TData original
+            iphone15_ios18: {
+                device_model: 'iPhone 15 Pro',
+                system_version: 'iOS 18.2',
+                app_version: '10.5.1',
+                lang_code: 'en',
+                system_lang_code: 'en-US',
+                client_type: 'ios'
+            },
+            iphone14_ios17: {
+                device_model: 'iPhone 14 Pro',
+                system_version: 'iOS 17.6',
+                app_version: '10.5.1',
+                lang_code: 'en',
+                system_lang_code: 'en-US',
+                client_type: 'ios'
+            },
+            iphone13_ios17: {
+                device_model: 'iPhone 13',
+                system_version: 'iOS 17.4',
+                app_version: '10.5.1',
+                lang_code: 'en',
+                system_lang_code: 'en-US',
+                client_type: 'ios'
+            },
+            iphone12_ios16: {
+                device_model: 'iPhone 12',
+                system_version: 'iOS 16.7',
+                app_version: '10.5.1',
+                lang_code: 'en',
+                system_lang_code: 'en-US',
+                client_type: 'ios'
+            },
+            iphone11_ios16: {
+                device_model: 'iPhone 11',
+                system_version: 'iOS 16.5',
+                app_version: '10.5.1',
+                lang_code: 'en',
+                system_lang_code: 'en-US',
+                client_type: 'ios'
+            },
+            samsung_s24_android14: {
+                device_model: 'Samsung Galaxy S24 Ultra',
+                system_version: 'Android 14',
+                app_version: '10.5.0',
+                lang_code: 'en',
+                system_lang_code: 'en-US',
+                client_type: 'android'
+            },
+            samsung_s21_android13: {
+                device_model: 'Samsung Galaxy S21 Ultra',
+                system_version: 'Android 13',
+                app_version: '10.5.0',
+                lang_code: 'en',
+                system_lang_code: 'en-US',
+                client_type: 'android'
+            },
+            pixel8_android14: {
+                device_model: 'Google Pixel 8 Pro',
+                system_version: 'Android 14',
+                app_version: '10.5.0',
+                lang_code: 'en',
+                system_lang_code: 'en-US',
+                client_type: 'android'
+            },
+            xiaomi14_android14: {
+                device_model: 'Xiaomi 14 Pro',
+                system_version: 'Android 14',
+                app_version: '10.5.0',
+                lang_code: 'en',
+                system_lang_code: 'en-US',
+                client_type: 'android'
+            },
+            windows11_desktop: {
+                device_model: 'Desktop',
+                system_version: 'Windows 11',
+                app_version: '4.16.8 x64',
+                lang_code: 'en',
+                system_lang_code: 'en-US',
+                client_type: 'desktop'
+            },
+            windows10_desktop: {
+                device_model: 'Desktop',
+                system_version: 'Windows 10',
+                app_version: '4.16.8 x64',
+                lang_code: 'en',
+                system_lang_code: 'en-US',
+                client_type: 'desktop'
+            },
+            macos_sonoma: {
+                device_model: 'Desktop',
+                system_version: 'macOS Sonoma',
+                app_version: '10.5.1 arm64',
+                lang_code: 'en',
+                system_lang_code: 'en-US',
+                client_type: 'desktop'
             }
-        });
+        };
+
+        deviceSelect.addEventListener('change', async function (e) {
+            const presetKey = e.target.value;
+            const preset = devicePresets[presetKey];
+
+            // Show loading indicator
+            deviceSelect.disabled = true;
+
+            try {
+                const accountId = {{ account.id }
+            };
+            const formData = new FormData();
+
+            if (preset === null) {
+                // User selected "Use Original" - we'll send a flag to delete device_profile
+                formData.append('use_original', 'true');
+            } else {
+                // User selected a preset
+                for (const [key, value] of Object.entries(preset)) {
+                    formData.append(key, value);
+                }
+            }
+
+            const response = await fetch(`/accounts/${accountId}/update_device`, {
+                method: 'POST',
+                body: formData
+            });
+
+            if (response.ok) {
+                // Update the Selected Profile display
+                if (preset === null) {
+                    document.getElementById('profile-device').textContent = 'Original';
+                    document.getElementById('profile-system').textContent = 'Original';
+                    document.getElementById('profile-app').textContent = 'Original';
+                    document.getElementById('profile-language').textContent = 'en / en-US';
+                } else {
+                    document.getElementById('profile-device').textContent = preset.device_model;
+                    document.getElementById('profile-system').textContent = preset.system_version;
+                    document.getElementById('profile-app').textContent = preset.app_version;
+                    document.getElementById('profile-language').textContent = `${preset.lang_code} / ${preset.system_lang_code}`;
+                }
+
+                // Show success feedback
+                showToast('Device profile updated successfully', 'success');
+            } else {
+                throw new Error('Failed to update device profile');
+            }
+        } catch (error) {
+            console.error('Error updating device profile:', error);
+            showToast('Error updating device profile', 'danger');
+            // Reload page to restore correct state
+            setTimeout(() => location.reload(), 1500);
+        } finally {
+            deviceSelect.disabled = false;
+        }
     });
+
+    // Simple toast notification
+    function showToast(message, type = 'info') {
+        const toast = document.createElement('div');
+        toast.className = `alert alert-${type} position-fixed top-0 start-50 translate-middle-x mt-3`;
+        toast.style.zIndex = '9999';
+        toast.textContent = message;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 3000);
+    }
+});
 </script>
 {% endblock %}

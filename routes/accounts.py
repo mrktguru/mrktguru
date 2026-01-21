@@ -1661,7 +1661,8 @@ def remove_2fa(account_id):
     return redirect(url_for('accounts.detail', account_id=account_id))
 
 
-@accounts_bp.route("/<int:account_id>/update-device", methods=["POST"])
+
+@accounts_bp.route("/<int:account_id>/update_device", methods=["POST"])
 @login_required
 def update_device(account_id):
     """Update or create device profile"""
@@ -1670,7 +1671,39 @@ def update_device(account_id):
     account = Account.query.get_or_404(account_id)
     logger = ActivityLogger(account_id)
     
-    # Get form data
+    # Check if user wants to use original TData
+    use_original = request.form.get('use_original', '').lower() == 'true'
+    
+    if use_original:
+        # Delete device profile to use original TData
+        if account.device_profile:
+            old_model = account.device_profile.device_model
+            db.session.delete(account.device_profile)
+            db.session.commit()
+            
+            logger.log(
+                action_type='device_deleted',
+                status='success',
+                description=f"Switched to original TData device (was: {old_model})",
+                details="Device profile deleted, using original TData fingerprint",
+                category='system'
+            )
+            
+            # Check if AJAX request
+            if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return jsonify({'success': True, 'message': 'Switched to original TData device'})
+            
+            flash("✅ Switched to original TData device", "success")
+            return redirect(url_for('accounts.detail', account_id=account_id))
+        else:
+            # Already using original
+            if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return jsonify({'success': True, 'message': 'Already using original TData device'})
+            
+            flash("ℹ️ Already using original TData device", "info")
+            return redirect(url_for('accounts.detail', account_id=account_id))
+    
+    # Get form data for custom device
     device_model = request.form.get('device_model', '').strip()
     system_version = request.form.get('system_version', '').strip()
     app_version = request.form.get('app_version', '').strip()
@@ -1679,7 +1712,12 @@ def update_device(account_id):
     client_type = request.form.get('client_type', 'desktop')
     
     if not all([device_model, system_version, app_version]):
-        flash("❌ All device fields (model, system, app version) are required", "error")
+        error_msg = "All device fields (model, system, app version) are required"
+        
+        if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'error': error_msg}), 400
+        
+        flash(f"❌ {error_msg}", "error")
         return redirect(url_for('accounts.detail', account_id=account_id))
     
     # Update or create device profile
@@ -1719,5 +1757,19 @@ def update_device(account_id):
         category='system'
     )
     
+    # Check if AJAX request
+    if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return jsonify({
+            'success': True,
+            'message': msg,
+            'device': {
+                'model': device_model,
+                'system': system_version,
+                'app': app_version,
+                'lang': f"{lang_code} / {system_lang_code}"
+            }
+        })
+    
     flash(f"✅ {msg}", "success")
     return redirect(url_for('accounts.detail', account_id=account_id))
+
