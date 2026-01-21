@@ -522,7 +522,7 @@ async def execute_node_smart_subscribe(client, account_id, config):
         exclude_dead_days = config.get('exclude_dead_days', 7)
         max_flood_wait = config.get('max_flood_wait_sec', 60)
         
-        WarmupLog.log(account_id, 'info', f\"Smart Subscriber starting: target={target_entity}, randoms={random_count}\", action='smart_subscribe_start')
+        WarmupLog.log(account_id, 'info', f"Smart Subscriber starting: target={target_entity}, randoms={random_count}", action='smart_subscribe_start')
         
         # Build execution queue
         execution_queue = []
@@ -591,7 +591,7 @@ async def execute_node_smart_subscribe(client, account_id, config):
         if not execution_queue:
             return {'success': False, 'error': 'No channels to process (empty queue)'}
         
-        WarmupLog.log(account_id, 'info', f\"Execution queue: {len(execution_queue)} channels\", action='queue_built')
+        WarmupLog.log(account_id, 'info', f"Execution queue: {len(execution_queue)} channels", action='queue_built')
         
         # Process each channel in queue
         for idx, item in enumerate(execution_queue):
@@ -600,20 +600,20 @@ async def execute_node_smart_subscribe(client, account_id, config):
             db_record = item.get('db_record')
             
             try:
-                WarmupLog.log(account_id, 'info', f\"[{idx+1}/{len(execution_queue)}] Processing: {entity_str}\", action='channel_start')
+                WarmupLog.log(account_id, 'info', f"[{idx+1}/{len(execution_queue)}] Processing: {entity_str}", action='channel_start')
                 
                 # Resolve entity
                 try:
                     entity = await client.get_entity(entity_str)
                 except Exception as e:
-                    WarmupLog.log(account_id, 'warning', f\"Could not resolve {entity_str}: {e}\", action='resolve_error')
+                    WarmupLog.log(account_id, 'warning', f"Could not resolve {entity_str}: {e}", action='resolve_error')
                     continue
                 
                 # Pre-check: already subscribed?
                 try:
                     full_channel = await client(GetFullChannelRequest(channel=entity))
                     if full_channel.full_chat.participant:
-                        WarmupLog.log(account_id, 'info', f\"Already subscribed to {entity_str}, skipping\", action='already_subscribed')
+                        WarmupLog.log(account_id, 'info', f"Already subscribed to {entity_str}, skipping", action='already_subscribed')
                         if db_record:
                             db_record.status = 'SUBSCRIBED'
                             db.session.commit()
@@ -624,14 +624,14 @@ async def execute_node_smart_subscribe(client, account_id, config):
                 # Load history (last 20 messages)
                 all_messages = await client.get_messages(entity, limit=20)
                 if not all_messages:
-                    WarmupLog.log(account_id, 'warning', f\"No messages found in {entity_str}\", action='no_messages')
+                    WarmupLog.log(account_id, 'warning', f"No messages found in {entity_str}", action='no_messages')
                 
                 # Select N posts and reverse for chronological reading
                 posts_count = random.randint(posts_min, min(posts_max, len(all_messages) if all_messages else posts_min))
                 selected_messages = (all_messages[:posts_count] if all_messages else [])
                 selected_messages.reverse()  # Oldest to newest
                 
-                WarmupLog.log(account_id, 'info', f\"Reading {len(selected_messages)} posts from {entity_str}\", action='reading_start')
+                WarmupLog.log(account_id, 'info', f"Reading {len(selected_messages)} posts from {entity_str}", action='reading_start')
                 
                 # Reading loop
                 for msg in selected_messages:
@@ -649,7 +649,7 @@ async def execute_node_smart_subscribe(client, account_id, config):
                     # Explore comments (30% chance)
                     if msg.replies and msg.replies.replies > 0 and random.random() < comment_chance:
                         try:
-                            WarmupLog.log(account_id, 'info', f\"💬 Exploring comments ({msg.replies.replies} replies)\", action='view_comments')
+                            WarmupLog.log(account_id, 'info', f"💬 Exploring comments ({msg.replies.replies} replies)", action='view_comments')
                             await asyncio.sleep(random.uniform(1, 2))  # Click pause
                             
                             comments = await client.get_messages(entity, reply_to=msg.id, limit=random.randint(5, 12))
@@ -683,18 +683,18 @@ async def execute_node_smart_subscribe(client, account_id, config):
                 await asyncio.sleep(random.uniform(2, 5))
                 
                 # JOIN
-                WarmupLog.log(account_id, 'info', f\"Subscribing to {entity_str}...\", action='subscribe_attempt')
+                WarmupLog.log(account_id, 'info', f"Subscribing to {entity_str}...", action='subscribe_attempt')
                 
                 try:
                     await client(JoinChannelRequest(entity))
-                    WarmupLog.log(account_id, 'success', f\"✅ Subscribed to {entity_str}\", action='subscribe_success')
+                    WarmupLog.log(account_id, 'success', f"✅ Subscribed to {entity_str}", action='subscribe_success')
                     
                 except FloodWaitError as e:
                     # CRITICAL STOP - FLOOD_WAIT
                     wait_seconds = e.seconds
                     
                     if wait_seconds > max_flood_wait:
-                        error_msg = f\"FLOOD_WAIT {wait_seconds}s > max {max_flood_wait}s. Aborting.\"
+                        error_msg = f"FLOOD_WAIT {wait_seconds}s > max {max_flood_wait}s. Aborting."
                         WarmupLog.log(account_id, 'error', error_msg, action='flood_wait_abort')
                         
                         # Set account flood_wait status
@@ -712,13 +712,13 @@ async def execute_node_smart_subscribe(client, account_id, config):
                         }
                     else:
                         # Wait and retry
-                        WarmupLog.log(account_id, 'warning', f\"FLOOD_WAIT {wait_seconds}s, waiting...\", action='flood_wait')
+                        WarmupLog.log(account_id, 'warning', f"FLOOD_WAIT {wait_seconds}s, waiting...", action='flood_wait')
                         await asyncio.sleep(wait_seconds + 1)
                         await client(JoinChannelRequest(entity))
-                        WarmupLog.log(account_id, 'success', f\"✅ Subscribed after flood wait\", action='subscribe_success')
+                        WarmupLog.log(account_id, 'success', f"✅ Subscribed after flood wait", action='subscribe_success')
                 
                 except UserBannedInChannelError:
-                    WarmupLog.log(account_id, 'warning', f\"BANNED in {entity_str}, skipping\", action='user_banned')
+                    WarmupLog.log(account_id, 'warning', f"BANNED in {entity_str}, skipping", action='user_banned')
                     if db_record:
                         db_record.status = 'BANNED'
                         db_record.error_reason = 'USER_BANNED_IN_CHANNEL'
@@ -726,7 +726,7 @@ async def execute_node_smart_subscribe(client, account_id, config):
                     continue
                 
                 except Exception as join_error:
-                    WarmupLog.log(account_id, 'error', f\"Subscribe failed: {join_error}\", action='subscribe_error')
+                    WarmupLog.log(account_id, 'error', f"Subscribe failed: {join_error}", action='subscribe_error')
                     continue
                 
                 # Post-processing: MUTE
@@ -740,12 +740,12 @@ async def execute_node_smart_subscribe(client, account_id, config):
                             peer=InputNotifyPeer(entity),
                             settings=InputPeerNotifySettings(mute_until=2147483647)  # Forever
                         ))
-                        WarmupLog.log(account_id, 'info', f\"🔕 Muted {entity_str}\", action='mute')
+                        WarmupLog.log(account_id, 'info', f"🔕 Muted {entity_str}", action='mute')
                         
                         if db_record:
                             db_record.muted_at = datetime.utcnow()
                 except Exception as e:
-                    logger.warning(f\"Mute failed for {entity_str}: {e}\")
+                    logger.warning(f"Mute failed for {entity_str}: {e}")
                 
                 # Post-processing: ARCHIVE
                 try:
@@ -754,12 +754,12 @@ async def execute_node_smart_subscribe(client, account_id, config):
                         await client(EditPeerFoldersRequest([
                             InputFolderPeer(peer=entity, folder_id=1)  # folder_id=1 is Archive
                         ]))
-                        WarmupLog.log(account_id, 'info', f\"📁 Archived {entity_str}\", action='archive')
+                        WarmupLog.log(account_id, 'info', f"📁 Archived {entity_str}", action='archive')
                         
                         if db_record:
                             db_record.archived_at = datetime.utcnow()
                 except Exception as e:
-                    logger.warning(f\"Archive failed for {entity_str}: {e}\")
+                    logger.warning(f"Archive failed for {entity_str}: {e}")
                 
                 # Update DB record
                 if db_record:
@@ -767,25 +767,25 @@ async def execute_node_smart_subscribe(client, account_id, config):
                     db_record.subscribed_at = datetime.utcnow()
                     db.session.commit()
                 
-                WarmupLog.log(account_id, 'success', f\"Completed: {entity_str}\", action='channel_complete')
+                WarmupLog.log(account_id, 'success', f"Completed: {entity_str}", action='channel_complete')
                 
                 # Cooldown between channels (except last one)
                 if idx < len(execution_queue) - 1:
                     cooldown_seconds = random.randint(120, 600)  # 2-10 min
-                    WarmupLog.log(account_id, 'info', f\"Cooldown: {cooldown_seconds//60} min\", action='cooldown')
+                    WarmupLog.log(account_id, 'info', f"Cooldown: {cooldown_seconds//60} min", action='cooldown')
                     await asyncio.sleep(cooldown_seconds)
             
             except Exception as channel_error:
-                logger.error(f\"Error processing {entity_str}: {channel_error}")
-                WarmupLog.log(account_id, 'error', f\"Channel error: {str(channel_error)}\", action='channel_error')
+                logger.error(f"Error processing {entity_str}: {channel_error}")
+                WarmupLog.log(account_id, 'error', f"Channel error: {str(channel_error)}", action='channel_error')
                 continue
         
-        WarmupLog.log(account_id, 'success', f\"Smart Subscriber completed: {len(execution_queue)} channels processed\", action='smart_subscribe_complete')
+        WarmupLog.log(account_id, 'success', f"Smart Subscriber completed: {len(execution_queue)} channels processed", action='smart_subscribe_complete')
         return {'success': True, 'message': f'Processed {len(execution_queue)} channels'}
         
     except Exception as e:
-        logger.error(f\"Smart Subscriber failed: {e}\")
-        WarmupLog.log(account_id, 'error', f\"Smart Subscriber failed: {str(e)}\", action='smart_subscribe_error')
+        logger.error(f"Smart Subscriber failed: {e}")
+        WarmupLog.log(account_id, 'error', f"Smart Subscriber failed: {str(e)}", action='smart_subscribe_error')
         return {'success': False, 'error': str(e)}
 
 
