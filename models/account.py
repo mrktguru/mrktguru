@@ -41,6 +41,11 @@ class Account(db.Model):
     last_verification_time = db.Column(db.DateTime)  # For cooldown enforcement
     verification_count = db.Column(db.Integer, default=0)  # Total verifications
     
+    # FLOOD_WAIT Management
+    flood_wait_until = db.Column(db.DateTime)  # When flood wait expires
+    flood_wait_action = db.Column(db.String(50))  # Action that triggered flood: 'smart_subscribe', 'send_message', etc.
+    last_flood_wait = db.Column(db.DateTime)  # Last time flood wait occurred (for analytics)
+    
     # API Credentials (for TData import)
     api_credential_id = db.Column(db.Integer, db.ForeignKey('api_credentials.id'))
     

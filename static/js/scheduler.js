@@ -192,7 +192,8 @@
             'send_message': '💬 Message',
             'subscribe': '📺 Subscribe',
             'visit': '👁️ Visit',
-            'idle': '💤 Idle'
+            'idle': '💤 Idle',
+            'smart_subscribe': '🔔 Smart Subscribe'
         };
         return labels[nodeType] || nodeType;
     }
@@ -339,6 +340,114 @@
                     <div class="input-group">
                         <span class="input-group-text">@</span>
                         <input type="text" class="form-control" name="username" value="${defaultUser}">
+                    </div>
+                </div>
+            `;
+        }
+        else if (type === 'smart_subscribe') {
+            html += `
+                <div class="alert alert-info small mb-3">
+                    <strong>🤖 Smart Subscriber:</strong> Human-like subscription with reading simulation
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label">Target Entity (Optional)</label>
+                    <input type="text" class="form-control" name="target_entity" 
+                        value="${config.target_entity || ''}" 
+                        placeholder="@channel or leave empty">
+                    <small class="form-text text-muted">Your main channel to promote. Leave empty for noise-only mode.</small>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <label class="form-label">Random Channels Count</label>
+                        <input type="number" class="form-control" name="random_count" 
+                            value="${config.random_count || 3}" min="0" max="10">
+                        <small class="form-text text-muted">Noise channels from DB</small>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Pool Filter</label>
+                        <input type="text" class="form-control" name="pool_filter" 
+                            value="${config.pool_filter || ''}" placeholder="e.g. Crypto_Base">
+                        <small class="form-text text-muted">Optional: filter by pool name</small>
+                    </div>
+                </div>
+                
+                <hr class="my-3">
+                <h6>📖 Reading Parameters</h6>
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <label class="form-label">Posts Min</label>
+                        <input type="number" class="form-control" name="posts_limit_min" 
+                            value="${config.posts_limit_min || 3}" min="1" max="20">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Posts Max</label>
+                        <input type="number" class="form-control" name="posts_limit_max" 
+                            value="${config.posts_limit_max || 10}" min="1" max="20">
+                    </div>
+                </div>
+                
+                <div class="row mt-2">
+                    <div class="col-md-4">
+                        <label class="form-label">Comment Chance (%)</label>
+                        <input type="number" class="form-control" name="comment_chance" 
+                            value="${(config.comment_chance || 0.3) * 100}" min="0" max="100">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Media View (%)</label>
+                        <input type="number" class="form-control" name="view_media_chance" 
+                            value="${(config.view_media_chance || 0.5) * 100}" min="0" max="100">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Read Speed</label>
+                        <input type="number" class="form-control" name="read_speed_factor" 
+                            value="${config.read_speed_factor || 1.0}" min="0.5" max="2.0" step="0.1">
+                    </div>
+                </div>
+                
+                <hr class="my-3">
+                <h6>🔕 Post-Actions</h6>
+                
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="archive_random" 
+                                ${config.archive_random !== false ? 'checked' : ''}>
+                            <label class="form-check-label">Archive Randoms</label>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small">Mute Target (%)</label>
+                        <input type="number" class="form-control form-control-sm" name="mute_target_chance" 
+                            value="${(config.mute_target_chance || 0.5) * 100}" min="0" max="100">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small">Mute Randoms (%)</label>
+                        <input type="number" class="form-control form-control-sm" name="mute_random_chance" 
+                            value="${(config.mute_random_chance || 1.0) * 100}" min="0" max="100">
+                    </div>
+                </div>
+                
+                <hr class="my-3">
+                <h6>⚙️ Advanced Filters</h6>
+                
+                <div class="row">
+                    <div class="col-md-4">
+                        <label class="form-label">Min Participants</label>
+                        <input type="number" class="form-control" name="min_participants" 
+                            value="${config.min_participants || 100}" min="0">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Dead Days Threshold</label>
+                        <input type="number" class="form-control" name="exclude_dead_days" 
+                            value="${config.exclude_dead_days || 7}" min="0">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Max Flood Wait (s)</label>
+                        <input type="number" class="form-control" name="max_flood_wait_sec" 
+                            value="${config.max_flood_wait_sec || 60}" min="10" max="300">
                     </div>
                 </div>
             `;
@@ -500,7 +609,19 @@
 
         for (let [key, value] of formData.entries()) {
             if (['execution_time', 'is_random_time'].includes(key)) continue;
-            newConfig[key] = value;
+
+            // Convert percentage fields to decimals for smart_subscribe
+            if (currentNode.node_type === 'smart_subscribe' &&
+                ['comment_chance', 'view_media_chance', 'mute_target_chance', 'mute_random_chance'].includes(key)) {
+                newConfig[key] = parseFloat(value) / 100.0;
+            }
+            // Convert checkbox to boolean
+            else if (key === 'archive_random') {
+                newConfig[key] = form.elements[key].checked;
+            }
+            else {
+                newConfig[key] = value;
+            }
         }
 
         currentNode.config = newConfig;

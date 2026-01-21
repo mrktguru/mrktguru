@@ -95,6 +95,22 @@ def should_execute_now(node, current_time):
     Returns:
         bool: True if node should execute now
     """
+    from models.account import Account
+    
+    # Check if account is in flood_wait status
+    account = node.schedule.account
+    if account.status == 'flood_wait' and account.flood_wait_until:
+        if account.flood_wait_until > current_time:
+            logger.debug(f"Account {account.id} in flood_wait until {account.flood_wait_until}, skipping node {node.id}")
+            return False
+        else:
+            # Flood wait expired, clear status
+            account.status = 'active'
+            account.flood_wait_until = None
+            account.flood_wait_action = None
+            db.session.commit()
+            logger.info(f"Account {account.id} flood_wait expired, resuming")
+    
     if not node.execution_time:
         # No time specified, execute immediately
         return True
@@ -198,6 +214,18 @@ def execute_scheduled_node(node_id):
             logger.info(f"Node {node_id} completed successfully")
             WarmupLog.log(account_id, 'success', f"{node.node_type} node completed", action=f'{node.node_type}_complete')
         else:
+            # Check if this is a FLOOD_WAIT error
+            if result.get('flood_wait'):
+                # Critical: Update account status and pause entire warmup
+                account = Account.query.get(account_id)
+                if account and result.get('flood_wait_until'):
+                    account.status = 'flood_wait'
+                    account.flood_wait_until = result['flood_wait_until']
+                    account.flood_wait_action = node.node_type
+                    account.last_flood_wait = datetime.now()
+                    logger.critical(f"FLOOD_WAIT triggered for account {account_id} until {account.flood_wait_until}")
+                    WarmupLog.log(account_id, 'critical', f"FLOOD_WAIT: All warmup paused until {account.flood_wait_until}", action='flood_wait_critical')
+            
             node.status = 'failed'
             node.error_message = result.get('error', 'Unknown error')
             node.executed_at = datetime.now()

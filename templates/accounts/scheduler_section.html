@@ -72,6 +72,11 @@
                             <i class="bi bi-eye"></i> Visit
                         </div>
                     </div>
+                    <div class="node-item draggable mb-2" data-node-type="smart_subscribe">
+                        <div class="card card-body p-2 small">
+                            <i class="bi bi-bell-fill"></i> Smart Subscribe
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Other Nodes -->
@@ -346,5 +351,5 @@
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                     <button type="button" class="btn btn-primary" id="saveNodeConfigBtn">Save Configuration</button>
 
-<!-- Scheduler JavaScript - loaded from external file -->
-<script src="{{ url_for('static', filename='js/scheduler.js') }}"></script>
+                    <!-- Scheduler JavaScript - loaded from external file -->
+                    <script src="{{ url_for('static', filename='js/scheduler.js') }}"></script>

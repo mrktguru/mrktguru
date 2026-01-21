@@ -25,7 +25,7 @@ class ChannelCandidate(db.Model):
     origin = db.Column(db.String(20))  # SEARCH, LINK
     
     # Status tracking
-    status = db.Column(db.String(20), default='VISITED')  # VISITED, JOINED, REJECTED
+    status = db.Column(db.String(20), default='VISITED')  # VISITED, JOINED, SUBSCRIBED, BANNED, REJECTED
     last_visit_ts = db.Column(db.DateTime, default=datetime.utcnow)
     
     # Validation data
@@ -33,6 +33,12 @@ class ChannelCandidate(db.Model):
     last_post_date = db.Column(db.DateTime)
     can_send_messages = db.Column(db.Boolean, default=True)
     error_reason = db.Column(db.Text)  # Error message if status = 'FAILED'
+    
+    # Smart Subscriber tracking
+    pool_name = db.Column(db.String(100))  # Pool categorization: "Crypto_Base", "Marketing_Base"
+    subscribed_at = db.Column(db.DateTime)  # When subscription occurred
+    muted_at = db.Column(db.DateTime)  # When notifications were muted
+    archived_at = db.Column(db.DateTime)  # When moved to archive folder
     
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
@@ -64,5 +70,9 @@ class ChannelCandidate(db.Model):
             'can_send_messages': self.can_send_messages,
             'error_reason': self.error_reason,
             'last_visit_ts': self.last_visit_ts.isoformat() if self.last_visit_ts else None,
+            'pool_name': self.pool_name,
+            'subscribed_at': self.subscribed_at.isoformat() if self.subscribed_at else None,
+            'muted_at': self.muted_at.isoformat() if self.muted_at else None,
+            'archived_at': self.archived_at.isoformat() if self.archived_at else None,
             'created_at': self.created_at.isoformat() if self.created_at else None
         }

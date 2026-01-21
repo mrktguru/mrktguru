@@ -6,12 +6,14 @@ import asyncio
 import random
 import os
 import logging
-from datetime import datetime
-from telethon.tl.functions.account import UpdateProfileRequest, UpdateUsernameRequest
+from datetime import datetime, timedelta
+from telethon.tl.functions.account import UpdateProfileRequest, UpdateUsernameRequest, UpdateNotifySettingsRequest
 from telethon.tl.functions.photos import UploadProfilePhotoRequest
 from telethon.tl.functions.contacts import ImportContactsRequest
-from telethon.tl.functions.channels import JoinChannelRequest
-from telethon.tl.types import InputPhoneContact
+from telethon.tl.functions.channels import JoinChannelRequest, GetFullChannelRequest
+from telethon.tl.functions.folders import EditPeerFoldersRequest
+from telethon.tl.types import InputPhoneContact, InputPeerNotifySettings, InputNotifyPeer, InputFolderPeer
+from telethon.errors import FloodWaitError, ChannelPrivateError, UserBannedInChannelError
 from models.warmup_log import WarmupLog
 from utils.warmup_executor import emulate_typing
 from database import db
@@ -467,6 +469,319 @@ async def execute_node_idle(client, account_id, config):
         return {'success': False, 'error': str(e)}
 
 
+async def execute_node_smart_subscribe(client, account_id, config):
+    """
+    Execute Smart Subscriber node - intelligent channel subscription with human-like behavior
+    
+    Config:
+    {
+        'target_entity': '@channel' or None,
+        'random_count': 3,
+        'pool_filter': 'Crypto_Base' or None,
+        'posts_limit_min': 3,
+        'posts_limit_max': 10,
+        'read_speed_factor': 1.0,
+        'comment_chance': 0.3,
+        'view_media_chance': 0.5,
+        'mute_target_chance': 0.5,
+        'mute_random_chance': 1.0,
+        'archive_random': True,
+        'min_participants': 100,
+        'exclude_dead_days': 7,
+        'max_flood_wait_sec': 60
+    }
+    """
+    from models.account import Account
+    from models.channel_candidate import ChannelCandidate
+    
+    try:
+        account = Account.query.get(account_id)
+        if not account:
+            return {'success': False, 'error': 'Account not found'}
+        
+        # Parse config with defaults
+        target_entity = config.get('target_entity')
+        random_count = config.get('random_count', 3)
+        pool_filter = config.get('pool_filter')
+        posts_min = config.get('posts_limit_min', 3)
+        posts_max = config.get('posts_limit_max', 10)
+        read_speed = config.get('read_speed_factor', 1.0)
+        comment_chance = config.get('comment_chance', 0.3)
+        view_media_chance = config.get('view_media_chance', 0.5)
+        mute_target_chance = config.get('mute_target_chance', 0.5)
+        mute_random_chance = config.get('mute_random_chance', 1.0)
+        archive_random = config.get('archive_random', True)
+        min_participants = config.get('min_participants', 100)
+        exclude_dead_days = config.get('exclude_dead_days', 7)
+        max_flood_wait = config.get('max_flood_wait_sec', 60)
+        
+        WarmupLog.log(account_id, 'info', f\"Smart Subscriber starting: target={target_entity}, randoms={random_count}\", action='smart_subscribe_start')
+        
+        # Build execution queue
+        execution_queue = []
+        
+        # Add random channels from DB
+        if random_count > 0:
+            query = ChannelCandidate.query.filter_by(
+                account_id=account_id,
+                status='VISITED'
+            ).filter(
+                ChannelCandidate.type.in_(['CHANNEL', 'MEGAGROUP'])
+            )
+            
+            # Apply pool filter
+            if pool_filter:
+                query = query.filter_by(pool_name=pool_filter)
+            
+            # Apply participant filter
+            if min_participants:
+                query = query.filter(ChannelCandidate.participants_count >= min_participants)
+            
+            # Apply dead channel filter
+            if exclude_dead_days:
+                threshold_date = datetime.utcnow() - timedelta(days=exclude_dead_days)
+                query = query.filter(
+                    db.or_(
+                        ChannelCandidate.last_post_date >= threshold_date,
+                        ChannelCandidate.last_post_date.is_(None)
+                    )
+                )
+            
+            # Apply "отлежались" filter (> 2 hours since last visit)
+            two_hours_ago = datetime.utcnow() - timedelta(hours=2)
+            query = query.filter(ChannelCandidate.last_visit_ts < two_hours_ago)
+            
+            # Order by creation date and limit
+            random_channels = query.order_by(ChannelCandidate.created_at).limit(random_count).all()
+            
+            for ch in random_channels:
+                execution_queue.append({
+                    'entity': ch.username or f't.me/c/{ch.peer_id}',
+                    'peer_id': ch.peer_id,
+                    'access_hash': ch.access_hash,
+                    'is_target': False,
+                    'db_record': ch
+                })
+        
+        # Add target entity if specified
+        if target_entity:
+            execution_queue.append({
+                'entity': target_entity.replace('@', '').strip(),
+                'is_target': True,
+                'db_record': None
+            })
+        
+        # Shuffle but ensure target is not first
+        if len(execution_queue) > 1 and execution_queue[-1].get('is_target'):
+            target_item = execution_queue.pop()
+            random.shuffle(execution_queue)
+            # Insert target at random position except first
+            insert_pos = random.randint(1, len(execution_queue))
+            execution_queue.insert(insert_pos, target_item)
+        else:
+            random.shuffle(execution_queue)
+        
+        if not execution_queue:
+            return {'success': False, 'error': 'No channels to process (empty queue)'}
+        
+        WarmupLog.log(account_id, 'info', f\"Execution queue: {len(execution_queue)} channels\", action='queue_built')
+        
+        # Process each channel in queue
+        for idx, item in enumerate(execution_queue):
+            entity_str = item['entity']
+            is_target = item.get('is_target', False)
+            db_record = item.get('db_record')
+            
+            try:
+                WarmupLog.log(account_id, 'info', f\"[{idx+1}/{len(execution_queue)}] Processing: {entity_str}\", action='channel_start')
+                
+                # Resolve entity
+                try:
+                    entity = await client.get_entity(entity_str)
+                except Exception as e:
+                    WarmupLog.log(account_id, 'warning', f\"Could not resolve {entity_str}: {e}\", action='resolve_error')
+                    continue
+                
+                # Pre-check: already subscribed?
+                try:
+                    full_channel = await client(GetFullChannelRequest(channel=entity))
+                    if full_channel.full_chat.participant:
+                        WarmupLog.log(account_id, 'info', f\"Already subscribed to {entity_str}, skipping\", action='already_subscribed')
+                        if db_record:
+                            db_record.status = 'SUBSCRIBED'
+                            db.session.commit()
+                        continue
+                except:
+                    pass  # Not subscribed, continue
+                
+                # Load history (last 20 messages)
+                all_messages = await client.get_messages(entity, limit=20)
+                if not all_messages:
+                    WarmupLog.log(account_id, 'warning', f\"No messages found in {entity_str}\", action='no_messages')
+                
+                # Select N posts and reverse for chronological reading
+                posts_count = random.randint(posts_min, min(posts_max, len(all_messages) if all_messages else posts_min))
+                selected_messages = (all_messages[:posts_count] if all_messages else [])
+                selected_messages.reverse()  # Oldest to newest
+                
+                WarmupLog.log(account_id, 'info', f\"Reading {len(selected_messages)} posts from {entity_str}\", action='reading_start')
+                
+                # Reading loop
+                for msg in selected_messages:
+                    # Calculate read time
+                    text_length = len(msg.message) if msg.message else 50
+                    base_read_time = (text_length / 20.0) * read_speed  # 20 chars/sec
+                    
+                    # Add media viewing time
+                    if msg.media and random.random() < view_media_chance:
+                        base_read_time += random.uniform(3, 6)
+                    
+                    # Read pause
+                    await asyncio.sleep(base_read_time)
+                    
+                    # Explore comments (30% chance)
+                    if msg.replies and msg.replies.replies > 0 and random.random() < comment_chance:
+                        try:
+                            WarmupLog.log(account_id, 'info', f\"💬 Exploring comments ({msg.replies.replies} replies)\", action='view_comments')
+                            await asyncio.sleep(random.uniform(1, 2))  # Click pause
+                            
+                            comments = await client.get_messages(entity, reply_to=msg.id, limit=random.randint(5, 12))
+                            await asyncio.sleep(random.uniform(5, 15))  # Read discussion
+                            
+                            # Occasionally view commenter profile
+                            if comments and random.random() < 0.3:
+                                comment = random.choice(comments)
+                                if comment.sender_id:
+                                    try:
+                                        await asyncio.sleep(random.uniform(1, 2))
+                                        await client.get_entity(comment.sender_id)
+                                        await asyncio.sleep(random.uniform(4, 10))
+                                    except:
+                                        pass
+                        except:
+                            pass
+                    
+                    # Send read acknowledge (CRITICAL for Trust Score)
+                    # 85% chance: mark latest, 15% chance: mark 2nd or 3rd from end (human pattern)
+                    try:
+                        if random.random() < 0.85:
+                            await client.send_read_acknowledge(entity, message=msg)
+                        else:
+                            # Mark partial read (human left before finishing)
+                            pass
+                    except:
+                        pass  # Non-critical
+                
+                # Decision pause before subscribing
+                await asyncio.sleep(random.uniform(2, 5))
+                
+                # JOIN
+                WarmupLog.log(account_id, 'info', f\"Subscribing to {entity_str}...\", action='subscribe_attempt')
+                
+                try:
+                    await client(JoinChannelRequest(entity))
+                    WarmupLog.log(account_id, 'success', f\"✅ Subscribed to {entity_str}\", action='subscribe_success')
+                    
+                except FloodWaitError as e:
+                    # CRITICAL STOP - FLOOD_WAIT
+                    wait_seconds = e.seconds
+                    
+                    if wait_seconds > max_flood_wait:
+                        error_msg = f\"FLOOD_WAIT {wait_seconds}s > max {max_flood_wait}s. Aborting.\"
+                        WarmupLog.log(account_id, 'error', error_msg, action='flood_wait_abort')
+                        
+                        # Set account flood_wait status
+                        account.status = 'flood_wait'
+                        account.flood_wait_until = datetime.utcnow() + timedelta(seconds=wait_seconds)
+                        account.flood_wait_action = 'smart_subscribe'
+                        account.last_flood_wait = datetime.utcnow()
+                        db.session.commit()
+                        
+                        return {
+                            'success': False,
+                            'error': error_msg,
+                            'flood_wait': True,
+                            'flood_wait_until': account.flood_wait_until
+                        }
+                    else:
+                        # Wait and retry
+                        WarmupLog.log(account_id, 'warning', f\"FLOOD_WAIT {wait_seconds}s, waiting...\", action='flood_wait')
+                        await asyncio.sleep(wait_seconds + 1)
+                        await client(JoinChannelRequest(entity))
+                        WarmupLog.log(account_id, 'success', f\"✅ Subscribed after flood wait\", action='subscribe_success')
+                
+                except UserBannedInChannelError:
+                    WarmupLog.log(account_id, 'warning', f\"BANNED in {entity_str}, skipping\", action='user_banned')
+                    if db_record:
+                        db_record.status = 'BANNED'
+                        db_record.error_reason = 'USER_BANNED_IN_CHANNEL'
+                        db.session.commit()
+                    continue
+                
+                except Exception as join_error:
+                    WarmupLog.log(account_id, 'error', f\"Subscribe failed: {join_error}\", action='subscribe_error')
+                    continue
+                
+                # Post-processing: MUTE
+                try:
+                    should_mute = (not is_target and random.random() < mute_random_chance) or \
+                                  (is_target and random.random() < mute_target_chance)
+                    
+                    if should_mute:
+                        await asyncio.sleep(random.uniform(1, 2))
+                        await client(UpdateNotifySettingsRequest(
+                            peer=InputNotifyPeer(entity),
+                            settings=InputPeerNotifySettings(mute_until=2147483647)  # Forever
+                        ))
+                        WarmupLog.log(account_id, 'info', f\"🔕 Muted {entity_str}\", action='mute')
+                        
+                        if db_record:
+                            db_record.muted_at = datetime.utcnow()
+                except Exception as e:
+                    logger.warning(f\"Mute failed for {entity_str}: {e}\")
+                
+                # Post-processing: ARCHIVE
+                try:
+                    if archive_random and not is_target:
+                        await asyncio.sleep(random.uniform(1, 2))
+                        await client(EditPeerFoldersRequest([
+                            InputFolderPeer(peer=entity, folder_id=1)  # folder_id=1 is Archive
+                        ]))
+                        WarmupLog.log(account_id, 'info', f\"📁 Archived {entity_str}\", action='archive')
+                        
+                        if db_record:
+                            db_record.archived_at = datetime.utcnow()
+                except Exception as e:
+                    logger.warning(f\"Archive failed for {entity_str}: {e}\")
+                
+                # Update DB record
+                if db_record:
+                    db_record.status = 'SUBSCRIBED'
+                    db_record.subscribed_at = datetime.utcnow()
+                    db.session.commit()
+                
+                WarmupLog.log(account_id, 'success', f\"Completed: {entity_str}\", action='channel_complete')
+                
+                # Cooldown between channels (except last one)
+                if idx < len(execution_queue) - 1:
+                    cooldown_seconds = random.randint(120, 600)  # 2-10 min
+                    WarmupLog.log(account_id, 'info', f\"Cooldown: {cooldown_seconds//60} min\", action='cooldown')
+                    await asyncio.sleep(cooldown_seconds)
+            
+            except Exception as channel_error:
+                logger.error(f\"Error processing {entity_str}: {channel_error}")
+                WarmupLog.log(account_id, 'error', f\"Channel error: {str(channel_error)}\", action='channel_error')
+                continue
+        
+        WarmupLog.log(account_id, 'success', f\"Smart Subscriber completed: {len(execution_queue)} channels processed\", action='smart_subscribe_complete')
+        return {'success': True, 'message': f'Processed {len(execution_queue)} channels'}
+        
+    except Exception as e:
+        logger.error(f\"Smart Subscriber failed: {e}\")
+        WarmupLog.log(account_id, 'error', f\"Smart Subscriber failed: {str(e)}\", action='smart_subscribe_error')
+        return {'success': False, 'error': str(e)}
+
+
 # Node executor registry
 NODE_EXECUTORS = {
     'bio': execute_node_bio,
@@ -477,6 +792,7 @@ NODE_EXECUTORS = {
     'subscribe': execute_node_subscribe_channels,
     'visit': execute_node_visit_channels,
     'idle': execute_node_idle,
+    'smart_subscribe': execute_node_smart_subscribe,
 }
 
 
