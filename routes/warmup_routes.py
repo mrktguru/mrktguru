@@ -275,6 +275,89 @@ def execute_activity(account_id):
 @warmup_bp.route('/logs', methods=['GET'])
 @login_required
 def get_logs(account_id):
+    """Get combined activity logs for warmup section with pagination"""
+    from models.activity_log import AccountActivityLog
+    
+    # Pagination parameters
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 50, type=int)  # Default 50 per page
+    
+    # Calculate offset
+    offset = (page - 1) * per_page
+    
+    # Get paginated AccountActivityLog entries
+    activity_logs = AccountActivityLog.query.filter_by(
+        account_id=account_id
+    ).order_by(AccountActivityLog.timestamp.desc()).offset(offset).limit(per_page).all()
+    
+    # Get paginated WarmupLog entries
+    warmup_logs = WarmupLog.query.filter_by(
+        account_id=account_id
+    ).order_by(WarmupLog.timestamp.desc()).offset(offset).limit(per_page).all()
+    
+    # Get total counts for pagination info
+    total_activity = AccountActivityLog.query.filter_by(account_id=account_id).count()
+    total_warmup = WarmupLog.query.filter_by(account_id=account_id).count()
+    total_logs = total_activity + total_warmup
+    
+    # Combine logs with original timestamps for sorting
+    raw_logs = []
+    
+    # Add activity logs
+    for log in activity_logs:
+        raw_logs.append({
+            'id': f"act_{log.id}",
+            'dt': log.timestamp,
+            'ts': log.timestamp.timestamp(),
+            'timestamp': log.timestamp.strftime('%d.%m.%Y %H:%M:%S'),
+            'action_type': log.action_type,
+            'category': log.action_category or 'system',
+            'status': log.status,
+            'description': log.description or '',
+            'source': 'activity'
+        })
+    
+    # Add warmup logs
+    for log in warmup_logs:
+        raw_logs.append({
+            'id': log.id,
+            'dt': log.timestamp,
+            'ts': log.timestamp.timestamp(),
+            'timestamp': log.timestamp.strftime('%d.%m.%Y %H:%M:%S'),
+            'action_type': log.action_type or 'warmup',
+            'category': 'warmup',
+            'status': log.status,
+            'description': log.message,
+            'source': 'warmup',
+            'stage': log.stage_number
+        })
+    
+    # Sort by datetime object (newest first)
+    raw_logs.sort(key=lambda x: x['dt'], reverse=True)
+    
+    # Remove temporary 'dt' key
+    final_logs = []
+    for log in raw_logs:
+        del log['dt']
+        final_logs.append(log)
+    
+    # Calculate pagination metadata
+    total_pages = (total_logs + per_page - 1) // per_page  # Ceiling division
+    has_next = page < total_pages
+    has_prev = page > 1
+        
+    return jsonify({
+        'logs': final_logs,
+        'pagination': {
+            'page': page,
+            'per_page': per_page,
+            'total': total_logs,
+            'total_pages': total_pages,
+            'has_next': has_next,
+            'has_prev': has_prev
+        }
+    })
+_id):
     """Get combined activity logs for warmup section"""
     from models.activity_log import AccountActivityLog
     

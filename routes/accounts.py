@@ -1659,3 +1659,65 @@ def remove_2fa(account_id):
         loop.close()
         
     return redirect(url_for('accounts.detail', account_id=account_id))
+
+
+@accounts_bp.route("/<int:account_id>/update-device", methods=["POST"])
+@login_required
+def update_device(account_id):
+    """Update or create device profile"""
+    from utils.activity_logger import ActivityLogger
+    
+    account = Account.query.get_or_404(account_id)
+    logger = ActivityLogger(account_id)
+    
+    # Get form data
+    device_model = request.form.get('device_model', '').strip()
+    system_version = request.form.get('system_version', '').strip()
+    app_version = request.form.get('app_version', '').strip()
+    lang_code = request.form.get('lang_code', 'en').strip()
+    system_lang_code = request.form.get('system_lang_code', 'en-US').strip()
+    client_type = request.form.get('client_type', 'desktop')
+    
+    if not all([device_model, system_version, app_version]):
+        flash("❌ All device fields (model, system, app version) are required", "error")
+        return redirect(url_for('accounts.detail', account_id=account_id))
+    
+    # Update or create device profile
+    if account.device_profile:
+        dp = account.device_profile
+        old_model = dp.device_model
+        dp.device_model = device_model
+        dp.system_version = system_version
+        dp.app_version = app_version
+        dp.lang_code = lang_code
+        dp.system_lang_code = system_lang_code
+        dp.client_type = client_type
+        action = 'device_updated'
+        msg = f"Device updated: {old_model} → {device_model}"
+    else:
+        dp = DeviceProfile(
+            account_id=account_id,
+            device_model=device_model,
+            system_version=system_version,
+            app_version=app_version,
+            lang_code=lang_code,
+            system_lang_code=system_lang_code,
+            client_type=client_type
+        )
+        db.session.add(dp)
+        account.device_profile = dp
+        action = 'device_created'
+        msg = f"Device created: {device_model}"
+    
+    db.session.commit()
+    
+    logger.log(
+        action_type=action,
+        status='success',
+        description=msg,
+        details=f"Model: {device_model}, System: {system_version}, App: {app_version}, Client: {client_type}",
+        category='system'
+    )
+    
+    flash(f"✅ {msg}", "success")
+    return redirect(url_for('accounts.detail', account_id=account_id))

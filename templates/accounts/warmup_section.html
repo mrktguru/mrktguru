@@ -242,6 +242,16 @@
                 </tbody>
             </table>
         </div>
+        <!-- Pagination Controls -->
+        <div class="card-footer d-flex justify-content-between align-items-center">
+            <button class="btn btn-sm btn-outline-secondary" id="prev-page-btn" onclick="loadPrevPage()" disabled>
+                <i class="bi bi-chevron-left"></i> Previous
+            </button>
+            <span class="small text-muted" id="page-info">Page 1</span>
+            <button class="btn btn-sm btn-outline-secondary" id="next-page-btn" onclick="loadNextPage()" disabled>
+                Next <i class="bi bi-chevron-right"></i>
+            </button>
+        </div>
     </div>
 </div>
 
@@ -253,6 +263,8 @@
     let pollTimer = null;
     let activeStage = null;
     let startTS = 0;
+    let currentPage = 1;
+    let paginationData = null;
 
     // Start polling logs while executing
     async function startPolling(stage) {
@@ -554,11 +566,15 @@
         }
     }
 
-    // Load Activity Logs
-    async function loadLogs(activeStage = null) {
+    // Load Activity Logs with pagination
+    async function loadLogs(activeStage = null, page = 1) {
         try {
-            const response = await fetch(`/accounts/${accountId}/warmup/logs`);
+            const response = await fetch(`/accounts/${accountId}/warmup/logs?page=${page}&per_page=50`);
             const data = await response.json();
+
+            // Update pagination state
+            currentPage = page;
+            paginationData = data.pagination;
 
             const tbody = document.getElementById('logs-tbody');
             tbody.innerHTML = '';
@@ -586,15 +602,6 @@
                             progress = Math.max(10, progress);
                             container.querySelector('.progress-bar').style.width = `${progress}%`;
 
-                            // Check for completion in logs
-                            // Since we have a 'success' or 'error' status in WarmupLog, we can use it
-                            if (latest.status === 'success' && (latest.action_type === 'set_photo' || latest.description.includes('completed') || latest.description.includes('Read'))) {
-                                // This is a bit fuzzy, maybe we should log a specific 'stage_completed' action
-                                // For now, let's look for specific descriptive success messages
-                            }
-
-                            // A better way: if the latest log for this stage is 'success' or 'error', 
-                            // and it refers to the FINAL action of that stage
                             const completeActions = ['complete', 'set_photo', 'send_saved_message', 'read_posts_success', 'visit_success'];
                             if (latest.status === 'success' && completeActions.includes(latest.action_type)) {
                                 stopPolling(activeStage, true);
@@ -652,6 +659,9 @@
             } else {
                 tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No activity yet</td></tr>';
             }
+
+            // Update pagination controls
+            updatePaginationControls();
         } catch (e) {
             console.error('Failed to load logs:', e);
             if (!isExecuting) {
@@ -659,6 +669,136 @@
                     '<tr><td colspan="5" class="text-center text-danger">Failed to load logs</td></tr>';
             }
         }
+    }
+
+    // Update pagination button states
+    function updatePaginationControls() {
+        const prevBtn = document.getElementById('prev-page-btn');
+        const nextBtn = document.getElementById('next-page-btn');
+        const pageInfo = document.getElementById('page-info');
+
+        if (paginationData) {
+            prevBtn.disabled = !paginationData.has_prev;
+            nextBtn.disabled = !paginationData.has_next;
+            pageInfo.textContent = `Page ${paginationData.page} of ${paginationData.total_pages} (${paginationData.total} logs)`;
+        }
+    }
+
+    // Pagination helpers
+    function loadPrevPage() {
+        if (currentPage > 1) {
+            loadLogs(null, currentPage - 1);
+        }
+    }
+
+    function loadNextPage() {
+        if (paginationData && paginationData.has_next) {
+            loadLogs(null, currentPage + 1);
+        }
+    }
+    try {
+        const response = await fetch(`/accounts/${accountId}/warmup/logs`);
+        const data = await response.json();
+
+        const tbody = document.getElementById('logs-tbody');
+        tbody.innerHTML = '';
+
+        if (data.logs && data.logs.length > 0) {
+            // Update active stage progress if polling
+            if (activeStage) {
+                const stageLogs = data.logs.filter(l =>
+                    l.source === 'warmup' &&
+                    l.stage === activeStage &&
+                    (l.ts ? l.ts >= startTS : true)
+                );
+                if (stageLogs.length > 0) {
+                    const latest = stageLogs[0];
+                    const container = document.getElementById(`progress-stage-${activeStage}`);
+                    if (container) {
+                        container.querySelector('.status-text').textContent = latest.description;
+
+                        // Estimate % (rough based on typical step counts)
+                        let progress = 10;
+                        if (activeStage === 1) progress = Math.min(95, (stageLogs.length / 5) * 100);
+                        if (activeStage === 2) progress = Math.min(95, (stageLogs.length / 4) * 100);
+                        if (activeStage === 3) progress = Math.min(95, (stageLogs.length / (selectedChannels.length * 3 || 1)) * 100);
+
+                        progress = Math.max(10, progress);
+                        container.querySelector('.progress-bar').style.width = `${progress}%`;
+
+                        // Check for completion in logs
+                        // Since we have a 'success' or 'error' status in WarmupLog, we can use it
+                        if (latest.status === 'success' && (latest.action_type === 'set_photo' || latest.description.includes('completed') || latest.description.includes('Read'))) {
+                            // This is a bit fuzzy, maybe we should log a specific 'stage_completed' action
+                            // For now, let's look for specific descriptive success messages
+                        }
+
+                        // A better way: if the latest log for this stage is 'success' or 'error', 
+                        // and it refers to the FINAL action of that stage
+                        const completeActions = ['complete', 'set_photo', 'send_saved_message', 'read_posts_success', 'visit_success'];
+                        if (latest.status === 'success' && completeActions.includes(latest.action_type)) {
+                            stopPolling(activeStage, true);
+                        } else if (latest.status === 'error' || latest.status === 'failed') {
+                            stopPolling(activeStage, false);
+                        }
+                    }
+                }
+            }
+
+            data.logs.forEach(log => {
+                const row = document.createElement('tr');
+
+                // Status-based row class
+                let rowClass = '';
+                if (log.status === 'failed' || log.status === 'error') rowClass = 'table-danger';
+                else if (log.status === 'pending') rowClass = 'table-warning';
+                row.className = rowClass;
+
+                // Category badge color
+                let categoryBadge = 'bg-secondary';
+                if (log.category === 'warmup') categoryBadge = 'bg-warning';
+                else if (log.category === 'system') categoryBadge = 'bg-info';
+                else if (log.category === 'campaign') categoryBadge = 'bg-primary';
+                else if (log.category === 'profile') categoryBadge = 'bg-success';
+
+                // Status badge
+                let statusBadge = 'bg-light text-dark';
+                let statusIcon = '';
+                if (log.status === 'success') {
+                    statusBadge = 'bg-success';
+                    statusIcon = '✓ ';
+                } else if (log.status === 'failed' || log.status === 'error') {
+                    statusBadge = 'bg-danger';
+                    statusIcon = '✗ ';
+                } else if (log.status === 'pending' || log.status === 'info') {
+                    statusBadge = 'bg-info';
+                    statusIcon = 'ℹ ';
+                    if (log.status === 'pending') {
+                        statusBadge = 'bg-warning';
+                        statusIcon = '⏳ ';
+                    }
+                }
+
+                row.innerHTML = `
+                        <td><small>${log.timestamp}</small></td>
+                        <td><span class="badge bg-secondary">${log.action_type || 'warmup'}</span></td>
+                        <td><span class="badge ${categoryBadge}">${log.category}</span></td>
+                        <td><span class="badge ${statusBadge}">${statusIcon}${log.status}</span></td>
+                        <td><small>${log.description || '-'}</small></td>
+                    `;
+
+                tbody.appendChild(row);
+            });
+        } else {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No activity yet</td></tr>';
+        }
+    } catch (e) {
+        console.error('Failed to load logs:', e);
+        if (!isExecuting) {
+            document.getElementById('logs-tbody').innerHTML =
+                '<tr><td colspan="5" class="text-center text-danger">Failed to load logs</td></tr>';
+        }
+    }
     }
 
     // Load logs on page load
