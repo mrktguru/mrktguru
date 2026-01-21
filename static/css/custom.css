@@ -39,3 +39,27 @@ body {
 .btn {
     border-radius: 6px;
 }
+
+/* Modal Display Fixes */
+.modal {
+    z-index: 1055 !important;
+}
+
+.modal-backdrop {
+    z-index: 1050 !important;
+}
+
+.modal-dialog {
+    min-width: 300px;
+    margin: 1.75rem auto;
+}
+
+.modal-content {
+    min-height: 200px;
+    display: flex;
+    flex-direction: column;
+}
+
+.modal-body {
+    flex: 1 1 auto;
+}
