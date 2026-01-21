@@ -71,11 +71,18 @@ async def execute_node_bio(client, account_id, config):
             await asyncio.sleep(random.uniform(2, 5))
             WarmupLog.log(account_id, 'success', 'Bio updated', action='set_bio')
         
-        # Sync from Telegram
+        # Sync from Telegram - PRESERVE existing values if Telegram returns None/empty
         await asyncio.sleep(random.uniform(2, 4))
         me = await client.get_me()
-        account.first_name = me.first_name or account.first_name
-        account.last_name = me.last_name or account.last_name
+        
+        # Only update if Telegram returned non-empty values
+        if me.first_name and me.first_name.strip():
+            account.first_name = me.first_name
+        
+        if me.last_name and me.last_name.strip():
+            account.last_name = me.last_name
+        # else: preserve existing last_name
+        
         account.bio = getattr(me, 'about', account.bio)
         
         db.session.commit()

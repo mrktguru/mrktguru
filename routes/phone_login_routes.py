@@ -304,19 +304,29 @@ def submit_code(account_id):
         account.status = 'active'
         account.phone_code_hash = None # Clear hash
         
-        # Save Device Profile
+        # 📱 Update or create device profile (PRESERVE existing)
         if account.device_profile:
-             db.session.delete(account.device_profile) # clear old if any
-             
-        dp = DeviceProfile(
-            device_model=device_params['device_model'],
-            system_version=device_params['system_version'],
-            app_version=device_params['app_version'],
-            lang_code=device_params['lang_code'],
-            system_lang_code=device_params['system_lang_code'],
-            client_type=api_credential.client_type if api_credential else 'desktop'
-        )
-        account.device_profile = dp
+            # ✅ UPDATE existing device profile instead of deleting
+            dp = account.device_profile
+            dp.device_model = device_params['device_model']
+            dp.system_version = device_params['system_version']
+            dp.app_version = device_params['app_version']
+            dp.lang_code = device_params['lang_code']
+            dp.system_lang_code = device_params['system_lang_code']
+            dp.client_type = api_credential.client_type if api_credential else 'desktop'
+        else:
+            # Create new device profile
+            dp = DeviceProfile(
+                account_id=account.id,
+                device_model=device_params['device_model'],
+                system_version=device_params['system_version'],
+                app_version=device_params['app_version'],
+                lang_code=device_params['lang_code'],
+                system_lang_code=device_params['system_lang_code'],
+                client_type=api_credential.client_type if api_credential else 'desktop'
+            )
+            db.session.add(dp)
+            account.device_profile = dp
         
         db.session.commit()
         flash("Login successful! Account added.", "success")

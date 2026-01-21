@@ -378,7 +378,12 @@ def verify(account_id):
 
             account.telegram_id = user['id']
             account.first_name = user['first_name']
-            account.last_name = user.get('last_name') or account.last_name
+            
+            # Only update last_name if Telegram returned non-empty value
+            if user.get('last_name') and user['last_name'].strip():
+                account.last_name = user['last_name']
+            # else: preserve existing last_name
+            
             account.username = user['username']
             account.status = 'active'
             
