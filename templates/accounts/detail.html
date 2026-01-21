@@ -580,43 +580,48 @@
 </div>
 
 <script>
-    // Device Profile Presets
-    document.getElementById('devicePreset')?.addEventListener('change', function (e) {
-        const presets = {
-            ios: {
-                device_model: 'iPhone 15 Pro Max',
-                system_version: 'iOS 17.2',
-                app_version: '10.5.1',
-                lang_code: 'en',
-                system_lang_code: 'en-US',
-                client_type: 'ios'
-            },
-            android: {
-                device_model: 'Samsung Galaxy S24 Ultra',
-                system_version: 'Android 14',
-                app_version: '10.5.0',
-                lang_code: 'en',
-                system_lang_code: 'en-US',
-                client_type: 'android'
-            },
-            desktop: {
-                device_model: 'Desktop',
-                system_version: 'Windows 11',
-                app_version: '4.16.8 x64',
-                lang_code: 'en',
-                system_lang_code: 'en-US',
-                client_type: 'desktop'
-            }
-        };
+    // Device Profile Presets - wait for DOM to be ready
+    document.addEventListener('DOMContentLoaded', function () {
+        const devicePresetSelect = document.getElementById('devicePreset');
+        if (!devicePresetSelect) return;
 
-        const preset = presets[e.target.value];
-        if (preset) {
-            document.getElementById('device_model').value = preset.device_model;
-            document.getElementById('system_version').value = preset.system_version;
-            document.getElementById('app_version').value = preset.app_version;
-            document.getElementById('lang_code').value = preset.lang_code;
-            document.getElementById('system_lang_code').value = preset.system_lang_code;
-            document.getElementById('client_type').value = preset.client_type;
-        }
+        devicePresetSelect.addEventListener('change', function (e) {
+            const presets = {
+                ios: {
+                    device_model: 'iPhone 15 Pro Max',
+                    system_version: 'iOS 17.2',
+                    app_version: '10.5.1',
+                    lang_code: 'en',
+                    system_lang_code: 'en-US',
+                    client_type: 'ios'
+                },
+                android: {
+                    device_model: 'Samsung Galaxy S24 Ultra',
+                    system_version: 'Android 14',
+                    app_version: '10.5.0',
+                    lang_code: 'en',
+                    system_lang_code: 'en-US',
+                    client_type: 'android'
+                },
+                desktop: {
+                    device_model: 'Desktop',
+                    system_version: 'Windows 11',
+                    app_version: '4.16.8 x64',
+                    lang_code: 'en',
+                    system_lang_code: 'en-US',
+                    client_type: 'desktop'
+                }
+            };
+
+            const preset = presets[e.target.value];
+            if (preset) {
+                document.getElementById('device_model').value = preset.device_model;
+                document.getElementById('system_version').value = preset.system_version;
+                document.getElementById('app_version').value = preset.app_version;
+                document.getElementById('lang_code').value = preset.lang_code;
+                document.getElementById('system_lang_code').value = preset.system_lang_code;
+                document.getElementById('client_type').value = preset.client_type;
+            }
+        });
     });
 </script>
