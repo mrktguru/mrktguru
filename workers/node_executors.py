@@ -603,8 +603,16 @@ async def execute_node_smart_subscribe(client, account_id, config):
                 WarmupLog.log(account_id, 'info', f"[{idx+1}/{len(execution_queue)}] Processing: {entity_str}", action='channel_start')
                 
                 # Resolve entity
+                # LOGIC: If we have access_hash, use Direct Access (mimic "Open from History")
+                # Otherwise, resolve username (mimic "Search")
                 try:
-                    entity = await client.get_entity(entity_str)
+                    if item.get('peer_id') and item.get('access_hash'):
+                        from telethon.tl.types import InputPeerChannel
+                        entity = InputPeerChannel(int(item['peer_id']), int(item['access_hash']))
+                        # Verify we can access it (and get updated info if needed) usually not needed for simple actions
+                        # but get_messages accepts InputPeer
+                    else:
+                        entity = await client.get_entity(entity_str)
                 except Exception as e:
                     WarmupLog.log(account_id, 'warning', f"Could not resolve {entity_str}: {e}", action='resolve_error')
                     continue
