@@ -388,7 +388,9 @@ def upload_asset():
 def run_node_immediately(account_id):
     """Execute a single node logic immediately"""
     try:
-        from utils.warmup_executor import WarmupExecutor
+        from workers.node_executors import execute_node
+        from utils.telethon_helper import get_telethon_client
+        import asyncio
         
         account = Account.query.get(account_id)
         if not account:
@@ -401,23 +403,26 @@ def run_node_immediately(account_id):
         if not node_type:
             return jsonify({'error': 'node_type required'}), 400
             
-        # Execute Logic
-        # We construct a temporary node object or pass params directly
-        executor = WarmupExecutor()
-        
-        # We need to map node_type to executor functions
-        # This assumes WarmupExecutor has methods like 'execute_bio', 'execute_message' etc.
-        # If not, we might need to map them or call a generic 'execute_node'
-        
-        # For MVP safety, we wrap this. 
-        # Since I am not 100% sure of WarmupExecutor signatures without reading it, 
-        # I will instantiate it and try to call a generic dispatcher if it exists, or individual methods.
-        # Based on file listing, `warmup_executor.py` exists.
-        import asyncio
-        result = asyncio.run(executor.execute_immediate(account, node_type, config))
+        # Execute using shared node logic
+        async def run_wrapper():
+            client = get_telethon_client(account_id)
+            if not client:
+                return {'success': False, 'error': 'Failed to get Telethon client'}
+                
+            try:
+                if not client.is_connected():
+                    await client.connect()
+                    
+                return await execute_node(node_type, client, account_id, config)
+            finally:
+                if client and client.is_connected():
+                    await client.disconnect()
+
+        # Run async in sync context
+        result = asyncio.run(run_wrapper())
         
         if result.get('success'):
-            return jsonify({'message': 'Executed', 'result': result.get('message', 'OK')}), 200
+            return jsonify({'message': 'Executed', 'result': result}), 200
         else:
             return jsonify({'error': result.get('error', 'Execution failed')}), 400
 
