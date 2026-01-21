@@ -154,9 +154,28 @@
     }
 
     function updateNodeVisuals(el, node, dayNumber) {
+        // Reset and apply status classes
+        el.className = 'scheduled-node';
+        if (node.status === 'running') el.classList.add('executing');
+        if (node.status === 'completed') el.classList.add('node-success');
+        if (node.status === 'failed') el.classList.add('node-error');
+
+        // Status Badge Logic
+        let statusBadge = '';
+        if (node.status === 'running') {
+            statusBadge = '<span class="badge bg-warning text-dark ms-1" style="font-size: 0.6em;">Run</span>';
+        } else if (node.status === 'completed') {
+            statusBadge = '<span class="badge bg-success ms-1" style="font-size: 0.6em;">Done</span>';
+        } else if (node.status === 'failed') {
+            statusBadge = '<span class="badge bg-danger ms-1" style="font-size: 0.6em;">Fail</span>';
+        }
+
         el.innerHTML = `
             <span class="remove-node" onclick="window.removeSchedulerNode(this, ${dayNumber}, '${node.node_type}')">×</span>
-            <strong>${getNodeLabel(node.node_type)}</strong>
+            <div class="d-flex align-items-center flex-wrap">
+                <strong>${getNodeLabel(node.node_type)}</strong>
+                ${statusBadge}
+            </div>
             <span class="node-time">${node.is_random_time ? '🎲 Random' : node.execution_time}</span>
             ${getConfigSummary(node)}
         `;
