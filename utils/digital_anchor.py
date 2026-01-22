@@ -125,11 +125,16 @@ def run_digital_anchor_background(account_id):
     Call this AFTER successful verification.
     """
     def thread_target():
-        # Create new event loop for this thread
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        loop.run_until_complete(_run_anchor_logic(account_id))
-        loop.close()
+        # Import app here to avoid circular imports during startup
+        from app import app
+        
+        # Create app context for DB access (ActivityLogger)
+        with app.app_context():
+            # Create new event loop for this thread
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(_run_anchor_logic(account_id))
+            loop.close()
 
     thread = threading.Thread(target=thread_target, name=f"Anchor-{account_id}", daemon=True)
     thread.start()
