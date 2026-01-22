@@ -75,36 +75,55 @@ def get_telethon_client(account_id, proxy=None):
         print(f"ℹ️ Using API from config (ID: {api_id})")
     
     # ==================== DEVICE FINGERPRINT ====================
-    # Priority: TData exact fingerprint > DeviceProfile > Defaults
+    # Priority: JSON (if selected) > TData binary > DeviceProfile > Defaults
+    
+    # 1. Base values (Fallbacks)
+    device_params = {
+        'device_model': "Desktop",
+        'system_version': "Windows 10",
+        'app_version': "5.6.3 x64",
+        'lang_code': "en",
+        'system_lang_code': "en-US"
+    }
     
     if account.tdata_metadata:
-        # Use EXACT device info from TData
         tdata = account.tdata_metadata
-        device_model = tdata.device_model or "Desktop"
-        system_version = tdata.system_version or "Windows 10"
-        app_version = tdata.app_version or "1.0"
-        lang_code = tdata.lang_code or "en"
-        system_lang_code = tdata.system_lang_code or "en-US"
-        print(f"✅ Using exact device fingerprint from TData: {device_model}")
-    
+        
+        # LOGIC: Choose between JSON and TData binary
+        # If user selected JSON and data exists - use it
+        if getattr(tdata, 'device_source', None) == 'json' and tdata.json_device_model:
+            print(f"✅ Using JSON fingerprint for account {account_id}")
+            device_params.update({
+                'device_model': tdata.json_device_model,
+                'system_version': tdata.json_system_version or tdata.system_version,
+                'app_version': tdata.json_app_version or tdata.app_version,
+                'lang_code': tdata.json_lang_code or tdata.lang_code,
+                'system_lang_code': tdata.json_system_lang_code or tdata.system_lang_code
+            })
+        else:
+            # Otherwise use TData binary data
+            print(f"✅ Using TData binary fingerprint for account {account_id}")
+            device_params.update({
+                'device_model': tdata.device_model or "Desktop",
+                'system_version': tdata.system_version or "Windows 10",
+                'app_version': tdata.app_version or "5.6.3 x64",
+                'lang_code': tdata.lang_code or "en",
+                'system_lang_code': tdata.system_lang_code or "en-US"
+            })
+            
     elif account.device_profile:
         # Use device profile (for .session uploads)
         device = account.device_profile
-        device_model = device.device_model
-        system_version = device.system_version
-        app_version = device.app_version
-        lang_code = device.lang_code
-        system_lang_code = device.system_lang_code
-        print(f"ℹ️ Using device profile: {device_model}")
-    
+        print(f"ℹ️  Using device profile: {device.device_model}")
+        device_params.update({
+            'device_model': device.device_model,
+            'system_version': device.system_version,
+            'app_version': device.app_version,
+            'lang_code': device.lang_code,
+            'system_lang_code': device.system_lang_code
+        })
     else:
-        # Fallback defaults
-        device_model = "Desktop"
-        system_version = "Windows 10"
-        app_version = "1.0"
-        lang_code = "en"
-        system_lang_code = "en-US"
-        print(f"⚠️ Using default device fingerprint")
+        print(f"⚠️  Using default device fingerprint")
     
     # ==================== PROXY CONFIGURATION ====================
     # Build proxy dict for Telethon
@@ -192,12 +211,14 @@ def get_telethon_client(account_id, proxy=None):
         session,
         api_id,
         api_hash,
-        device_model=device_model,
-        system_version=system_version,
-        app_version=app_version,
-        lang_code=lang_code,
-        system_lang_code=system_lang_code,
-        lang_pack='tdesktop',  # CRITICAL: Identifies as official TDesktop client
+        # Expand device parameters from dictionary
+        device_model=device_params['device_model'],
+        system_version=device_params['system_version'],
+        app_version=device_params['app_version'],
+        lang_code=device_params['lang_code'],
+        system_lang_code=device_params['system_lang_code'],
+        
+        lang_pack='tdesktop',  # CRITICAL: Leave as is!
         proxy=proxy_dict,
         # Enhanced timeouts for stability
         connection_retries=3,
