@@ -17,7 +17,10 @@ from telethon.tl.functions.help import GetConfigRequest
 from telethon.tl.functions.updates import GetStateRequest
 from telethon.tl.functions.account import RegisterDeviceRequest
 from telethon.tl.functions.langpack import GetStringsRequest
-from telethon.tl.alltlobjects import LAYER  # Fixed: alltlobjects (no underscore)
+from telethon.tl.alltlobjects import LAYER
+
+logger = logging.getLogger(__name__)
+
 
 
 
