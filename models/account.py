@@ -41,6 +41,10 @@ class Account(db.Model):
     last_verification_time = db.Column(db.DateTime)  # For cooldown enforcement
     verification_count = db.Column(db.Integer, default=0)  # Total verifications
     
+    # Anti-Ban Authentication Flow
+    first_verified_at = db.Column(db.DateTime)  # First successful full verification
+    last_check_status = db.Column(db.String(50), default='pending')  # pending/active/banned/error
+    
     # FLOOD_WAIT Management
     flood_wait_until = db.Column(db.DateTime)  # When flood wait expires
     flood_wait_action = db.Column(db.String(50))  # Action that triggered flood: 'smart_subscribe', 'send_message', etc.

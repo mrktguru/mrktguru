@@ -34,6 +34,14 @@
                             <small class="text-muted">Maximum size: 50MB</small>
                         </div>
 
+                        <div class="mb-3">
+                            <label class="form-label">📄 JSON Metadata (Optional)</label>
+                            <input type="file" class="form-control" name="json_file" accept=".json">
+                            <small class="text-muted">
+                                Optional: Upload JSON file if provided with TData for better device fingerprinting
+                            </small>
+                        </div>
+
                         <div class="d-grid gap-2">
                             <button type="submit" class="btn btn-primary btn-lg">
                                 📤 Upload & Extract TData
@@ -42,6 +50,7 @@
                                 Cancel
                             </a>
                         </div>
+
                     </form>
                 </div>
             </div>

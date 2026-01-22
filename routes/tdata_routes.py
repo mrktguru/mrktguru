@@ -26,6 +26,7 @@ def upload_tdata():
     """Upload TData archive (.zip)"""
     if request.method == 'POST':
         tdata_file = request.files.get('tdata_file')
+        json_file = request.files.get('json_file')  # Optional JSON metadata
         
         if not tdata_file or not tdata_file.filename:
             flash("❌ No file selected", "error")
@@ -78,6 +79,21 @@ def upload_tdata():
             network = metadata.get('network', {})
             session_info = metadata.get('session_info', {})
             
+            # Parse JSON metadata if provided
+            json_metadata = None
+            if json_file and json_file.filename:
+                try:
+                    json_filename = secure_filename(json_file.filename)
+                    json_path = os.path.join(temp_dir, json_filename)
+                    json_file.save(json_path)
+                    
+                    json_metadata = TDataParser.parse_json_metadata(json_path)
+                    logger.info(f"📄 JSON metadata parsed successfully")
+                except Exception as json_err:
+                    logger.warning(f"Failed to parse JSON: {json_err}")
+                    flash(f"⚠️ JSON parsing failed, continuing with TData only: {str(json_err)}", "warning")
+                    # Continue without JSON
+            
             # Encrypt sensitive data
             auth_key_encrypted = None
             if auth_data.get('auth_key'):
@@ -114,7 +130,7 @@ def upload_tdata():
                 # Original API
                 original_api_id=device_info.get('original_api_id'),
                 original_api_hash=original_api_hash_encrypted,
-                # Device fingerprint
+                # Device fingerprint (from TData)
                 device_model=device_info.get('device_model'),
                 system_version=device_info.get('system_version'),
                 app_version=device_info.get('app_version'),
@@ -130,7 +146,15 @@ def upload_tdata():
                 session_count=session_info.get('session_count'),
                 last_update_time=session_info.get('last_update_time'),
                 # Raw metadata for debugging (serialized for JSON)
-                raw_metadata=raw_metadata_serialized
+                raw_metadata=raw_metadata_serialized,
+                # JSON metadata (if provided)
+                device_source='tdata',  # Default, user can change in configure
+                json_raw_data=json_metadata.get('raw_json') if json_metadata else None,
+                json_app_version=json_metadata.get('device_info', {}).get('app_version') if json_metadata else None,
+                json_device_model=json_metadata.get('device_info', {}).get('device_model') if json_metadata else None,
+                json_system_version=json_metadata.get('device_info', {}).get('system_version') if json_metadata else None,
+                json_lang_code=json_metadata.get('device_info', {}).get('lang_code') if json_metadata else None,
+                json_system_lang_code=json_metadata.get('device_info', {}).get('system_lang_code') if json_metadata else None
             )
             db.session.add(tdata_meta)
             
@@ -183,6 +207,7 @@ def configure_tdata(account_id):
             api_credential_id = request.form.get('api_credential_id')
             proxy_id = request.form.get('proxy_id')
             auth_key_manual = request.form.get('auth_key_manual')  # Optional override
+            device_source = request.form.get('device_source', 'tdata')  # 'tdata' or 'json'
             
             # Device fingerprint overrides
             device_model_override = request.form.get('device_model_override')
@@ -196,13 +221,20 @@ def configure_tdata(account_id):
                 flash("❌ Please select an API credential", "error")
                 return redirect(url_for('accounts.configure_tdata', account_id=account_id))
             
+            # Validate device_source
+            if device_source not in ['tdata', 'json']:
+                device_source = 'tdata'
+            
             # Update account
             account.api_credential_id = int(api_credential_id)
             if proxy_id:
                 account.proxy_id = int(proxy_id)
             
-            # Apply device fingerprint overrides
+            # Apply device source selection
             tdata = account.tdata_metadata
+            tdata.device_source = device_source
+            
+            # Apply device fingerprint overrides
             if device_model_override:
                 tdata.device_model = device_model_override
             if system_version_override:
@@ -316,14 +348,45 @@ def configure_tdata(account_id):
     if tdata.original_api_id:
         recommended_api_id = tdata.original_api_id
     
+    # Check if JSON metadata is available
+    has_json = bool(tdata.json_raw_data)
+    comparison = None
+    
+    if has_json:
+        # Compare sources
+        tdata_only_meta = {
+            'device_info': {
+                'device_model': tdata.device_model,
+                'system_version': tdata.system_version,
+                'app_version': tdata.app_version,
+                'lang_code': tdata.lang_code,
+                'system_lang_code': tdata.system_lang_code,
+            }
+        }
+        
+        json_meta = {
+            'device_info': {
+                'device_model': tdata.json_device_model,
+                'system_version': tdata.json_system_version,
+                'app_version': tdata.json_app_version,
+                'lang_code': tdata.json_lang_code,
+                'system_lang_code': tdata.json_system_lang_code,
+            }
+        }
+        
+        comparison = TDataParser.compare_sources(tdata_only_meta, json_meta)
+    
     return render_template(
         'accounts/configure_tdata.html',
         account=account,
         tdata=tdata,
         api_credentials=api_credentials,
         proxies=proxies,
-        recommended_api_id=recommended_api_id
+        recommended_api_id=recommended_api_id,
+        has_json=has_json,
+        comparison=comparison
     )
+
 
 
 @login_required

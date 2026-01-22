@@ -372,3 +372,243 @@ class TDataParser:
         if not result:
              raise Exception("Thread finished but returned no result (Unknown error)")
         return result
+    
+    
+    @staticmethod
+    def parse_json_metadata(json_path: str) -> Dict:
+        """
+        Parse JSON metadata file (often included with TData)
+        
+        Args:
+            json_path: Path to JSON file
+            
+        Returns:
+            dict: Standardized metadata structure
+        """
+        import json
+        
+        try:
+            with open(json_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            
+            logger.info(f"📄 Parsing JSON metadata from: {json_path}")
+            
+            # Standardize field names (different sellers use different formats)
+            metadata = {
+                'auth_data': {},
+                'device_info': {},
+                'network': {},
+                'session_info': {},
+                'raw_json': data
+            }
+            
+            # Extract device info (flexible field name matching)
+            device_info = metadata['device_info']
+            
+            # API credentials
+            device_info['original_api_id'] = (
+                data.get('app_id') or 
+                data.get('api_id') or 
+                data.get('appId')
+            )
+            
+            device_info['original_api_hash'] = (
+                data.get('app_hash') or 
+                data.get('api_hash') or 
+                data.get('appHash')
+            )
+            
+            # Device model
+            device_info['device_model'] = (
+                data.get('device') or 
+                data.get('device_model') or 
+                data.get('deviceModel')
+            )
+            
+            # System version
+            device_info['system_version'] = (
+                data.get('sdk') or 
+                data.get('system_version') or 
+                data.get('systemVersion')
+            )
+            
+            # App version
+            device_info['app_version'] = (
+                data.get('app_version') or 
+                data.get('appVersion') or 
+                data.get('version')
+            )
+            
+            # Language codes
+            device_info['lang_code'] = (
+                data.get('lang_code') or 
+                data.get('langCode') or 
+                'en'
+            )
+            
+            device_info['system_lang_code'] = (
+                data.get('system_lang_code') or 
+                data.get('systemLangCode') or 
+                'en-US'
+            )
+            
+            device_info['lang_pack'] = (
+                data.get('system_lang_pack') or 
+                data.get('lang_pack') or 
+                data.get('langPack') or 
+                'tdesktop'
+            )
+            
+            # Auth data
+            auth_data = metadata['auth_data']
+            auth_data['phone'] = data.get('phone')
+            auth_data['user_id'] = data.get('id')
+            
+            # Session info
+            session_info = metadata['session_info']
+            session_info['register_time'] = data.get('register_time')
+            session_info['last_check_time'] = data.get('last_check_time')
+            session_info['is_premium'] = data.get('is_premium', False)
+            session_info['has_profile_pic'] = data.get('has_profile_pic', False)
+            session_info['spamblock'] = data.get('spamblock')
+            
+            # Network
+            metadata['network'] = {
+                'proxy': data.get('proxy'),
+                'ipv6': data.get('ipv6', False)
+            }
+            
+            logger.info(f"✅ JSON parsed successfully")
+            logger.info(f"   Device: {device_info.get('device_model', 'Unknown')}")
+            logger.info(f"   App: {device_info.get('app_version', 'Unknown')}")
+            logger.info(f"   API ID: {device_info.get('original_api_id', 'Unknown')}")
+            
+            return metadata
+            
+        except FileNotFoundError:
+            raise Exception(f"JSON file not found: {json_path}")
+        except json.JSONDecodeError as e:
+            raise Exception(f"Invalid JSON format: {str(e)}")
+        except Exception as e:
+            logger.error(f"Failed to parse JSON metadata: {e}")
+            raise Exception(f"JSON parsing failed: {str(e)}")
+    
+    
+    @staticmethod
+    def compare_sources(tdata_meta: Dict, json_meta: Dict) -> Dict:
+        """
+        Compare TData and JSON metadata sources
+        
+        Args:
+            tdata_meta: Metadata from TData parsing
+            json_meta: Metadata from JSON parsing
+            
+        Returns:
+            dict: Comparison results with recommendations
+        """
+        comparison = {
+            'tdata': {},
+            'json': {},
+            'differences': [],
+            'recommended_source': None
+        }
+        
+        # Extract device info from both sources
+        tdata_device = tdata_meta.get('device_info', {})
+        json_device = json_meta.get('device_info', {})
+        
+        # Compare key fields
+        fields_to_compare = [
+            'original_api_id',
+            'device_model',
+            'system_version',
+            'app_version',
+            'lang_code',
+            'system_lang_code'
+        ]
+        
+        for field in fields_to_compare:
+            tdata_val = tdata_device.get(field)
+            json_val = json_device.get(field)
+            
+            comparison['tdata'][field] = tdata_val
+            comparison['json'][field] = json_val
+            
+            if tdata_val != json_val:
+                comparison['differences'].append({
+                    'field': field,
+                    'tdata': tdata_val,
+                    'json': json_val
+                })
+        
+        # Recommendation logic
+        # Prefer JSON if it has more complete data
+        json_completeness = sum(1 for f in fields_to_compare if json_device.get(f))
+        tdata_completeness = sum(1 for f in fields_to_compare if tdata_device.get(f))
+        
+        if json_completeness > tdata_completeness:
+            comparison['recommended_source'] = 'json'
+            comparison['reason'] = f"JSON has more complete data ({json_completeness}/{len(fields_to_compare)} vs {tdata_completeness}/{len(fields_to_compare)})"
+        elif tdata_completeness > json_completeness:
+            comparison['recommended_source'] = 'tdata'
+            comparison['reason'] = f"TData has more complete data ({tdata_completeness}/{len(fields_to_compare)} vs {json_completeness}/{len(fields_to_compare)})"
+        else:
+            # If equal, prefer JSON (typically more accurate for device fingerprinting)
+            comparison['recommended_source'] = 'json'
+            comparison['reason'] = "Both sources complete, JSON preferred for accuracy"
+        
+        return comparison
+    
+    
+    @staticmethod
+    def merge_metadata(tdata_meta: Dict, json_meta: Optional[Dict], source_preference: str = 'json') -> Dict:
+        """
+        Merge TData and JSON metadata, preferring specified source
+        
+        Args:
+            tdata_meta: Metadata from TData
+            json_meta: Metadata from JSON (optional)
+            source_preference: 'tdata' or 'json'
+            
+        Returns:
+            dict: Merged metadata with source tracking
+        """
+        if not json_meta:
+            # No JSON, use TData only
+            merged = tdata_meta.copy()
+            merged['_source'] = 'tdata'
+            return merged
+        
+        # Start with TData as base
+        merged = tdata_meta.copy()
+        
+        # Override device info based on preference
+        if source_preference == 'json':
+            # Use JSON device parameters
+            json_device = json_meta.get('device_info', {})
+            merged_device = merged.get('device_info', {})
+            
+            # Override key fields from JSON
+            override_fields = [
+                'device_model',
+                'system_version',
+                'app_version',
+                'lang_code',
+                'system_lang_code',
+                'lang_pack'
+            ]
+            
+            for field in override_fields:
+                if json_device.get(field):
+                    merged_device[field] = json_device[field]
+            
+            merged['device_info'] = merged_device
+            merged['_source'] = 'json'
+            merged['_json_data'] = json_meta.get('raw_json', {})
+        else:
+            # Keep TData device parameters
+            merged['_source'] = 'tdata'
+            if json_meta:
+                merged['_json_data'] = json_meta.get('raw_json', {})
+        
+        return merged

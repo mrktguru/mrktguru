@@ -45,6 +45,15 @@ class TDataMetadata(db.Model):
     # ==================== RAW METADATA (for debugging) ====================
     raw_metadata = db.Column(db.JSON)
     
+    # ==================== JSON METADATA (from companion JSON file) ====================
+    device_source = db.Column(db.String(20), default='tdata')  # 'tdata' or 'json'
+    json_raw_data = db.Column(db.JSON)  # Full JSON if provided
+    json_app_version = db.Column(db.String(50))
+    json_device_model = db.Column(db.String(100))
+    json_system_version = db.Column(db.String(50))
+    json_lang_code = db.Column(db.String(10))
+    json_system_lang_code = db.Column(db.String(10))
+    
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     def __repr__(self):

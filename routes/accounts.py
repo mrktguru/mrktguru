@@ -367,38 +367,53 @@ def verify(account_id):
         result = loop.run_until_complete(verify_session(account_id))
         
         if result['success']:
-            # Update account info
-            user = result['user']
+            verification_type = result.get('verification_type', 'unknown')
             
-            # Check for name changes
-            if account.last_name and not user.get('last_name'):
-                 from flask import current_app
-                 current_app.logger.warning(f"Verification: Last name for {account.phone} is being removed (Telegram returned None)")
-                 flash("⚠️ Note: Telegram did not return a last name. It has been removed from your profile.", "warning")
-
-            account.telegram_id = user['id']
-            account.first_name = user['first_name']
-            
-            # Only update last_name if Telegram returned non-empty value
-            if user.get('last_name') and user['last_name'].strip():
-                account.last_name = user['last_name']
-            # else: preserve existing last_name
-            
-            account.username = user['username']
-            account.status = 'active'
-            
-            if user['photo']:
-                account.photo_url = "photo_available"
+            # FULL VERIFICATION - Update all user data
+            if verification_type == 'full' and result.get('user'):
+                user = result['user']
                 
-            if hasattr(Account, 'verified'):
-                try:
-                    account.verified = True
-                except:
-                    pass
+                # Check for name changes
+                if account.last_name and not user.get('last_name'):
+                    from flask import current_app
+                    current_app.logger.warning(f"Verification: Last name for {account.phone} is being removed (Telegram returned None)")
+                    flash("⚠️ Note: Telegram did not return a last name.", "warning")
+                
+                account.telegram_id = user['id']
+                account.first_name = user['first_name']
+                
+                # Only update last_name if Telegram returned non-empty value
+                if user.get('last_name') and user['last_name'].strip():
+                    account.last_name = user['last_name']
+                
+                account.username = user['username']
+                account.status = 'active'
+                account.last_check_status = 'active'
+                
+                if user.get('photo'):
+                    account.photo_url = "photo_available"
+                
+                if hasattr(Account, 'verified'):
+                    try:
+                        account.verified = True
+                    except:
+                        pass
+                
+                db.session.commit()
+                flash("✅ Account verified (Full verification with anti-ban handshake)", "success")
+                logger.log(action_type='verification_success', status='success', description='Full verification with handshake')
             
-            db.session.commit()
-            flash("Account verified successfully", "success")
-            logger.log(action_type='verification_success', status='success', description='Verification passed, active status set')
+            # LIGHT VERIFICATION - Only update status
+            elif verification_type == 'light':
+                account.status = 'active'
+                account.last_check_status = 'active'
+                db.session.commit()
+                
+                flash("✅ Account check passed (Light verification)", "success")
+                logger.log(action_type='verification_success', status='success', description='Light verification passed')
+            
+            else:
+                flash("✅ Verification successful", "success")
             
         else:
             # Handle failure
@@ -406,24 +421,34 @@ def verify(account_id):
             
             if error_type == 'flood_wait':
                 account.status = 'flood_wait'
+                account.last_check_status = 'flood_wait'
                 wait_time = result.get('wait', 0)
-                flash(f"Telegram FloodWait limit. Please wait {wait_time} seconds.", "error")
+                flash(f"⏱️ FloodWait: {wait_time}s", "error")
                 logger.log(action_type='verification_failed', status='error', description=f"FloodWait: {wait_time}s", category='system')
                 
             elif error_type == 'banned':
                 account.status = 'banned'
+                account.last_check_status = 'banned'
                 account.health_score = 0
-                flash(f"Account is BANNED by Telegram: {result.get('error')}", "error")
-                logger.log(action_type='verification_failed', status='error', description=f"ACCOUNT BANNED: {result.get('error')}", category='system')
+                flash(f"🚫 Account BANNED: {result.get('error')}", "error")
+                logger.log(action_type='verification_failed', status='error', description=f"BANNED: {result.get('error')}", category='system')
                 
             elif error_type == 'invalid_session':
                 account.status = 'error'
-                flash(f"Session Invalid: {result.get('error')}", "error")
-                logger.log(action_type='verification_failed', status='error', description=f"Invalid Session: {result.get('error')}", category='system')
+                account.last_check_status = 'session_invalid'
+                flash(f"🔑 Session Invalid: {result.get('error')}", "error")
+                logger.log(action_type='verification_failed', status='error', description=f"Invalid: {result.get('error')}", category='system')
+            
+            elif error_type == 'handshake_failed':
+                account.status = 'error'
+                account.last_check_status = 'handshake_failed'
+                flash(f"❌ Handshake failed: {result.get('error')}", "error")
+                logger.log(action_type='verification_failed', status='error', description=f"Handshake: {result.get('error')}", category='system')
                 
             else:
                 account.status = 'error'
-                flash(f"Verification failed: {result.get('error')}", "error")
+                account.last_check_status = 'error'
+                flash(f"❌ Failed: {result.get('error')}", "error")
                 logger.log(action_type='verification_failed', status='error', description=f"Error: {result.get('error')}", category='system')
             
             db.session.commit()
