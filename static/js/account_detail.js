@@ -118,22 +118,23 @@ function loadSessions() {
             btn.classList.remove('d-none'); // Show button again (to reload)
             btn.innerHTML = '<i class="bi bi-arrow-clockwise"></i> Refresh Sessions';
 
-            console.log('Rendering', data.sessions.length, 'sessions');
-            // No more localStorage caching - force fresh data
-            // localStorage.setItem(`sessions_${accountId}`, JSON.stringify(data.sessions));
-            renderSessions(data.sessions);
-            listDiv.classList.remove('d-none');
-        } else {
-            console.error('Error from server:', data.error);
-            alert('Error loading sessions: ' + data.error);
-}
+            if (data.success) {
+                console.log('Rendering', data.sessions.length, 'sessions');
+                // No more localStorage caching - force fresh data
+                // localStorage.setItem(`sessions_${accountId}`, JSON.stringify(data.sessions));
+                renderSessions(data.sessions);
+                listDiv.classList.remove('d-none');
+            } else {
+                console.error('Error from server:', data.error);
+                alert('Error loading sessions: ' + data.error);
+            }
         })
-        .catch (err => {
-    console.error('Network error:', err);
-    loading.classList.add('d-none');
-    btn.classList.remove('d-none');
-    alert('Network error: ' + err.message);
-});
+        .catch(err => {
+            console.error('Network error:', err);
+            loading.classList.add('d-none');
+            btn.classList.remove('d-none');
+            alert('Network error: ' + err.message);
+        });
 }
 
 function renderSessions(sessions) {
