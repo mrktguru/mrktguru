@@ -118,23 +118,22 @@ function loadSessions() {
             btn.classList.remove('d-none'); // Show button again (to reload)
             btn.innerHTML = '<i class="bi bi-arrow-clockwise"></i> Refresh Sessions';
 
-            if (data.success) {
-                console.log('Rendering', data.sessions.length, 'sessions');
-                // Save to localStorage
-                localStorage.setItem(`sessions_${accountId}`, JSON.stringify(data.sessions));
-                renderSessions(data.sessions);
-                listDiv.classList.remove('d-none');
-            } else {
-                console.error('Error from server:', data.error);
-                alert('Error loading sessions: ' + data.error);
-            }
+            console.log('Rendering', data.sessions.length, 'sessions');
+            // No more localStorage caching - force fresh data
+            // localStorage.setItem(`sessions_${accountId}`, JSON.stringify(data.sessions));
+            renderSessions(data.sessions);
+            listDiv.classList.remove('d-none');
+        } else {
+            console.error('Error from server:', data.error);
+            alert('Error loading sessions: ' + data.error);
+}
         })
-        .catch(err => {
-            console.error('Network error:', err);
-            loading.classList.add('d-none');
-            btn.classList.remove('d-none');
-            alert('Network error: ' + err.message);
-        });
+        .catch (err => {
+    console.error('Network error:', err);
+    loading.classList.add('d-none');
+    btn.classList.remove('d-none');
+    alert('Network error: ' + err.message);
+});
 }
 
 function renderSessions(sessions) {
@@ -206,23 +205,16 @@ function performTermination(hash, isAll) {
 document.addEventListener('DOMContentLoaded', function () {
     if (!accountId) return;
 
-    const savedSessions = localStorage.getItem(`sessions_${accountId}`);
-    if (savedSessions) {
-        try {
-            const sessions = JSON.parse(savedSessions);
-            console.log('Restoring', sessions.length, 'sessions from localStorage');
+    // Do NOT load from cache automatically. User must click "Load Sessions" or we could auto-load.
+    // But currently UI flow is "Load Sessions" button.
 
-            // Update button text
-            const container = document.getElementById('sessions-container');
-            const btn = container.querySelector('button');
-            btn.innerHTML = '<i class="bi bi-arrow-clockwise"></i> Refresh Sessions';
+    // Clear old cache if exists to prevent confusion
+    localStorage.removeItem(`sessions_${accountId}`);
 
-            // Render sessions
-            renderSessions(sessions);
-            document.getElementById('sessions-list').classList.remove('d-none');
-        } catch (e) {
-            console.error('Failed to restore sessions:', e);
-            localStorage.removeItem(`sessions_${accountId}`);
-        }
+    const container = document.getElementById('sessions-container');
+    // Ensure button is ready to load fresh data
+    const btn = container.querySelector('button');
+    if (btn) {
+        btn.innerHTML = '<i class="bi bi-download"></i> Load Active Sessions';
     }
 });
