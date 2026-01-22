@@ -292,15 +292,12 @@ async def verify_session(account_id, force_full=False):
         
         # Write proxy status to debug log
         with open('/tmp/proxy_debug.log', 'a') as f:
-            f.write(f"
-=== VERIFY SESSION {account_id} ===
-")
+            f.write(f"\n=== VERIFY SESSION {account_id} ===\n")
             if account.proxy:
-                f.write(f"🔒 PROXY: {account.proxy.host}:{account.proxy.port} ({account.proxy.country})
-")
+                f.write(f"🔒 PROXY: {account.proxy.host}:{account.proxy.port} ({account.proxy.country})\n")
             else:
-                f.write("⚠️  NO PROXY - SERVER IP EXPOSED!
-")
+                f.write("⚠️  NO PROXY - SERVER IP EXPOSED!\n")
+
         
         # Determine verification type
         if not account.first_verified_at or not account.telegram_id or force_full:
