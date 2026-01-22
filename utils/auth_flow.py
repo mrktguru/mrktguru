@@ -168,6 +168,14 @@ async def perform_desktop_handshake(
         logger.info("✅ TDesktop handshake complete - ready for GetMe")
         return True
         
+    except AuthKeyUnregisteredError:
+        logger.error("❌ Handshake failed: Session Revoked (AuthKeyUnregistered)")
+        raise Exception("SESSION_REVOKED: The session key was revoked by Telegram. Please delete account and re-upload TData.")
+        
+    except (UserDeactivatedError, UserDeactivatedBanError):
+        logger.error("❌ Handshake failed: Account Banned")
+        raise Exception("ACCOUNT_BANNED: This account has been deactivated or banned by Telegram.")
+
     except Exception as e:
         logger.error(f"❌ Handshake failed: {e}", exc_info=True)
         raise Exception(f"Desktop handshake failed: {str(e)}")
