@@ -75,63 +75,34 @@
                 </dl>
 
                 <div class="d-grid gap-2 mt-3">
-                    <!-- Original Verify Session for TData setup -->
+                    <!-- 1. Verify Session Button (Initial Full Verify) -->
+                    {% if account.first_verified_at %}
+                    <!-- Blocked if already verified -->
+                    <button type="button" class="btn btn-secondary w-100" disabled>
+                        <i class="bi bi-check2-all"></i> Verified (Full Handshake)
+                    </button>
+
+                    <!-- 2. Light Verify Button (Check Status) - Only if verified -->
+                    <form method="POST" action="{{ url_for('accounts.verify', account_id=account.id) }}">
+                        <button type="submit" class="btn btn-outline-success w-100">
+                            <i class="bi bi-lightning-charge"></i> Check Status (Light Verify)
+                        </button>
+                    </form>
+                    {% else %}
+                    <!-- Active if NOT verified yet -->
                     <form method="POST" action="{{ url_for('accounts.verify', account_id=account.id) }}">
                         <button type="submit" class="btn btn-success w-100">
-                            <i class="bi bi-check-circle"></i> Verify Session
+                            <i class="bi bi-shield-check"></i> Verify Session
                         </button>
                     </form>
+                    {% endif %}
 
-                    <!-- Safe Health Check Dropdown -->
-                    <div class="btn-group w-100" role="group">
-                        <button type="button" class="btn btn-outline-success dropdown-toggle w-100"
-                            data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="bi bi-heart-pulse"></i> Check Account Health
-                        </button>
-                        <ul class="dropdown-menu w-100">
-                            <li>
-                                <h6 class="dropdown-header">Choose Check Method</h6>
-                            </li>
-                            <li>
-                                <a class="dropdown-item" href="#"
-                                    onclick="checkAccountHealth('self_check', {{ account.id }}); return false;">
-                                    <span class="badge bg-success me-2">⭐ Safest</span>
-                                    <strong>Self-Check</strong>
-                                    <br><small class="text-muted">Via Saved Messages • ~5-10s • Best for new
-                                        accounts</small>
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item" href="#"
-                                    onclick="checkAccountHealth('public_channel', {{ account.id }}); return false;">
-                                    <span class="badge bg-info me-2">⭐ Safe</span>
-                                    <strong>Public Channel</strong>
-                                    <br><small class="text-muted">Read @telegram • ~3-5s • Daily checks</small>
-                                </a>
-                            </li>
-                            <li>
-                                <hr class="dropdown-divider">
-                            </li>
-                            <li>
-                                <a class="dropdown-item" href="#"
-                                    onclick="checkAccountHealth('get_me', {{ account.id }}); return false;">
-                                    <span class="badge bg-warning me-2">⭐⭐ Moderate</span>
-                                    <strong>Get Me</strong>
-                                    <br><small class="text-muted">With delays • ~10-25s • Max 1 per 2-3h</small>
-                                </a>
-                            </li>
-                        </ul>
-                    </div>
-
-                    <form method="POST" action="{{ url_for('accounts.sync_from_telegram', account_id=account.id) }}">
-                        <button type="submit" class="btn btn-outline-primary w-100"
-                            title="Sync profile data from Telegram (cooldown: 5 min)">
-                            <i class="bi bi-arrow-repeat"></i> Sync from Telegram
-                            {% if account.last_sync_at %}
-                            <br><small class="text-muted">Last: {{ account.last_sync_at.strftime('%H:%M') }}</small>
-                            {% endif %}
-                        </button>
-                    </form>
+                    <!-- 3. Self Check Button (Replaces Health Dropdown) -->
+                    <button type="button" class="btn btn-outline-info w-100"
+                        onclick="checkAccountHealth('self_check', {{ account.id }})">
+                        <i class="bi bi-heart-pulse"></i> Self Check (Safe)
+                    </button>
+                    <!-- "Sync from Telegram" removed per request -->
 
                     {% if account.two_fa_password %}
                     <form method="POST" action="{{ url_for('accounts.remove_2fa', account_id=account.id) }}"
