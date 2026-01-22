@@ -2,10 +2,9 @@
 Anti-Ban Authentication Flow
 Implements TDesktop-compatible handshake sequence to avoid detection
 
-Modern Telethon Approach:
-- Device parameters passed to TelegramClient constructor (not manual InvokeWithLayer)
-- Telethon automatically handles InitConnection on first request
-- This module provides the handshake sequence (GetConfig → RegisterDevice → GetStrings)
+Strategy:
+Telethon 1.33 doesn't support lang_pack in constructor.
+We must manually send InitConnection via InvokeWithLayer to force 'tdesktop'.
 """
 import asyncio
 import random
@@ -13,12 +12,15 @@ import secrets
 import logging
 from typing import Dict, Optional
 from telethon import TelegramClient
+from telethon.tl.functions import InvokeWithLayerRequest, InitConnectionRequest
 from telethon.tl.functions.help import GetConfigRequest
 from telethon.tl.functions.updates import GetStateRequest
 from telethon.tl.functions.account import RegisterDeviceRequest
 from telethon.tl.functions.langpack import GetStringsRequest
+from telethon.tl.all_tlobjects import LAYER
 
 logger = logging.getLogger(__name__)
+
 
 
 def generate_wns_token() -> str:
@@ -98,19 +100,28 @@ async def perform_desktop_handshake(
         logger.info(f"⏱️  Initial delay: {initial_delay:.2f}s")
         await asyncio.sleep(initial_delay)
         
-        # ==================== STEP 3: GetConfig ====================
-        # Telethon automatically handles InitConnection on first request
-        # We just need to make the first request - it will include InitConnection
-        logger.info(f"🤝 Fetching config (InitConnection handled by Telethon)...")
+        # ==================== STEP 3: InitConnection + GetConfig ====================
+        logger.info(f"🤝 Sending InitConnection (Layer {LAYER})...")
         
-        # This first request triggers InitConnection internally with our device params
-        # Telethon uses the device/system info from TelegramClient initialization
-        await client(GetConfigRequest())
-        logger.info("✅ Config fetched (InitConnection sent)")
-        
-        # ==================== STEP 4: RegisterDevice (WNS) ====================
-        # Real TDesktop ALWAYS registers push notifications
-        logger.info("📲 Registering WNS device...")
+        # CRITICAL: We MUST use InvokeWithLayerRequest to override lang_pack='tdesktop'
+        # The TelegramClient constructor in v1.33 doesn't accept lang_pack
+        await client(InvokeWithLayerRequest(
+            layer=LAYER,
+            query=InitConnectionRequest(
+                api_id=api_id,
+                device_model=device_model,
+                system_version=system_version,
+                app_version=app_version,
+                system_lang_code=system_lang_code,
+                lang_pack='tdesktop',  # <--- THIS IS THE KEY!
+                lang_code=lang_code,
+                proxy=None, # Telethon handles socket proxy
+                params=None,
+                query=GetConfigRequest()
+            )
+        ))
+        logger.info("✅ InitConnection successful")
+
         
         fake_token = generate_wns_token()
         await client(RegisterDeviceRequest(

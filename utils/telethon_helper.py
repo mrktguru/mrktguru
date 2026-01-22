@@ -218,7 +218,7 @@ def get_telethon_client(account_id, proxy=None):
         lang_code=device_params['lang_code'],
         system_lang_code=device_params['system_lang_code'],
         
-        lang_pack='tdesktop',  # CRITICAL: Leave as is!
+        # lang_pack removed (passed manually in auth_flow via InitConnection)
         proxy=proxy_dict,
         # Enhanced timeouts for stability
         connection_retries=3,
@@ -340,19 +340,53 @@ async def verify_session(account_id, force_full=False):
             logger.info("🚀 Starting FULL verification with anti-ban handshake...")
             
             # Prepare session data for handshake
-            # NOTE: Client already has device parameters from constructor (lang_pack='tdesktop', etc.)
-            # We only need to pass api_id for logging purposes
-            session_data = {
+            # We must pass device_params explicitly because we need to construct proper InitConnection
+            device_params_for_handshake = {
                 'api_id': client.api_id,
-                # Device params are already in client.session from TelegramClient constructor
-                # No need to duplicate them here
+                # Re-use the SAME logic as get_telethon_client to ensure consistency
             }
             
+            # Re-extract device params from account metadata/profile to be 100% sure
+            # (We could also try to extract from client.session but it's safer to have source of truth)
+            if account.tdata_metadata:
+                tdata = account.tdata_metadata
+                if getattr(tdata, 'device_source', None) == 'json' and tdata.json_device_model:
+                     device_params_for_handshake.update({
+                        'device_model': tdata.json_device_model,
+                        'system_version': tdata.json_system_version or tdata.system_version,
+                        'app_version': tdata.json_app_version or tdata.app_version,
+                        'lang_code': tdata.json_lang_code or tdata.lang_code,
+                        'system_lang_code': tdata.json_system_lang_code or tdata.system_lang_code
+                     })
+                else:
+                     device_params_for_handshake.update({
+                        'device_model': tdata.device_model or "Desktop",
+                        'system_version': tdata.system_version or "Windows 10",
+                        'app_version': tdata.app_version or "5.6.3 x64",
+                        'lang_code': tdata.lang_code or "en",
+                        'system_lang_code': tdata.system_lang_code or "en-US"
+                     })
+            elif account.device_profile:
+                device = account.device_profile
+                device_params_for_handshake.update({
+                    'device_model': device.device_model,
+                    'system_version': device.system_version,
+                    'app_version': device.app_version,
+                    'lang_code': device.lang_code,
+                    'system_lang_code': device.system_lang_code
+                })
+            else:
+                device_params_for_handshake.update({
+                    'device_model': "Desktop",
+                    'system_version': "Windows 10",
+                    'app_version': "5.6.3 x64",
+                    'lang_code': "en",
+                    'system_lang_code': "en-US"
+                })
+
             # 1. PERFORM SAFE HANDSHAKE
-            # Instead of calling get_me() directly, we do:
-            # Connect -> GetConfig (InitConnection auto) -> RegisterDevice -> GetStrings -> Sleep
             try:
-                await perform_desktop_handshake(client, session_data)
+                await perform_desktop_handshake(client, device_params_for_handshake)
             except Exception as handshake_error:
                 logger.error(f"❌ Handshake failed: {handshake_error}")
                 return {
