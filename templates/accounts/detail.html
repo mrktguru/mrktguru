@@ -264,6 +264,13 @@
                 <h5 class="mb-0"><i class="bi bi-phone"></i> Device Fingerprint Override</h5>
             </div>
             <div class="card-body">
+                <!-- Hidden JSON device params for JavaScript -->
+                {% if json_device_params %}
+                <script type="application/json" id="json-device-params">
+                    {{ json_device_params | tojson }}
+                </script>
+                {% endif %}
+
                 <!-- Device Profile Dropdown -->
                 <div class="mb-4">
                     <label class="form-label fw-bold">Device Profile</label>

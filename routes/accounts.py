@@ -306,6 +306,17 @@ def detail(account_id):
         account_id=account_id
     ).order_by(ChannelCandidate.created_at.desc()).limit(20).all()
     
+    # Get JSON device parameters if available
+    json_device_params = None
+    if account.tdata_metadata and account.tdata_metadata.json_raw_data:
+        json_device_params = {
+            'device_model': account.tdata_metadata.json_device_model or '',
+            'system_version': account.tdata_metadata.json_system_version or '',
+            'app_version': account.tdata_metadata.json_app_version or '',
+            'lang_code': account.tdata_metadata.json_lang_code or '',
+            'system_lang_code': account.tdata_metadata.json_system_lang_code or ''
+        }
+    
     return render_template(
         "accounts/detail.html",
         account=account,
@@ -313,7 +324,8 @@ def detail(account_id):
         conversation_partners=conversation_partners,
         other_accounts=other_accounts,
         recent_activities=recent_activities,
-        channel_candidates=channel_candidates
+        channel_candidates=channel_candidates,
+        json_device_params=json_device_params  # Add JSON params
     )
 
 

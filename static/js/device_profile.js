@@ -147,6 +147,21 @@ document.addEventListener('DOMContentLoaded', function () {
                     document.getElementById('profile-system').textContent = 'Original';
                     document.getElementById('profile-app').textContent = 'Original';
                     document.getElementById('profile-language').textContent = 'en / en-US';
+                } else if (preset === 'use_json') {
+                    // Get JSON params from data attribute
+                    const jsonParamsElem = document.getElementById('json-device-params');
+                    if (jsonParamsElem) {
+                        try {
+                            const jsonParams = JSON.parse(jsonParamsElem.textContent);
+                            document.getElementById('profile-device').textContent = jsonParams.device_model || 'N/A';
+                            document.getElementById('profile-system').textContent = jsonParams.system_version || 'N/A';
+                            document.getElementById('profile-app').textContent = jsonParams.app_version || 'N/A';
+                            document.getElementById('profile-language').textContent =
+                                `${jsonParams.lang_code || 'en'} / ${jsonParams.system_lang_code || 'en-US'}`;
+                        } catch (e) {
+                            console.error('Failed to parse JSON params:', e);
+                        }
+                    }
                 } else {
                     document.getElementById('profile-device').textContent = preset.device_model;
                     document.getElementById('profile-system').textContent = preset.system_version;
