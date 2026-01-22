@@ -197,6 +197,7 @@ def get_telethon_client(account_id, proxy=None):
         app_version=app_version,
         lang_code=lang_code,
         system_lang_code=system_lang_code,
+        lang_pack='tdesktop',  # CRITICAL: Identifies as official TDesktop client
         proxy=proxy_dict,
         # Enhanced timeouts for stability
         connection_retries=3,
