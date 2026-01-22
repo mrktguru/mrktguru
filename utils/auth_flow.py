@@ -1,6 +1,11 @@
 """
 Anti-Ban Authentication Flow
 Implements TDesktop-compatible handshake sequence to avoid detection
+
+Modern Telethon Approach:
+- Device parameters passed to TelegramClient constructor (not manual InvokeWithLayer)
+- Telethon automatically handles InitConnection on first request
+- This module provides the handshake sequence (GetConfig → RegisterDevice → GetStrings)
 """
 import asyncio
 import random
@@ -8,14 +13,10 @@ import secrets
 import logging
 from typing import Dict, Optional
 from telethon import TelegramClient
-from telethon.tl.functions import InvokeWithLayerRequest  
-from telethon.tl.functions.auth import SendCodeRequest
 from telethon.tl.functions.help import GetConfigRequest
 from telethon.tl.functions.updates import GetStateRequest
 from telethon.tl.functions.account import RegisterDeviceRequest
 from telethon.tl.functions.langpack import GetStringsRequest
-from telethon.tl.types import InitConnectionParams
-from telethon import version
 
 logger = logging.getLogger(__name__)
 
