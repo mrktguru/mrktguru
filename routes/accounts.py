@@ -344,13 +344,7 @@ def verify(account_id):
         flash("Cannot verify: No session data configured. Please configure TData or login.", "error")
         return redirect(url_for('accounts.detail', account_id=account_id))
     
-    # 1. Cooldown check (5 minutes)
-    if hasattr(account, 'last_verification_attempt') and account.last_verification_attempt:
-        seconds_since = (datetime.now() - account.last_verification_attempt).total_seconds()
-        if seconds_since < 300: # 5 minutes
-            mins_left = int((300 - seconds_since) / 60)
-            flash(f"Please wait {mins_left + 1} minutes before retrying verification", "warning")
-            return redirect(url_for('accounts.detail', account_id=account_id))
+    # Cooldown check removed per user request
             
     # Update attempt time
     try:
