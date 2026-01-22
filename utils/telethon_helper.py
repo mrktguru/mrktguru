@@ -340,59 +340,17 @@ async def verify_session(account_id, force_full=False):
             logger.info("🚀 Starting FULL verification with anti-ban handshake...")
             
             # Prepare session data for handshake
-            session_data = {}
+            # NOTE: Client already has device parameters from constructor (lang_pack='tdesktop', etc.)
+            # We only need to pass api_id for logging purposes
+            session_data = {
+                'api_id': client.api_id,
+                # Device params are already in client.session from TelegramClient constructor
+                # No need to duplicate them here
+            }
             
-            # Get device parameters from TData or DeviceProfile
-            if account.tdata_metadata:
-                tdata = account.tdata_metadata
-                
-                # Use JSON data if selected
-                if tdata.device_source == 'json' and tdata.json_device_model:
-                    session_data = {
-                        'device_model': tdata.json_device_model,
-                        'system_version': tdata.json_system_version or tdata.system_version,
-                        'app_version': tdata.json_app_version or tdata.app_version,
-                        'lang_code': tdata.json_lang_code or tdata.lang_code,
-                        'system_lang_code': tdata.json_system_lang_code or tdata.system_lang_code,
-                        'api_id': tdata.original_api_id or client.api_id
-                    }
-                    logger.info("📱 Using JSON device parameters")
-                else:
-                    # Use TData device parameters
-                    session_data = {
-                        'device_model': tdata.device_model or "Desktop",
-                        'system_version': tdata.system_version or "Windows 10",
-                        'app_version': tdata.app_version or "5.6.3 x64",
-                        'lang_code': tdata.lang_code or "en",
-                        'system_lang_code': tdata.system_lang_code or "en-US",
-                        'api_id': tdata.original_api_id or client.api_id
-                    }
-                    logger.info("📱 Using TData device parameters")
-                    
-            elif account.device_profile:
-                device = account.device_profile
-                session_data = {
-                    'device_model': device.device_model,
-                    'system_version': device.system_version,
-                    'app_version': device.app_version,
-                    'lang_code': device.lang_code,
-                    'system_lang_code': device.system_lang_code,
-                    'api_id': client.api_id
-                }
-                logger.info("📱 Using DeviceProfile parameters")
-            else:
-                # Fallback
-                session_data = {
-                    'device_model': "Desktop",
-                    'system_version': "Windows 10",
-                    'app_version': "5.6.3 x64",
-                    'lang_code': "en",
-                    'system_lang_code': "en-US",
-                    'api_id': client.api_id
-                }
-                logger.warning("⚠️  Using fallback device parameters")
-            
-            # Perform anti-ban handshake
+            # 1. PERFORM SAFE HANDSHAKE
+            # Instead of calling get_me() directly, we do:
+            # Connect -> GetConfig (InitConnection auto) -> RegisterDevice -> GetStrings -> Sleep
             try:
                 await perform_desktop_handshake(client, session_data)
             except Exception as handshake_error:
@@ -404,7 +362,7 @@ async def verify_session(account_id, force_full=False):
                     "verification_type": "full"
                 }
             
-            # Now safe to call GetMe
+            # 2. NOW SAFELY CALL GetMe
             logger.info("👤 Fetching user info (GetMe)...")
             me = await client.get_me()
             
