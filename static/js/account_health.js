@@ -1,5 +1,5 @@
 // Account Health Check Function
-function checkAccountHealth(method, accountId) {
+function checkAccountHealth(method, accountId, btnElement) {
     const methodNames = {
         'self_check': 'Self-Check',
         'public_channel': 'Public Channel',
@@ -7,10 +7,15 @@ function checkAccountHealth(method, accountId) {
     };
 
     // Show loading state
-    const btn = document.querySelector('.btn-outline-success.dropdown-toggle');
-    const originalText = btn.innerHTML;
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Checking...';
+    const btn = btnElement || document.querySelector('.btn-outline-success.dropdown-toggle');
+    if (!btn) {
+        console.error("Button element not found for loading state");
+        // Proceed anyway, just won't show spinner
+    } else {
+        var originalText = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Checking...';
+    }
 
     // Make AJAX request
     fetch(`/accounts/${accountId}/verify-safe`, {
