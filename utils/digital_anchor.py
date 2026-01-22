@@ -36,7 +36,7 @@ async def _run_anchor_logic(account_id):
         logger.info(f"⚓ Digital Anchor started for Account {account_id}. Duration: {duration}s")
         
         # Create NEW client connection for the anchor
-        client = await get_telethon_client(account_id)
+        client = get_telethon_client(account_id)
         
         if not client:
             activity_logger.log(
