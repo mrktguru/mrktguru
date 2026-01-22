@@ -13,6 +13,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // Device presets data
     const devicePresets = {
         original: null, // Will delete device_profile to use TData original
+        json: 'use_json', // Special flag to use JSON parameters
         iphone15_ios18: {
             device_model: 'iPhone 15 Pro',
             system_version: 'iOS 18.2',
@@ -124,6 +125,9 @@ document.addEventListener('DOMContentLoaded', function () {
             if (preset === null) {
                 // User selected "Use Original" - we'll send a flag to delete device_profile
                 formData.append('use_original', 'true');
+            } else if (preset === 'use_json') {
+                // User selected JSON parameters
+                formData.append('use_json', 'true');
             } else {
                 // User selected a preset
                 for (const [key, value] of Object.entries(preset)) {

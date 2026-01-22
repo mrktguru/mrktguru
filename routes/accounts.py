@@ -1728,6 +1728,41 @@ def update_device(account_id):
             flash("ℹ️ Already using original TData device", "info")
             return redirect(url_for('accounts.detail', account_id=account_id))
     
+    # Check if user wants to use JSON parameters
+    use_json = request.form.get('use_json', '').lower() == 'true'
+    
+    if use_json:
+        # Switch to JSON device source
+        if account.tdata_metadata:
+            # Delete device profile if exists
+            if account.device_profile:
+                db.session.delete(account.device_profile)
+            
+            # Set device_source to 'json'
+            account.tdata_metadata.device_source = 'json'
+            db.session.commit()
+            
+            logger.log(
+                action_type='device_source_changed',
+                status='success',
+                description="Switched to JSON device parameters",
+                details="Using JSON metadata for device fingerprint",
+                category='system'
+            )
+            
+            if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return jsonify({'success': True, 'message': 'Switched to JSON parameters'})
+            
+            flash("✅ Switched to JSON parameters", "success")
+            return redirect(url_for('accounts.detail', account_id=account_id))
+        else:
+            error_msg = "No TData metadata or JSON data available"
+            if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return jsonify({'success': False, 'error': error_msg}), 400
+            
+            flash(f"❌ {error_msg}", "error")
+            return redirect(url_for('accounts.detail', account_id=account_id))
+    
     # Get form data for custom device
     device_model = request.form.get('device_model', '').strip()
     system_version = request.form.get('system_version', '').strip()

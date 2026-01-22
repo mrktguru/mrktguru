@@ -269,9 +269,15 @@
                     <label class="form-label fw-bold">Device Profile</label>
                     <select class="form-select form-select-lg" id="deviceProfileSelect"
                         data-account-id="{{ account.id }}">
-                        <option value="original" {% if not account.device_profile %}selected{% endif %}>
+                        <option value="original" {% if not account.device_profile and (not account.tdata_metadata or
+                            account.tdata_metadata.device_source !='json' ) %}selected{% endif %}>
                             ✓ Use Original from TData
                         </option>
+                        {% if account.tdata_metadata and account.tdata_metadata.json_raw_data %}
+                        <option value="json" {% if account.tdata_metadata.device_source=='json' %}selected{% endif %}>
+                            📄 Use JSON parameters
+                        </option>
+                        {% endif %}
                         <optgroup label="📱 iOS Devices">
                             <option value="iphone15_ios18" {% if account.device_profile and
                                 account.device_profile.device_model=='iPhone 15 Pro' %}selected{% endif %}>
