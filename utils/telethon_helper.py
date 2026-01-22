@@ -1387,7 +1387,7 @@ async def get_active_sessions(account_id):
         sessions = []
         for auth in result.authorizations:
             sessions.append({
-                "hash": auth.hash,
+                "hash": str(auth.hash),
                 "device_model": auth.device_model,
                 "platform": auth.platform,
                 "system_version": auth.system_version,
