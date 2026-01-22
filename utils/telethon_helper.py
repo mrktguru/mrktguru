@@ -1431,11 +1431,16 @@ async def terminate_session(account_id, session_hash):
         await simulate_mouse_move()
         
         # Terminate
-        await client(ResetAuthorizationRequest(hash=int(session_hash)))
+        result = await client(ResetAuthorizationRequest(hash=int(session_hash)))
         
         await random_sleep(0.5, 1.5, "confirming termination")
         
-        return {"success": True}
+        if result:
+            logger.info(f"✅ Session {session_hash} terminated successfully")
+            return {"success": True}
+        else:
+            logger.warning(f"❌ Failed to terminate session {session_hash} (API returned False)")
+            return {"success": False, "error": "API returned False (session might need password or hash invalid)"}
         
     except Exception as e:
         return {"success": False, "error": str(e)}
