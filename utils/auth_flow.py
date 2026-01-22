@@ -124,15 +124,24 @@ async def perform_desktop_handshake(
         logger.info("✅ InitConnection successful")
 
         
-        fake_token = generate_wns_token()
-        await client(RegisterDeviceRequest(
-            token_type=8,  # 8 = WNS (Windows), 1 = APNS (iOS), 2 = FCM (Android)
-            token=fake_token,
-            app_sandbox=False,
-            secret=b'',
-            other_uids=[]
-        ))
-        logger.info("✅ Device registered")
+        # ==================== STEP 4: RegisterDevice (WNS) ====================
+        # Real TDesktop ALWAYS registers push notifications
+        logger.info("📲 Registering WNS device...")
+        
+        try:
+            fake_token = generate_wns_token()
+            await client(RegisterDeviceRequest(
+                token_type=8,  # 8 = WNS (Windows), 1 = APNS (iOS), 2 = FCM (Android)
+                token=fake_token,
+                app_sandbox=False,
+                secret=b'',
+                other_uids=[]
+            ))
+            logger.info("✅ Device registered")
+        except Exception as e:
+            # Custom API IDs might not support WNS, or other RPC errors.
+            # It's safe to ignore this for verification purposes.
+            logger.warning(f"⚠️ RegisterDevice failed (non-fatal): {e}")
         
         # ==================== STEP 5: GetState ====================
         # Check for updates (standard behavior)
