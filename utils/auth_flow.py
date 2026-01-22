@@ -11,6 +11,7 @@ import random
 import secrets
 import logging
 from typing import Dict, Optional
+from telethon import TelegramClient
 from telethon.tl.functions import InvokeWithLayerRequest, InitConnectionRequest
 from telethon.tl.functions.help import GetConfigRequest
 from telethon.tl.functions.updates import GetStateRequest
