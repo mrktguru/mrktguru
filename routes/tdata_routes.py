@@ -206,15 +206,7 @@ def configure_tdata(account_id):
             # Get form data
             api_credential_id = request.form.get('api_credential_id')
             proxy_id = request.form.get('proxy_id')
-            auth_key_manual = request.form.get('auth_key_manual')  # Optional override
             device_source = request.form.get('device_source', 'tdata')  # 'tdata' or 'json'
-            
-            # Device fingerprint overrides
-            device_model_override = request.form.get('device_model_override')
-            system_version_override = request.form.get('system_version_override')
-            app_version_override = request.form.get('app_version_override')
-            lang_code_override = request.form.get('lang_code_override')
-            system_lang_code_override = request.form.get('system_lang_code_override')
             
             # Validate API credential selection
             if not api_credential_id:
@@ -233,26 +225,6 @@ def configure_tdata(account_id):
             # Apply device source selection
             tdata = account.tdata_metadata
             tdata.device_source = device_source
-            
-            # Apply device fingerprint overrides
-            if device_model_override:
-                tdata.device_model = device_model_override
-            if system_version_override:
-                tdata.system_version = system_version_override
-            if app_version_override:
-                tdata.app_version = app_version_override
-            if lang_code_override:
-                tdata.lang_code = lang_code_override
-            if system_lang_code_override:
-                tdata.system_lang_code = system_lang_code_override
-            
-            # Manual auth_key override (if provided)
-            if auth_key_manual:
-                try:
-                    auth_key_bytes = bytes.fromhex(auth_key_manual)
-                    account.tdata_metadata.auth_key = encrypt_auth_key(auth_key_bytes)
-                except Exception as e:
-                    flash(f"⚠️ Invalid auth_key format: {e}", "warning")
             
             # ==================== CREATE SESSION FILE FROM TDATA ====================
             # ==================== CREATE SESSION FILE FROM TDATA ====================
