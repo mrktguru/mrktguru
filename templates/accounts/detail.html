@@ -353,32 +353,59 @@
                     <dl class="row mb-0">
                         <dt class="col-sm-3">Device:</dt>
                         <dd class="col-sm-9 text-primary" id="profile-device">
-                            {% if account.device_profile %}{{ account.device_profile.device_model }}
-                            {% elif account.tdata_metadata %}Original
-                            {% else %}N/A{% endif %}
+                            {% if account.tdata_metadata and account.tdata_metadata.device_source == 'json' and
+                            json_device_params %}
+                            {{ json_device_params.device_model }}
+                            {% elif account.device_profile %}
+                            {{ account.device_profile.device_model }}
+                            {% elif account.tdata_metadata %}
+                            Original
+                            {% else %}
+                            N/A
+                            {% endif %}
                         </dd>
 
                         <dt class="col-sm-3">System:</dt>
                         <dd class="col-sm-9 text-primary" id="profile-system">
-                            {% if account.device_profile %}{{ account.device_profile.system_version }}
-                            {% elif account.tdata_metadata %}Original
-                            {% else %}N/A{% endif %}
+                            {% if account.tdata_metadata and account.tdata_metadata.device_source == 'json' and
+                            json_device_params %}
+                            {{ json_device_params.system_version }}
+                            {% elif account.device_profile %}
+                            {{ account.device_profile.system_version }}
+                            {% elif account.tdata_metadata %}
+                            Original
+                            {% else %}
+                            N/A
+                            {% endif %}
                         </dd>
 
                         <dt class="col-sm-3">App:</dt>
                         <dd class="col-sm-9 text-primary" id="profile-app">
-                            {% if account.device_profile %}{{ account.device_profile.app_version }}
-                            {% elif account.tdata_metadata %}Original
-                            {% else %}N/A{% endif %}
+                            {% if account.tdata_metadata and account.tdata_metadata.device_source == 'json' and
+                            json_device_params %}
+                            {{ json_device_params.app_version }}
+                            {% elif account.device_profile %}
+                            {{ account.device_profile.app_version }}
+                            {% elif account.tdata_metadata %}
+                            Original
+                            {% else %}
+                            N/A
+                            {% endif %}
                         </dd>
 
                         <dt class="col-sm-3">Language:</dt>
                         <dd class="col-sm-9 text-primary" id="profile-language">
-                            {% if account.device_profile %}{{ account.device_profile.lang_code }} / {{
-                            account.device_profile.system_lang_code }}
-                            {% elif account.tdata_metadata %}{{ account.tdata_metadata.lang_code or 'en' }} / {{
-                            account.tdata_metadata.system_lang_code or 'en-US' }}
-                            {% else %}N/A{% endif %}
+                            {% if account.tdata_metadata and account.tdata_metadata.device_source == 'json' and
+                            json_device_params %}
+                            {{ json_device_params.lang_code }} / {{ json_device_params.system_lang_code }}
+                            {% elif account.device_profile %}
+                            {{ account.device_profile.lang_code }} / {{ account.device_profile.system_lang_code }}
+                            {% elif account.tdata_metadata %}
+                            {{ account.tdata_metadata.lang_code or 'en' }} / {{ account.tdata_metadata.system_lang_code
+                            or 'en-US' }}
+                            {% else %}
+                            N/A
+                            {% endif %}
                         </dd>
                     </dl>
                 </div>
