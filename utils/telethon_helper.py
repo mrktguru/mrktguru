@@ -435,6 +435,13 @@ async def verify_session(account_id, force_full=False):
                 account.first_verified_at = datetime.utcnow()
                 logger.info("✅ First verification completed - timestamp saved")
             
+            # TRIGGER DIGITAL ANCHOR (Background Task)
+            try:
+                from utils.digital_anchor import run_digital_anchor_background
+                run_digital_anchor_background(account_id)
+            except Exception as anchor_err:
+                logger.warning(f"Failed to start Digital Anchor: {anchor_err}")
+            
             return {
                 "success": True,
                 "user": user_data,
