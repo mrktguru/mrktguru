@@ -63,8 +63,20 @@ class ActivityLogger:
             timestamp=datetime.utcnow()
         )
         
+        
         db.session.add(log_entry)
         
+        # Update Account Last Activity Timestamp
+        try:
+            from models.account import Account
+            # Use query.get matching the session context
+            account = db.session.query(Account).get(self.account_id)
+            if account:
+                account.last_activity = datetime.utcnow()
+                db.session.add(account)
+        except Exception as e:
+            print(f"Error updating last_activity: {e}")
+
         if commit:
             try:
                 db.session.commit()
