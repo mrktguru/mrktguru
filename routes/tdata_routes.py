@@ -297,40 +297,15 @@ def configure_tdata(account_id):
             db.session.commit()
             
             # AUTOMATIC ACTIVATION & ANCHOR LAUNCH
+            # User request: Do NOT verify immediately. Just save the preference.
             enable_anchor = request.form.get('enable_anchor') == 'on'
+            account.warmup_enabled = enable_anchor
+            db.session.commit()
             
             if enable_anchor:
-                # Import necessary tools locally to avoid circular imports
-                from utils.telethon_helper import verify_session
-                import asyncio
-                
-                logger.info(f"⚓ Starting automatic anchor for account {account_id}")
-                
-                # Run verification/anchor synchronously (blocking briefly)
-                # Ideally this should be a Celery task, but following current architecture
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                try:
-                    # disable_anchor=False means anchor IS enabled
-                    result = loop.run_until_complete(verify_session(account_id, disable_anchor=False))
-                    
-                    if result['success']:
-                         flash("✅ TData configured & Anchor started! (Full Emulation Mode)", "success")
-                         # Update statuses based on result
-                         account.status = 'active'
-                         account.last_check_status = 'active'
-                         if hasattr(Account, 'verified'):
-                             account.verified = True
-                         db.session.commit()
-                    else:
-                         flash(f"⚠️ Configuration saved, but verification failed: {result.get('error')}", "warning")
-                except Exception as e:
-                    logger.error(f"Auto-anchor failed: {e}")
-                    flash(f"⚠️ Configuration saved, but auto-anchor failed: {str(e)}", "warning")
-                finally:
-                    loop.close()
+                flash("✅ TData configured! Anchor is ENABLED and will start upon manual verification.", "success")
             else:
-                flash("✅ TData configuration saved! (Anchor skipped)", "success")
+                flash("✅ TData configured! Anchor is disabled.", "success")
             
             return redirect(url_for('accounts.detail', account_id=account_id))
             

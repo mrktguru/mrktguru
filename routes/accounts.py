@@ -368,9 +368,13 @@ def verify(account_id):
     asyncio.set_event_loop(loop)
     
     try:
-        # Check if anchor is enabled in the form (checkbox)
-        # Checkbox is 'on' if checked, missing if unchecked
-        enable_anchor = request.form.get('enable_anchor') == 'on'
+        # Check if anchor is enabled in account settings
+        # This respects the preference saved during TData upload/config
+        enable_anchor = getattr(account, 'warmup_enabled', False)
+        
+        # Allow form to override if present (e.g. if we add a checkbox later)
+        if 'enable_anchor' in request.form:
+             enable_anchor = request.form.get('enable_anchor') == 'on'
         
         # Run verification in helper
         from utils.telethon_helper import verify_session
