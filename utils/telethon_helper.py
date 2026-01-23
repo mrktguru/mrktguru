@@ -304,9 +304,9 @@ def get_telethon_client(account_id, proxy=None):
     
     if LANG_PACK_SUPPORTED:
         client_kwargs['lang_pack'] = 'tdesktop'
-        print(f"✅ Client created with lang_pack='tdesktop'")
+        logging.info(f"✅ Client created with lang_pack='tdesktop'")
     else:
-        print(f"⚠️ lang_pack not supported by TelegramClient (opentele {OPENTELE_AVAILABLE})")
+        logging.warning(f"⚠️ lang_pack not supported by TelegramClient (opentele {OPENTELE_AVAILABLE})")
     
     client = TelegramClient(
         session,
