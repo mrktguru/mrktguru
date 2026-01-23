@@ -1598,6 +1598,67 @@ def delete_channel_candidate(candidate_id):
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
+
+# Human-Like Check Route
+@accounts_bp.route('/<int:account_id>/human_check', methods=['POST'])
+@login_required
+def human_check(account_id):
+    """
+    Run Immersive Human-Like SpamBlock Check.
+    This takes more time (5-15s) and simulates user behavior.
+    """
+    import asyncio
+    from utils.human_spamblock import run_immersive_spamblock_check
+    from utils.activity_logger import ActivityLogger
+    
+    # Anti-Lock: Release DB session
+    db.session.close()
+    
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    
+    try:
+        result = loop.run_until_complete(run_immersive_spamblock_check(account_id))
+        
+        status = result.get('status', 'unknown')
+        log_msgs = result.get('log', [])
+        
+        # Log to DB (Create new logger inst since session was closed)
+        logger = ActivityLogger(account_id)
+        
+        if status == 'clean':
+            logger.log(
+                action_type='human_check_success',
+                status='success',
+                description='Human Check: 🟢 CLEAN (No Limits)',
+                category='system'
+            )
+            return jsonify({'success': True, 'status': 'clean', 'logs': log_msgs})
+            
+        elif status == 'restricted':
+            logger.log(
+                action_type='human_check_warning',
+                status='warning',
+                description='Human Check: 🔴 RESTRICTED (Frozen/SpamBlock)',
+                category='system'
+            )
+            return jsonify({'success': True, 'status': 'restricted', 'logs': log_msgs})
+            
+        else:
+             error_msg = result.get("error", "Unknown Error")
+             logger.log(
+                action_type='human_check_failed',
+                status='error',
+                description=f'Human Check Failed: {error_msg}',
+                category='system'
+            )
+             return jsonify({'success': False, 'status': 'error', 'error': error_msg, 'logs': log_msgs}), 500
+             
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        loop.close()
+
 @accounts_bp.route("/<int:account_id>/set-2fa", methods=["POST"])
 @login_required
 def set_2fa(account_id):

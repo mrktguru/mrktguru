@@ -104,6 +104,11 @@
                         onclick="checkAccountHealth('self_check', {{ account.id }}, this)">
                         <i class="bi bi-heart-pulse"></i> Self Check (Safe)
                     </button>
+                    <!-- 4. Immersive Human Check -->
+                    <button type="button" class="mt-2 btn btn-outline-primary w-100"
+                        onclick="runHumanCheck({{ account.id }}, this)">
+                        <i class="bi bi-robot"></i> Human-Like SpamBlock Check (10s)
+                    </button>
                     <!-- "Sync from Telegram" removed per request -->
 
                     {% if account.two_fa_password %}
@@ -599,6 +604,44 @@
 
 <script>
     window.accountId = {{ account.id }};
+
+    async function runHumanCheck(accountId, btn) {
+        if (!confirm('This will simulate a REAL user behavior: open chat list, search SpamBot, open chat, read history. \n\nExpected duration: 8-15 seconds. \n\nContinue?')) return;
+
+        const originalText = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Running Simulation...';
+
+        try {
+            const response = await fetch(`/accounts/${accountId}/human_check`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                if (result.status === 'clean') {
+                    alert("✅ GREAT! Account is CLEAN (Green).\n\nBot said: 'Good news, no limits...'");
+                } else {
+                    alert("❄️ WARNING: Account is Restricted/Frozen.\n\nBot says you have limits.");
+                }
+            } else {
+                alert("❌ Error: " + (result.error || "Unknown error"));
+            }
+            // Reload page to show new logs
+            window.location.reload();
+
+        } catch (error) {
+            console.error(error);
+            alert("❌ Network Error");
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
+    }
 </script>
 <script src="{{ url_for('static', filename='js/account_health.js') }}"></script>
 <script src="{{ url_for('static', filename='js/account_detail.js') }}"></script>
