@@ -12,6 +12,31 @@ def create_app():
     # Initialize extensions with app
     db.init_app(app)
     
+    # Configure Logging
+    log_file = app.config.get('LOG_FILE', 'logs/app.log')
+    log_level = app.config.get('LOG_LEVEL', 'INFO')
+    
+    # Ensure logs directory exists
+    os.makedirs(os.path.dirname(log_file), exist_ok=True)
+    
+    # Setup standard logging to file
+    if not app.debug:
+        file_handler = logging.FileHandler(log_file)
+        file_handler.setLevel(getattr(logging, log_level))
+        file_handler.setFormatter(logging.Formatter(
+            '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'
+        ))
+        app.logger.addHandler(file_handler)
+        
+        # Also configure root logger to catch our custom logs
+        logging.basicConfig(
+            filename=log_file,
+            level=getattr(logging, log_level),
+            format='%(asctime)s %(levelname)s: %(message)s'
+        )
+        
+    app.logger.info("🚀 Application startup")
+    
     # Configure SQLite for better concurrency - run immediately on startup
     with app.app_context():
         if 'sqlite' in app.config.get('SQLALCHEMY_DATABASE_URI', ''):
