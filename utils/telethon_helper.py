@@ -2,8 +2,8 @@ import os
 import asyncio
 import logging
 import random
-# Use opentele's TelegramClient - it supports lang_pack natively!
-from opentele.tl.telethon import TelegramClient
+# Standard Telethon - opentele's wrapper doesn't support lang_pack in constructor
+from telethon import TelegramClient
 from telethon.sessions import StringSession
 from config import Config
 from telethon.tl.functions.messages import AddChatUserRequest
@@ -265,7 +265,7 @@ def get_telethon_client(account_id, proxy=None):
         # Default empty session
         session = StringSession('')
 
-    # Create client using opentele's TelegramClient (supports lang_pack!)
+    # Create client (standard Telethon - lang_pack not supported in constructor)
     client = TelegramClient(
         session,
         api_id,
@@ -277,9 +277,8 @@ def get_telethon_client(account_id, proxy=None):
         lang_code=device_params['lang_code'],
         system_lang_code=device_params['system_lang_code'],
         
-        # CRITICAL: lang_pack='tdesktop' - this is the #1 anti-detection fix!
-        # Standard Telethon doesn't support this, but opentele does.
-        lang_pack='tdesktop',
+        # NOTE: lang_pack not supported in Telethon constructor
+        # This remains a limitation until Telethon 2.x or opentele update
         
         proxy=proxy_dict,
         # Enhanced timeouts for stability
@@ -290,7 +289,7 @@ def get_telethon_client(account_id, proxy=None):
         catch_up=False     # Don't sync history
     )
     
-    print(f"✅ Client created with lang_pack='tdesktop' (opentele)")
+    print(f"✅ Client created (lang_pack limitation noted)")
     
     # Save session back to DB on disconnect (if modified)
     # Save session back to DB on disconnect (if modified)
