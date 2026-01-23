@@ -1445,10 +1445,7 @@ def verify_safe(account_id):
                     description=f"BANNED: {result.get('error')} {debug_info}",
                     category='system'
                 )
-                    status='error',
-                    description=f"ACCOUNT BANNED (method: {method})",
-                    category='system'
-                )
+
                 
                 return jsonify({
                     'success': False,
