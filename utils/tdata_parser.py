@@ -452,9 +452,13 @@ class TDataParser:
         except Exception as e:
             logger.error(f"❌ OFFLINE TData conversion failed: {e}")
             
-            # Fallback to old method with warning
-            logger.warning("⚠️ Falling back to ToTelethon (NETWORK MODE) - this may expose fingerprint!")
-            return TDataParser._convert_with_totelethon_fallback(tdata_path, proxy_tuple)
+            # NO FALLBACK! Better to fail than to burn the account with network exposure.
+            # If offline fails, user must investigate manually.
+            raise Exception(
+                f"TData OFFLINE conversion failed: {e}. "
+                f"Do NOT use ToTelethon fallback - it exposes device fingerprint. "
+                f"Please check TData files or opentele version."
+            )
     
     @staticmethod
     def _convert_with_totelethon_fallback(tdata_path: str, proxy_tuple: tuple = None) -> str:
