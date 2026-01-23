@@ -391,13 +391,20 @@ def verify(account_id):
                     flash("⚠️ Note: Telegram did not return a last name.", "warning")
                 
                 account.telegram_id = user['id']
-                account.first_name = user['first_name']
-                
                 # Only update last_name if Telegram returned non-empty value
                 if user.get('last_name') and user['last_name'].strip():
                     account.last_name = user['last_name']
                 
-                account.username = user['username']
+                # SAFETY: Don't overwrite existing first_name with None if account is marked active
+                # This prevents data wipe for deleted accounts that bypass detection
+                if user.get('first_name'):
+                    account.first_name = user['first_name']
+                elif not account.first_name:
+                    # Only set to None if it wasn't set before
+                    account.first_name = user.get('first_name')
+                
+                if user.get('username'):
+                    account.username = user['username']
                 account.status = 'active'
                 account.last_check_status = 'active'
                 
