@@ -98,7 +98,8 @@ async def run_immersive_spamblock_check(account_id):
         try:
             # Запрос к серверу: "Кто такой spambot?"
             resolve_result = await client(ResolveUsernameRequest(target_username))
-            spambot_peer = resolve_result.peers[0]
+            # ResolvedPeer structure: .peer (Peer), .chats ([Chat]), .users ([User])
+            spambot_peer = resolve_result.peer
             spambot_entity = resolve_result.users[0]
         except Exception as e:
             log(f"❌ Could not resolve SpamBot: {e}", 'error')
