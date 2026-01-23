@@ -1506,6 +1506,12 @@ def verify_safe(account_id):
         }), 500
         
     finally:
+        # Graceful cleanup to avoid "Event loop is closed" error
+        try:
+            if 'client' in locals() and client and client.is_connected():
+                loop.run_until_complete(client.disconnect())
+        except Exception:
+            pass
         loop.close()
 
 
@@ -1558,6 +1564,12 @@ def sync_profile_from_telegram(account_id):
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
+        # Graceful cleanup
+        try:
+            if 'client' in locals() and client and client.is_connected():
+                loop.run_until_complete(client.disconnect())
+        except Exception:
+            pass
         loop.close()
 
 
