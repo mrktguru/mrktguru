@@ -216,6 +216,11 @@ async def verify_session_light(client: TelegramClient) -> bool:
             logger.error(f"❌ Light check FAILED: Account {me.id} is DELETED flag=True")
             raise UserDeactivatedError("ACCOUNT_DELETED")
             
+        # Heuristic: Valid accounts MUST have a first_name
+        if not getattr(me, 'first_name', None):
+             logger.error(f"❌ Light check FAILED: Account {me.id} has NO NAME (Deleted/Ghost)")
+             raise UserDeactivatedError("ACCOUNT_nameless_ghost")
+            
         if getattr(me, 'restricted', False):
             reason = getattr(me, 'restriction_reason', [])
             reason_str = str(reason) if reason else "Unknown"

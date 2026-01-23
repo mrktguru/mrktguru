@@ -47,38 +47,52 @@ async def safe_self_check(client):
                     me = user
                     break
         
-        # Если не нашли в диалогах (редко), пробуем get_me
+        # 3. Validation
         if not me:
-            try:
-                me = await client.get_me()
-            except Exception:
-                pass
-                
-        # 3. Проверка флагов смерти
-        if me:
-            if getattr(me, 'deleted', False):
-                logger.error(f"❌ Account {me.id} detected as DELETED (User.deleted=True)")
-                return {
-                    'success': False, 
-                    'method': 'self_check', 
-                    'error': 'ACCOUNT_DELETED',
-                    'error_type': 'banned'
-                }
+            logger.error("❌ Self-check failed: User entity not found in GetDialogs/GetMe")
+            return {
+                'success': False, 
+                'method': 'self_check', 
+                'error': 'SELF_USER_NOT_FOUND',
+                'error_type': 'protocol_error'
+            }
             
-            if getattr(me, 'restricted', False):
-                # Получаем причину (если есть)
-                reason = getattr(me, 'restriction_reason', [])
-                reason_str = str(reason) if reason else "Unknown"
-                logger.warning(f"⚠️ Account {me.id} is RESTRICTED: {reason_str}")
+        # 4. Check Flags & Attributes
+        # Log basic info for debug
+        logger.info(f"👤 User Info: ID={getattr(me, 'id', 'N/A')} Deleted={getattr(me, 'deleted', 'N/A')} Name='{getattr(me, 'first_name', '')}'")
+
+        if getattr(me, 'deleted', False):
+            logger.error(f"❌ Account {me.id} detected as DELETED (User.deleted=True)")
+            return {
+                'success': False, 
+                'method': 'self_check', 
+                'error': 'ACCOUNT_DELETED',
+                'error_type': 'banned'
+            }
+            
+        # Heuristic: Valid accounts MUST have a first_name
+        # If deleted=False but first_name is empty, it's a ghost/deleted account
+        if not getattr(me, 'first_name', None):
+             logger.error(f"❌ Account {me.id} has NO NAME (Deleted/Ghost)")
+             return {
+                'success': False, 
+                'method': 'self_check', 
+                'error': 'ACCOUNT_nameless_ghost',
+                'error_type': 'banned'
+            }
+            
+        if getattr(me, 'restricted', False):
+            # ... (rest of logic same)
+            reason = getattr(me, 'restriction_reason', [])
+            reason_str = str(reason) if reason else "Unknown"
+            logger.warning(f"⚠️ Account {me.id} is RESTRICTED: {reason_str}")
                 
-                # РЕШАЕМ: Считать ли это провалом? 
-                # Если аккаунт забанен на запись - для спама он бесполезен.
-                return {
-                    'success': False, 
-                    'method': 'self_check', 
-                    'error': f'ACCOUNT_RESTRICTED: {reason_str}',
-                    'error_type': 'restricted'
-                }
+            return {
+                'success': False, 
+                'method': 'self_check', 
+                'error': f'ACCOUNT_RESTRICTED: {reason_str}',
+                'error_type': 'restricted'
+            }
 
         logger.info("✅ Passive Check: OK (Account is Active & Clean)")
         return {
