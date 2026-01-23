@@ -56,10 +56,16 @@ async def safe_self_check(client):
                 'error': 'SELF_USER_NOT_FOUND',
                 'error_type': 'protocol_error'
             }
-            
-        # 4. Check Flags & Attributes
-        # Log basic info for debug
-        logger.info(f"👤 User Info: ID={getattr(me, 'id', 'N/A')} Deleted={getattr(me, 'deleted', 'N/A')} Name='{getattr(me, 'first_name', '')}'")
+
+        # 4. Check Flags & Attributes (v3 Strict Mode)
+        from telethon.tl.types import UserEmpty
+        
+        # LOG RAW DETAILS FOR DEBUGGING
+        logger.info(f"�️ v3 CHECK: Type={type(me).__name__} ID={getattr(me, 'id', '?')} Deleted={getattr(me, 'deleted', '?')} Name='{getattr(me, 'first_name', 'None')}'")
+
+        if isinstance(me, UserEmpty):
+             logger.error(f"❌ Account is UserEmpty (Deleted)")
+             return {'success': False, 'method': 'self_check', 'error': 'ACCOUNT_IS_EMPTY', 'error_type': 'banned'}
 
         if getattr(me, 'deleted', False):
             logger.error(f"❌ Account {me.id} detected as DELETED (User.deleted=True)")
@@ -71,8 +77,8 @@ async def safe_self_check(client):
             }
             
         # Heuristic: Valid accounts MUST have a first_name
-        # If deleted=False but first_name is empty, it's a ghost/deleted account
-        if not getattr(me, 'first_name', None):
+        first_name = getattr(me, 'first_name', None)
+        if not first_name or str(first_name).strip() == "" or str(first_name) == "None":
              logger.error(f"❌ Account {me.id} has NO NAME (Deleted/Ghost)")
              return {
                 'success': False, 
@@ -82,7 +88,6 @@ async def safe_self_check(client):
             }
             
         if getattr(me, 'restricted', False):
-            # ... (rest of logic same)
             reason = getattr(me, 'restriction_reason', [])
             reason_str = str(reason) if reason else "Unknown"
             logger.warning(f"⚠️ Account {me.id} is RESTRICTED: {reason_str}")
@@ -94,11 +99,11 @@ async def safe_self_check(client):
                 'error_type': 'restricted'
             }
 
-        logger.info("✅ Passive Check: OK (Account is Active & Clean)")
+        logger.info("✅ Passive Check: OK (v3-validated)")
         return {
             'success': True,
             'method': 'self_check',
-            'user_id': me.id if me else 0,
+            'user_id': me.id,
             'check_time': datetime.now().isoformat()
         }
 
