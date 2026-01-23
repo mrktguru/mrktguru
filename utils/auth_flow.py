@@ -86,6 +86,16 @@ async def perform_desktop_handshake(
     # Official TDesktop API ID
     OFFICIAL_TDESKTOP_API_ID = 2040
     
+    def human_delay():
+        """Generate human-like delay with non-uniform distribution"""
+        r = random.random()
+        if r < 0.6:
+            return random.uniform(0.3, 1.0)   # Quick action
+        elif r < 0.85:
+            return random.uniform(1.0, 3.0)   # Normal pace
+        else:
+            return random.uniform(3.0, 7.0)   # Slow/distracted
+    
     try:
         logger.info("🔄 Starting TDesktop handshake sequence...")
         
@@ -102,38 +112,30 @@ async def perform_desktop_handshake(
         
         # ==================== STEP 2: Initial Pause ====================
         # Emulate network delay and socket initialization
-        initial_delay = random.uniform(0.5, 1.5)
+        initial_delay = human_delay()
         logger.info(f"⏱️  Initial delay: {initial_delay:.2f}s")
         await asyncio.sleep(initial_delay)
         
-        # ==================== STEP 3: GetState ====================
-        # Check for updates (standard behavior, doesn't require InitConnection wrapper)
+        # ==================== STEP 3: GetConfig ====================
+        # FIX: Real TDesktop ALWAYS fetches config after connect
+        logger.info("⚙️  Fetching server config...")
+        try:
+            await client(GetConfigRequest())
+            logger.info("✅ Config received")
+        except Exception as e:
+            logger.warning(f"⚠️ GetConfig failed (non-fatal): {e}")
+        
+        await asyncio.sleep(human_delay())
+        
+        # ==================== STEP 4: GetState ====================
+        # Check for updates (standard behavior)
         logger.info("🔄 Checking updates state...")
         await client(GetStateRequest())
         logger.info("✅ Updates checked")
         
-        # ==================== STEP 4: RegisterDevice (WNS) ====================
-        # CRITICAL FIX: Only register WNS for OFFICIAL TDesktop API!
-        # Custom API IDs with WNS registration is a known ban trigger.
-        if api_id == OFFICIAL_TDESKTOP_API_ID:
-            logger.info("📲 Registering WNS device (official API)...")
-            try:
-                fake_token = generate_wns_token()
-                await client(RegisterDeviceRequest(
-                    token_type=8,  # 8 = WNS (Windows)
-                    token=fake_token,
-                    app_sandbox=False,
-                    secret=b'',
-                    other_uids=[]
-                ))
-                logger.info("✅ Device registered")
-            except Exception as e:
-                logger.warning(f"⚠️ RegisterDevice failed (non-fatal): {e}")
-        else:
-            logger.info(f"⏭️  Skipping WNS registration (custom API ID: {api_id})")
-        
         # ==================== STEP 5: GetStrings (LangPack) ====================
         # Download language pack for UI rendering
+        await asyncio.sleep(human_delay())
         logger.info(f"🌐 Fetching language pack ({lang_code})...")
         try:
             await client(GetStringsRequest(
@@ -145,6 +147,12 @@ async def perform_desktop_handshake(
         except Exception as e:
             # Some custom APIs may not have tdesktop lang pack
             logger.warning(f"⚠️ GetStrings failed (non-fatal): {e}")
+        
+        # ==================== NOTE: WNS REMOVED ====================
+        # FIX: RegisterDevice with fake WNS tokens is detectable.
+        # Real users often have notifications disabled anyway.
+        # Skipping WNS registration entirely.
+        logger.debug("⏭️  WNS registration skipped (anti-detection)")
         
         # ==================== STEP 6: Main Pause (UI Rendering) ====================
         # Emulate time spent rendering interface and loading cache

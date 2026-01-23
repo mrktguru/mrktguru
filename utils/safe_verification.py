@@ -71,29 +71,45 @@ async def safe_self_check(client):
         await asyncio.sleep(random.uniform(1, 2))
         
         # PASSIVE CHECK: Request dialog list (READ operation, no traces)
+        # FIX: Use limit=40 (realistic) instead of 1 (suspicious)
         logger.info("📖 Fetching dialogs (passive read)...")
         dialogs = await client(GetDialogsRequest(
             offset_date=None,
             offset_id=0,
             offset_peer=InputPeerEmpty(),
-            limit=1,  # Only need 1 to verify access
+            limit=40,  # Realistic limit - real clients fetch 40-100
             hash=0
         ))
         
         logger.info(f"✅ Dialogs fetched: {len(dialogs.dialogs)} dialog(s)")
         
-        # Get user info (this is also a read operation)
-        await asyncio.sleep(random.uniform(0.5, 1.5))
-        me = await client.get_me()
+        # FIX: Extract user info from dialogs.users instead of explicit GetMe
+        # Real TDesktop NEVER calls GetMe explicitly - it gets user from dialogs
+        me = None
+        my_id = None
         
-        logger.info(f"✅ Passive self-check complete: User {me.id}")
+        # Find self in the users list
+        for user in dialogs.users:
+            if hasattr(user, 'is_self') and user.is_self:
+                me = user
+                my_id = user.id
+                break
+        
+        # Fallback: if no self user found (empty dialogs), use minimal delay + get_me
+        if not me:
+            await asyncio.sleep(random.uniform(0.3, 0.8))
+            me = await client.get_me()
+            my_id = me.id
+            logger.debug("ℹ️ User not in dialogs, used fallback get_me")
+        
+        logger.info(f"✅ Passive self-check complete: User {my_id}")
         
         return {
             'success': True,
             'method': 'self_check',
-            'user_id': me.id,
-            'username': me.username,
-            'first_name': me.first_name,
+            'user_id': my_id,
+            'username': getattr(me, 'username', None),
+            'first_name': getattr(me, 'first_name', None),
             'check_time': datetime.now().isoformat(),
             'duration': '~3-5s',
             'passive': True  # Flag indicating this was a read-only check

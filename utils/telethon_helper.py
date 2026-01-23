@@ -77,11 +77,29 @@ def get_telethon_client(account_id, proxy=None):
     # ==================== DEVICE FINGERPRINT ====================
     # Priority: JSON (if selected) > TData binary > DeviceProfile > Defaults
     
-    # 1. Base values (Fallbacks)
+    # Generate human-like fingerprint components
+    import string
+    
+    # Random app suffix (like real TDesktop)
+    app_suffix = ''.join(random.choices(string.ascii_letters + string.digits, k=6))
+    
+    # Random Windows build numbers (realistic ranges)
+    win10_builds = [19041, 19042, 19043, 19044, 19045]  # Windows 10 updates
+    win11_builds = [22000, 22621, 22631]  # Windows 11 versions
+    
+    # 70% Windows 10, 30% Windows 11
+    if random.random() < 0.7:
+        build = random.choice(win10_builds)
+        system_ver = f"Windows 10 (Build {build})"
+    else:
+        build = random.choice(win11_builds)
+        system_ver = f"Windows 11 (Build {build})"
+    
+    # 1. Base values (Fallbacks) - with realistic randomization
     device_params = {
         'device_model': "Desktop",
-        'system_version': "Windows 10",
-        'app_version': "5.6.3 x64",
+        'system_version': system_ver,
+        'app_version': f"5.6.3 x64 {app_suffix}",
         'lang_code': "en",
         'system_lang_code': "en-US"
     }

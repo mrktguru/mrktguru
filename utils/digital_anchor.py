@@ -35,9 +35,12 @@ async def _run_anchor_logic(account_id):
     activity_logger = ActivityLogger(account_id)
     
     try:
-        # Emulate Windows/macOS sleep timer settings (typically 15-30 min)
-        # We use 10-25 min range for variability
-        sleep_timer = random.randint(600, 1500)  # 10-25 minutes
+        # FIX: Use normal distribution instead of uniform
+        # Real human behavior follows bell curve (most around 15min, some shorter/longer)
+        # Mean = 900s (15min), StdDev = 300s (5min)
+        import numpy as np
+        sleep_timer = int(np.random.normal(900, 300))
+        sleep_timer = max(300, min(sleep_timer, 2400))  # Clamp to 5-40 min
         
         activity_logger.log(
             action_type='anchor_start',
