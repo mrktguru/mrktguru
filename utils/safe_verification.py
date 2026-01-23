@@ -114,6 +114,9 @@ async def safe_self_check(client):
             'success': True,
             'method': 'self_check',
             'user_id': me.id,
+            'username': getattr(me, 'username', None),
+            'first_name': getattr(me, 'first_name', None),
+            'last_name': getattr(me, 'last_name', None),
             'check_time': datetime.now().isoformat(),
             'debug_info': debug_info
         }
