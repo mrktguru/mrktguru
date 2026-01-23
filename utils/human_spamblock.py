@@ -139,19 +139,32 @@ async def run_immersive_spamblock_check(account_id):
             preview = response.text[:50].replace('\n', ' ')
             log(f"🤖 [Result] Bot Replied: {preview}...")
             
-            # === ЧТЕНИЕ ОТВЕТА ===
+            # === ЧТЕНИЕ ОТВЕТА (С ЗАЩИТОЙ ОТ FREEZE) ===
             await human_delay('read') # Читаем текст
             
-            # Помечаем прочитанным (Синие галочки)
-            await client(ReadHistoryRequest(peer=spambot_entity, max_id=response.id))
+            try:
+                # Пытаемся пометить прочитанным
+                await client(ReadHistoryRequest(peer=spambot_entity, max_id=response.id))
+            except Exception as e:
+                # 🔥 ЛОВИМ ОШИБКУ FROZEN
+                if "FROZEN_METHOD_INVALID" in str(e) or "PEER_FLOOD" in str(e):
+                    log("❄️ ACCOUNT IS HARD FROZEN (Detected via ReadHistory Error)", 'error')
+                    result_status = "restricted"
+                    log(f"❌ Hard Freeze Reason: {e}")
+                else:
+                    log(f"⚠️ ReadHistory failed (non-critical): {e}", 'warning')
+
+            # Логика определения бана по тексту
+            clean_markers = ["Good news", "Ваш аккаунт свободен", "no limits", "нет ограничений", "хорошие новости"]
             
-            # Логика определения бана
-            clean_markers = ["Good news", "Ваш аккаунт свободен", "no limits", "хорошие новости"]
+            # Если в тексте есть маркеры чистоты
             if any(m.lower() in response.text.lower() for m in clean_markers):
                 log("✅ ACCOUNT IS GREEN (CLEAN)")
                 result_status = "clean"
             else:
-                log("❄️ ACCOUNT IS FROZEN/RESTRICTED")
+                # Текст не содержит "Good news" -> Значит там описание бана
+                preview_ban = response.text[:100].replace('\n', ' ')
+                log(f"❄️ ACCOUNT IS RESTRICTED. Reason: {preview_ban}", 'warning')
                 result_status = "restricted"
         else:
             log("⚠️ Bot silent.")
