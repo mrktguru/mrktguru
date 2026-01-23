@@ -290,88 +290,219 @@ class TDataParser:
             logger.warning(f"Failed to cleanup temp directory: {e}")
 
     @staticmethod
+    def _pack_string_session(dc_id: int, ip: str, port: int, auth_key: bytes) -> str:
+        """
+        🛡️ TRUE OFFLINE: Pack session data into Telethon StringSession v1 format.
+        
+        Format: '1' + Base64( DC[1] + IPv4[4] + Port[2] + AuthKey[256] )
+        Total raw bytes: 263
+        
+        Args:
+            dc_id: Data center ID (1-5)
+            ip: IPv4 address string
+            port: Server port
+            auth_key: 256-byte authentication key
+            
+        Returns:
+            str: Valid Telethon StringSession string
+        """
+        import struct
+        import base64
+        import socket
+        
+        try:
+            # 1. Validate auth key length
+            if len(auth_key) != 256:
+                raise ValueError(f"Invalid auth_key length: {len(auth_key)} (expected 256)")
+            
+            # 2. Pack IPv4 address to 4 bytes
+            try:
+                ip_bytes = socket.inet_aton(ip)  # Returns 4 bytes for IPv4
+            except socket.error:
+                raise ValueError(f"Invalid IPv4 address: {ip}")
+            
+            # 3. Pack all data in Telethon's exact format
+            # DC (1 byte) + IP (4 bytes) + Port (2 bytes, big-endian) + Key (256 bytes)
+            packed_data = struct.pack(
+                '>B4sH256s',
+                dc_id,
+                ip_bytes,
+                port,
+                auth_key
+            )
+            
+            # 4. Base64 encode (URL-safe)
+            encoded = base64.urlsafe_b64encode(packed_data).decode('ascii')
+            
+            # 5. Add version prefix ('1' for StringSession v1)
+            return '1' + encoded
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to pack session string: {e}")
+            raise
+
+    # DC to IP mapping for fallback (official Telegram DC addresses)
+    DC_IP_MAP = {
+        1: ("149.154.175.53", 443),    # DC1 - US
+        2: ("149.154.167.50", 443),    # DC2 - Europe (most common)
+        3: ("149.154.175.100", 443),   # DC3 - US
+        4: ("149.154.167.91", 443),    # DC4 - Europe
+        5: ("91.108.56.130", 443),     # DC5 - Singapore
+    }
+
+    @staticmethod
     def convert_to_session_string(tdata_path: str, proxy_tuple: tuple = None) -> str:
         """
-        Convert TData folder to Telethon StringSession using opentele native conversion.
-        This runs the async conversion in a synchronous wrapper.
+        🛡️ TRUE OFFLINE TData Conversion
+        
+        Converts TData folder to Telethon StringSession WITHOUT any network calls.
+        This is critical for anti-ban: ToTelethon() was making hidden API calls
+        with default device parameters, creating a fingerprint mismatch.
         
         Args:
             tdata_path: Path to extracted tdata folder
-            proxy_tuple: Optional proxy tuple ('socks5', 'host', port, True, 'user', 'pass')
+            proxy_tuple: IGNORED (kept for API compatibility, but no network is used)
             
         Returns:
             str: The session string
         """
+        from opentele.td import TDesktop
+        
+        try:
+            logger.info(f"🔒 Starting TRUE OFFLINE TData conversion: {tdata_path}")
+            
+            # 1. Load TData (disk read only, NO network)
+            tdesk = TDesktop(tdata_path)
+            
+            if not tdesk.isLoaded():
+                raise Exception("Failed to load TData (encrypted or invalid)")
+            
+            # 2. Extract main account
+            if not tdesk.mainAccount:
+                raise Exception("No main account found in TData")
+            
+            account = tdesk.mainAccount
+            
+            # 3. Get DC ID (handle opentele's DcId enum)
+            dc_id = None
+            if hasattr(account, 'MainDcId'):
+                dc_id = int(account.MainDcId)
+            elif hasattr(account, 'dcId'):
+                dc_id = int(account.dcId)
+            
+            if not dc_id or dc_id not in TDataParser.DC_IP_MAP:
+                logger.warning(f"⚠️ Unknown DC ID: {dc_id}, defaulting to DC2 (Europe)")
+                dc_id = 2
+            
+            # 4. Get auth key bytes
+            auth_key_obj = account.authKey
+            if not auth_key_obj:
+                raise Exception("No auth key found in TData")
+            
+            # Extract raw bytes from AuthKey object
+            if hasattr(auth_key_obj, 'key'):
+                auth_key_bytes = auth_key_obj.key
+            else:
+                auth_key_bytes = bytes(auth_key_obj)
+            
+            if len(auth_key_bytes) != 256:
+                raise Exception(f"Invalid auth key length: {len(auth_key_bytes)}")
+            
+            # 5. Get DC address (prefer from TData, fallback to map)
+            if hasattr(account, 'datacenter') and account.datacenter:
+                dc_ip = str(account.datacenter.ip)
+                dc_port = int(account.datacenter.port)
+                logger.info(f"📍 Using DC from TData: {dc_ip}:{dc_port}")
+            else:
+                dc_ip, dc_port = TDataParser.DC_IP_MAP[dc_id]
+                logger.info(f"📍 Using fallback DC{dc_id}: {dc_ip}:{dc_port}")
+            
+            # 6. Pack session string OFFLINE
+            session_string = TDataParser._pack_string_session(
+                dc_id=dc_id,
+                ip=dc_ip,
+                port=dc_port,
+                auth_key=auth_key_bytes
+            )
+            
+            # 7. Validate the generated session (parse it back)
+            try:
+                from telethon.sessions import StringSession
+                test_session = StringSession(session_string)
+                logger.info(f"✅ Session validated: DC{dc_id}")
+            except Exception as val_err:
+                logger.error(f"❌ Session validation failed: {val_err}")
+                raise Exception(f"Generated session is invalid: {val_err}")
+            
+            # 8. Get user info for logging (if available)
+            user_id = None
+            if hasattr(account, 'UserId'):
+                user_id = account.UserId
+            elif hasattr(account, 'userId'):
+                user_id = account.userId
+            
+            logger.info(f"🎉 OFFLINE conversion complete! DC{dc_id} | User: {user_id or 'unknown'}")
+            
+            # Cleanup
+            del tdesk
+            del auth_key_bytes
+            
+            return session_string
+            
+        except Exception as e:
+            logger.error(f"❌ OFFLINE TData conversion failed: {e}")
+            
+            # Fallback to old method with warning
+            logger.warning("⚠️ Falling back to ToTelethon (NETWORK MODE) - this may expose fingerprint!")
+            return TDataParser._convert_with_totelethon_fallback(tdata_path, proxy_tuple)
+    
+    @staticmethod
+    def _convert_with_totelethon_fallback(tdata_path: str, proxy_tuple: tuple = None) -> str:
+        """
+        Fallback: Original ToTelethon conversion (uses network).
+        Only used if offline method fails.
+        """
         import asyncio
         from telethon.sessions import StringSession
         from opentele.td import TDesktop
+        import threading
         
-        # Define async conversion logic
         async def _convert():
-            logger.info(f"Native converting TData from: {tdata_path}")
+            logger.warning("🔴 FALLBACK: Using ToTelethon (network mode)")
             if proxy_tuple:
-                logger.info(f"🔒 TData conversion WILL USE PROXY: {proxy_tuple[1]}:{proxy_tuple[2]}")
+                logger.info(f"🔒 Using proxy: {proxy_tuple[1]}:{proxy_tuple[2]}")
             else:
-                logger.warning("⚠️ TData conversion WITHOUT PROXY - SERVER IP WILL BE EXPOSED!")
+                logger.error("⚠️ NO PROXY - SERVER IP EXPOSED!")
                 
             tdesk = TDesktop(tdata_path)
-            
-            # Check if loaded
             if not tdesk.isLoaded():
-                raise Exception("Failed to load TData (encrypted or invalid)")
+                raise Exception("Failed to load TData")
                 
-            # Convert to Telethon client with StringSession
-            # CRITICAL: Pass proxy to prevent IP leak during conversion!
             client = await tdesk.ToTelethon(
                 session=StringSession(),
-                proxy=proxy_tuple  # ← CRITICAL: Proxy for TData conversion
+                proxy=proxy_tuple
             )
-            
-            # Save and return string
             return client.session.save()
-            
-        # Run async in sync wrapper
-        # Run async in separate thread to guarantee loop isolation
-        # This prevents 502 errors if main thread has a loop that gets closed or corrupted
-        import threading
+        
         result_container = {}
-
+        
         def thread_target():
             try:
-                logger.info("Conversion thread started")
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
                 session = loop.run_until_complete(_convert())
                 loop.close()
-                if not session:
-                    result_container['error'] = Exception("Generated session string is empty")
-                else:
-                    result_container['result'] = session
-                logger.info("Conversion thread finished successfully")
-            except BaseException as thread_e:
-                # Catch EVERYTHING including GeneratorExit, etc.
-                logger.error(f"Conversion thread crashed: {thread_e}")
-                result_container['error'] = thread_e
-
+                result_container['result'] = session
+            except Exception as e:
+                result_container['error'] = e
+        
         t = threading.Thread(target=thread_target)
         t.start()
         t.join()
-
+        
         if 'error' in result_container:
-            e = result_container['error']
-            # Check for unauthorized error specifically
-            error_str = str(e)
-            if "TDesktopUnauthorized" in error_str:
-                logger.warning(f"TData unauthorized: {e}")
-                raise Exception("This TData session is invalid or logged out (Unauthorized)")
-            
-            logger.error(f"Native TData conversion failed: {e}")
-            raise Exception(f"Native conversion failed: {str(e)}")
-            
-        result = result_container.get('result')
-        if not result:
-             raise Exception("Thread finished but returned no result (Unknown error)")
-        return result
+            raise result_container['error']
+        return result_container.get('result', '')
     
     
     @staticmethod

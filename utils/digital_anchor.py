@@ -88,8 +88,10 @@ async def _run_anchor_logic(account_id):
                     )
                     break
 
-            # 2. Sleep for random interval (30-60 seconds)
-            sleep_time = random.randint(30, 60)
+            # 2. Sleep for random interval (5-15 MINUTES, not seconds!)
+            # Real TDesktop idles for minutes between GetState calls, not seconds.
+            # FIX #5: Changed from 30-60s to 300-900s (5-15 min)
+            sleep_time = random.randint(300, 900)
             remaining = duration - (asyncio.get_event_loop().time() - start_time)
             
             if remaining <= 0:

@@ -14,14 +14,17 @@ logger = logging.getLogger(__name__)
 
 async def safe_self_check(client):
     """
-    Self-Check via Saved Messages - SAFEST METHOD
+    🛡️ PASSIVE Self-Check via GetDialogs - SAFEST METHOD
     
-    Sends a message to "Saved Messages", waits, then deletes it.
-    This is the safest verification as it only interacts with your own account.
+    Reads dialog list instead of sending messages.
+    This is safer than SendMessage because:
+    - No write operation (doesn't modify pts/state)
+    - Natural first action when opening any Telegram client
+    - No trace left in message history
     
     Risk Level: ⭐ Very Low
-    Speed: ~5-10 seconds
-    Recommended: For fresh/suspicious accounts
+    Speed: ~3-5 seconds
+    Recommended: For all accounts, especially fresh ones
     
     Returns:
         dict: {
@@ -32,8 +35,12 @@ async def safe_self_check(client):
             'error': str (if failed)
         }
     """
+    from telethon.tl.functions.messages import GetDialogsRequest
+    from telethon.tl.types import InputPeerEmpty
+    from telethon.errors import AuthKeyUnregisteredError
+    
     try:
-        logger.info("Starting safe self-check verification")
+        logger.info("🛡️ Starting PASSIVE self-check (GetDialogs)")
         
         # Connect client with retry logic
         max_retries = 3
@@ -60,29 +67,26 @@ async def safe_self_check(client):
                         'details': str(conn_err)
                     }
         
-        # Get user info first
+        # Random delay before request (human-like)
+        await asyncio.sleep(random.uniform(1, 2))
+        
+        # PASSIVE CHECK: Request dialog list (READ operation, no traces)
+        logger.info("📖 Fetching dialogs (passive read)...")
+        dialogs = await client(GetDialogsRequest(
+            offset_date=None,
+            offset_id=0,
+            offset_peer=InputPeerEmpty(),
+            limit=1,  # Only need 1 to verify access
+            hash=0
+        ))
+        
+        logger.info(f"✅ Dialogs fetched: {len(dialogs.dialogs)} dialog(s)")
+        
+        # Get user info (this is also a read operation)
+        await asyncio.sleep(random.uniform(0.5, 1.5))
         me = await client.get_me()
         
-        # Random delay before sending
-        await asyncio.sleep(random.uniform(1, 3))
-        
-        # Send message to Saved Messages using 'me' string directly
-        check_time = datetime.now().strftime("%H:%M:%S")
-        msg = await client.send_message(
-            'me',  # Direct way - works correctly
-            f'🔄 Check {check_time}'
-        )
-        
-        logger.info(f"Self-check message sent: {msg.id}")
-        
-        # Wait 2-5 seconds (human-like)
-        await asyncio.sleep(random.uniform(2, 5))
-        
-        # Delete message (cleanup)
-        await asyncio.sleep(1)
-        await msg.delete()
-        
-        logger.info("Self-check message deleted successfully")
+        logger.info(f"✅ Passive self-check complete: User {me.id}")
         
         return {
             'success': True,
@@ -91,7 +95,8 @@ async def safe_self_check(client):
             'username': me.username,
             'first_name': me.first_name,
             'check_time': datetime.now().isoformat(),
-            'duration': '~5-10s'
+            'duration': '~3-5s',
+            'passive': True  # Flag indicating this was a read-only check
         }
         
     except FloodWaitError as e:

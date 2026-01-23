@@ -125,6 +125,37 @@ def get_telethon_client(account_id, proxy=None):
     else:
         print(f"⚠️  Using default device fingerprint")
     
+    # ==================== FIX #3: API/DEVICE CONSISTENCY CHECK ====================
+    # If api_id is TDesktop (2040) but device_model looks like mobile, override to Desktop
+    # This prevents fingerprint mismatch bans
+    TDESKTOP_API_ID = 2040
+    ANDROID_API_ID = 4
+    IOS_API_ID = 6
+    
+    device_model = device_params.get('device_model', '')
+    
+    # Detect mobile device patterns
+    mobile_patterns = [
+        'samsung', 'xiaomi', 'huawei', 'realme', 'oppo', 'vivo', 'oneplus',
+        'pixel', 'galaxy', 'redmi', 'poco', 'iphone', 'ipad', 'sm-', 'lg-',
+        'nokia', 'motorola', 'sony', 'zte', 'meizu', 'asus', 'lenovo'
+    ]
+    is_mobile_device = any(pattern in device_model.lower() for pattern in mobile_patterns)
+    
+    if api_id == TDESKTOP_API_ID and is_mobile_device:
+        print(f"⚠️  FIX #3: Mobile device '{device_model}' with TDesktop API - overriding to Desktop")
+        device_params.update({
+            'device_model': "Desktop",
+            'system_version': "Windows 10",
+            'app_version': "5.6.3 x64"
+        })
+    elif api_id == ANDROID_API_ID and not is_mobile_device and 'android' not in device_model.lower():
+        # Android API with desktop device - could be suspicious
+        print(f"⚠️  Warning: Desktop device '{device_model}' with Android API - consider changing API type")
+    elif api_id == IOS_API_ID and 'iphone' not in device_model.lower() and 'ipad' not in device_model.lower():
+        # iOS API with non-Apple device
+        print(f"⚠️  Warning: Non-iOS device '{device_model}' with iOS API - consider changing API type")
+    
     # ==================== PROXY CONFIGURATION ====================
     # Build proxy dict for Telethon
     proxy_dict = None

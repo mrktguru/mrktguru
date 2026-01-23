@@ -67,8 +67,11 @@ async def perform_desktop_handshake(
     """
     Perform TDesktop-compatible handshake sequence
     
-    This function emulates the exact sequence of requests that official
-    Telegram Desktop client makes on startup to avoid anti-bot detection.
+    IMPORTANT: Telethon already sends InitConnection during connect().
+    Sending a SECOND InitConnection is suspicious and was identified as a ban vector.
+    
+    This function now performs ONLY the additional requests that TDesktop makes
+    AFTER the initial connection is established.
     
     Args:
         client: Connected Telethon client
@@ -80,18 +83,19 @@ async def perform_desktop_handshake(
     Raises:
         Exception: If handshake fails
     """
+    # Official TDesktop API ID
+    OFFICIAL_TDESKTOP_API_ID = 2040
+    
     try:
         logger.info("🔄 Starting TDesktop handshake sequence...")
         
         # Extract device parameters
-        device_model = session_data.get('device_model', 'Desktop')
-        system_version = session_data.get('system_version', 'Windows 10')
-        app_version = session_data.get('app_version', '5.6.3 x64')
         lang_code = session_data.get('lang_code', 'en')
-        system_lang_code = session_data.get('system_lang_code', 'en-US')
         api_id = session_data.get('api_id', client.api_id)
         
         # ==================== STEP 1: Connect ====================
+        # NOTE: Telethon sends InitConnection automatically here!
+        # We do NOT send a second InitConnection - that was a ban vector.
         if not client.is_connected():
             logger.info("📡 Connecting to Telegram...")
             await client.connect()
@@ -102,65 +106,47 @@ async def perform_desktop_handshake(
         logger.info(f"⏱️  Initial delay: {initial_delay:.2f}s")
         await asyncio.sleep(initial_delay)
         
-        # ==================== STEP 3: InitConnection + GetConfig ====================
-        logger.info(f"🤝 Sending InitConnection (Layer {LAYER})...")
-        
-        # CRITICAL: We MUST use InvokeWithLayerRequest to override lang_pack='tdesktop'
-        # The TelegramClient constructor in v1.33 doesn't accept lang_pack
-        await client(InvokeWithLayerRequest(
-            layer=LAYER,
-            query=InitConnectionRequest(
-                api_id=api_id,
-                device_model=device_model,
-                system_version=system_version,
-                app_version=app_version,
-                system_lang_code=system_lang_code,
-                lang_pack='tdesktop',  # <--- THIS IS THE KEY!
-                lang_code=lang_code,
-                proxy=None, # Telethon handles socket proxy
-                params=None,
-                query=GetConfigRequest()
-            )
-        ))
-        logger.info("✅ InitConnection successful")
-
-        
-        # ==================== STEP 4: RegisterDevice (WNS) ====================
-        # Real TDesktop ALWAYS registers push notifications
-        logger.info("📲 Registering WNS device...")
-        
-        try:
-            fake_token = generate_wns_token()
-            await client(RegisterDeviceRequest(
-                token_type=8,  # 8 = WNS (Windows), 1 = APNS (iOS), 2 = FCM (Android)
-                token=fake_token,
-                app_sandbox=False,
-                secret=b'',
-                other_uids=[]
-            ))
-            logger.info("✅ Device registered")
-        except Exception as e:
-            # Custom API IDs might not support WNS, or other RPC errors.
-            # It's safe to ignore this for verification purposes.
-            logger.warning(f"⚠️ RegisterDevice failed (non-fatal): {e}")
-        
-        # ==================== STEP 5: GetState ====================
-        # Check for updates (standard behavior)
+        # ==================== STEP 3: GetState ====================
+        # Check for updates (standard behavior, doesn't require InitConnection wrapper)
         logger.info("🔄 Checking updates state...")
         await client(GetStateRequest())
         logger.info("✅ Updates checked")
         
-        # ==================== STEP 6: GetStrings (LangPack) ====================
+        # ==================== STEP 4: RegisterDevice (WNS) ====================
+        # CRITICAL FIX: Only register WNS for OFFICIAL TDesktop API!
+        # Custom API IDs with WNS registration is a known ban trigger.
+        if api_id == OFFICIAL_TDESKTOP_API_ID:
+            logger.info("📲 Registering WNS device (official API)...")
+            try:
+                fake_token = generate_wns_token()
+                await client(RegisterDeviceRequest(
+                    token_type=8,  # 8 = WNS (Windows)
+                    token=fake_token,
+                    app_sandbox=False,
+                    secret=b'',
+                    other_uids=[]
+                ))
+                logger.info("✅ Device registered")
+            except Exception as e:
+                logger.warning(f"⚠️ RegisterDevice failed (non-fatal): {e}")
+        else:
+            logger.info(f"⏭️  Skipping WNS registration (custom API ID: {api_id})")
+        
+        # ==================== STEP 5: GetStrings (LangPack) ====================
         # Download language pack for UI rendering
         logger.info(f"🌐 Fetching language pack ({lang_code})...")
-        await client(GetStringsRequest(
-            lang_pack='tdesktop',
-            lang_code=lang_code,
-            keys=[]  # Empty = get all string hashes
-        ))
-        logger.info("✅ Language pack fetched")
+        try:
+            await client(GetStringsRequest(
+                lang_pack='tdesktop',
+                lang_code=lang_code,
+                keys=[]  # Empty = get all string hashes
+            ))
+            logger.info("✅ Language pack fetched")
+        except Exception as e:
+            # Some custom APIs may not have tdesktop lang pack
+            logger.warning(f"⚠️ GetStrings failed (non-fatal): {e}")
         
-        # ==================== STEP 7: Main Pause (UI Rendering) ====================
+        # ==================== STEP 6: Main Pause (UI Rendering) ====================
         # Emulate time spent rendering interface and loading cache
         main_delay = random.uniform(2.0, 5.0)
         logger.info(f"⏱️  UI rendering delay: {main_delay:.2f}s")
