@@ -3,9 +3,20 @@ import asyncio
 import logging
 import random
 import string
-# FIX: Используем Opentele Client вместо стандартного Telethon
-# Это позволяет передавать lang_pack в конструктор
-from opentele.tl.telethon import TelegramClient
+
+# ---------------------------------------------------------------------------
+# 🔥 ГЛАВНОЕ ИЗМЕНЕНИЕ:
+# Импортируем TelegramClient из opentele, а не из telethon.
+# Этот класс поддерживает lang_pack, system_lang_code и другие параметры TDesktop.
+try:
+    from opentele.tl.telethon import TelegramClient
+    OPENTELE_AVAILABLE = True
+except ImportError:
+    # Fallback для подсказки, если библиотека не установлена
+    logging.getLogger(__name__).critical("❌ Opentele library not found! Run: pip install opentele")
+    from telethon import TelegramClient
+    OPENTELE_AVAILABLE = False
+# ---------------------------------------------------------------------------
 from telethon.sessions import StringSession
 from config import Config
 from telethon.tl.functions.messages import AddChatUserRequest
@@ -267,31 +278,34 @@ def get_telethon_client(account_id, proxy=None):
         # Default empty session
         session = StringSession('')
 
-    # Create client using opentele's TelegramClient (supports lang_pack!)
+    # Create client - conditionally add lang_pack if opentele is available
+    client_kwargs = {
+        'device_model': device_params['device_model'],
+        'system_version': device_params['system_version'],
+        'app_version': device_params['app_version'],
+        'lang_code': device_params['lang_code'],
+        'system_lang_code': device_params['system_lang_code'],
+        'proxy': proxy_dict,
+        'connection_retries': 3,
+        'flood_sleep_threshold': 60,
+        'request_retries': 3,
+        'base_logger': None,
+        'catch_up': False
+    }
+    
+    # CRITICAL: Add lang_pack only if opentele is available
+    if OPENTELE_AVAILABLE:
+        client_kwargs['lang_pack'] = 'tdesktop'
+        print(f"✅ Client created with lang_pack='tdesktop' (opentele)")
+    else:
+        print(f"⚠️ Client created WITHOUT lang_pack (standard Telethon)")
+    
     client = TelegramClient(
         session,
         api_id,
         api_hash,
-        # Expand device parameters from dictionary
-        device_model=device_params['device_model'],
-        system_version=device_params['system_version'],
-        app_version=device_params['app_version'],
-        lang_code=device_params['lang_code'],
-        system_lang_code=device_params['system_lang_code'],
-        
-        # CRITICAL: lang_pack='tdesktop' - устраняет главный вектор детекции!
-        lang_pack='tdesktop',
-        
-        proxy=proxy_dict,
-        # Enhanced timeouts for stability
-        connection_retries=3,
-        flood_sleep_threshold=60,  # Auto-sleep on floods up to 60s
-        request_retries=3,
-        base_logger=None,  # Disable internal logs
-        catch_up=False     # Don't sync history
+        **client_kwargs
     )
-    
-    print(f"✅ Client created with lang_pack='tdesktop' (opentele)")
     
     # Save session back to DB on disconnect (if modified)
     # Save session back to DB on disconnect (if modified)
