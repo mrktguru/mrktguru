@@ -1624,13 +1624,33 @@ def human_check(account_id):
         log_msgs = result.get('log', [])
         
         # Log to DB (Create new logger inst since session was closed)
+        # Re-fetch account to update status
+        try:
+            from models import Account
+            account_ref = Account.query.get(account_id)
+            
+            if status == 'clean':
+                if account_ref.status != 'active':
+                    account_ref.status = 'active'
+                # Update health score if needed?
+            elif status == 'restricted':
+                # User requested: FROZEN/RESTRICTED -> BANNED badge
+                account_ref.status = 'banned'
+                account_ref.health_score = 0
+            
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            # Non-critical, just log
+            print(f"Failed to update account status: {e}")
+
         logger = ActivityLogger(account_id)
         
         if status == 'clean':
             logger.log(
                 action_type='human_check_success',
                 status='success',
-                description='Human Check: 🟢 CLEAN (No Limits)',
+                description='Human Check: 🟢 CLEAN (No Limits). Status -> Active',
                 category='system'
             )
             return jsonify({'success': True, 'status': 'clean', 'logs': log_msgs})
@@ -1639,7 +1659,7 @@ def human_check(account_id):
             logger.log(
                 action_type='human_check_warning',
                 status='warning',
-                description='Human Check: 🔴 RESTRICTED (Frozen/SpamBlock)',
+                description='Human Check: 🔴 RESTRICTED (Frozen). Status -> Banned',
                 category='system'
             )
             return jsonify({'success': True, 'status': 'restricted', 'logs': log_msgs})
