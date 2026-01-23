@@ -555,6 +555,22 @@ async def verify_session(account_id, force_full=False, disable_anchor=False):
                     "error_type": "invalid_response",
                     "verification_type": "full"
                 }
+
+            # 🔥 CRITICAL FLAG CHECK (Fixes "Account deleted but check validated" issue)
+            if getattr(me, 'deleted', False):
+                logger.error(f"❌ Full verification FAILED: Account {me.id} is DELETED")
+                return {
+                    "success": False,
+                    "user": None,
+                    "error": "Account is marked as DELETED (Deleted Account)",
+                    "error_type": "banned",
+                    "verification_type": "full"
+                }
+            
+            if getattr(me, 'restricted', False):
+                reason = getattr(me, 'restriction_reason', [])
+                reason_str = str(reason) if reason else "Unknown"
+                logger.warning(f"⚠️ Account {me.id} is RESTRICTED: {reason_str}")
             
             # Extract user data
             user_data = {
