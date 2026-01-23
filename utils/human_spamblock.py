@@ -56,7 +56,7 @@ async def run_immersive_spamblock_check(account_id):
         
         if not await client.is_user_authorized():
             log("❌ Session unauthorized", 'error')
-            return {'status': 'error', 'log': log_messages}
+            return {'status': 'error', 'log': log_messages, 'error': 'Session unauthorized'}
 
         # === 3. ФОНОВАЯ СИНХРОНИЗАЦИЯ (Backend Requests) ===
         # Эмуляция того, что делает TDesktop при запуске
@@ -102,7 +102,7 @@ async def run_immersive_spamblock_check(account_id):
             spambot_entity = resolve_result.users[0]
         except Exception as e:
             log(f"❌ Could not resolve SpamBot: {e}", 'error')
-            return {'status': 'error', 'log': log_messages}
+            return {'status': 'error', 'log': log_messages, 'error': f"Could not resolve SpamBot: {str(e)}"}
 
         # === 6. ОТКРЫТИЕ ЧАТА ===
         log("🖱️ [Step 6] Found bot. Opening chat...")
