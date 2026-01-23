@@ -14,152 +14,83 @@ logger = logging.getLogger(__name__)
 
 async def safe_self_check(client):
     """
-    🛡️ PASSIVE Self-Check via GetDialogs - SAFEST METHOD
-    
-    Reads dialog list instead of sending messages.
-    This is safer than SendMessage because:
-    - No write operation (doesn't modify pts/state)
-    - Natural first action when opening any Telegram client
-    - No trace left in message history
-    
-    Risk Level: ⭐ Very Low
-    Speed: ~3-5 seconds
-    Recommended: For all accounts, especially fresh ones
-    
-    Returns:
-        dict: {
-            'success': bool,
-            'method': 'self_check',
-            'user_id': int,
-            'check_time': str,
-            'error': str (if failed)
-        }
+    🛡️ PASSIVE Self-Check via GetDialogs (SMART VERSION)
+    Checks for 'deleted' and 'restricted' flags in the response.
     """
     from telethon.tl.functions.messages import GetDialogsRequest
     from telethon.tl.types import InputPeerEmpty
-    from telethon.errors import AuthKeyUnregisteredError
     
     try:
-        logger.info("🛡️ Starting PASSIVE self-check (GetDialogs)")
+        logger.info("🛡️ Starting PASSIVE self-check (GetDialogs)...")
         
-        # Connect client with retry logic
-        max_retries = 3
-        retry_delay = 2
-        
-        for attempt in range(max_retries):
-            try:
-                if not client.is_connected():
-                    logger.info(f"Connection attempt {attempt + 1}/{max_retries}")
-                    await client.connect()
-                    logger.info("Successfully connected to Telegram")
-                break
-            except (OSError, ConnectionError, TimeoutError) as conn_err:
-                logger.warning(f"Connection attempt {attempt + 1} failed: {conn_err}")
-                if attempt < max_retries - 1:
-                    await asyncio.sleep(retry_delay * (attempt + 1))  # Exponential backoff
-                else:
-                    logger.error(f"Failed to connect after {max_retries} attempts")
-                    return {
-                        'success': False,
-                        'method': 'self_check',
-                        'error': f'Connection to Telegram failed after {max_retries} attempts. Check proxy/network.',
-                        'error_type': 'connection_error',
-                        'details': str(conn_err)
-                    }
-        
-        # Random delay before request (human-like)
-        await asyncio.sleep(random.uniform(1, 2))
-        
-        # PASSIVE CHECK: Request dialog list (READ operation, no traces)
-        # FIX: Use limit=40 (realistic) instead of 1 (suspicious)
-        logger.info("📖 Fetching dialogs (passive read)...")
+        if not client.is_connected():
+            await client.connect()
+            
+        if not await client.is_user_authorized():
+            return {'success': False, 'method': 'self_check', 'error': 'Session invalid (Unauthorized)'}
+
+        # 1. Делаем запрос (как и раньше)
         dialogs = await client(GetDialogsRequest(
-            offset_date=None,
-            offset_id=0,
-            offset_peer=InputPeerEmpty(),
-            limit=40,  # Realistic limit - real clients fetch 40-100
+            offset_date=None, 
+            offset_id=0, 
+            offset_peer=InputPeerEmpty(), 
+            limit=40,   # <-- TDesktop default pagination (limit=40)
             hash=0
         ))
         
-        logger.info(f"✅ Dialogs fetched: {len(dialogs.dialogs)} dialog(s)")
-        
-        # FIX: Extract user info from dialogs.users instead of explicit GetMe
-        # Real TDesktop NEVER calls GetMe explicitly - it gets user from dialogs
+        # 2. 🔥 ГЛАВНОЕ ИЗМЕНЕНИЕ: Анализ пользователя
         me = None
-        my_id = None
+        # Ищем себя в списке пользователей, который вернул сервер
+        if hasattr(dialogs, 'users'):
+            for user in dialogs.users:
+                if getattr(user, 'is_self', False):
+                    me = user
+                    break
         
-        # Find self in the users list
-        for user in dialogs.users:
-            if hasattr(user, 'is_self') and user.is_self:
-                me = user
-                my_id = user.id
-                break
-        
-        # Fallback: if no self user found (empty dialogs), use minimal delay + get_me
+        # Если не нашли в диалогах (редко), пробуем get_me
         if not me:
-            await asyncio.sleep(random.uniform(0.3, 0.8))
-            me = await client.get_me()
-            my_id = me.id
-            logger.debug("ℹ️ User not in dialogs, used fallback get_me")
-        
-        logger.info(f"✅ Passive self-check complete: User {my_id}")
-        
+            try:
+                me = await client.get_me()
+            except Exception:
+                pass
+                
+        # 3. Проверка флагов смерти
+        if me:
+            if getattr(me, 'deleted', False):
+                logger.error(f"❌ Account {me.id} detected as DELETED (User.deleted=True)")
+                return {
+                    'success': False, 
+                    'method': 'self_check', 
+                    'error': 'ACCOUNT_DELETED',
+                    'error_type': 'banned'
+                }
+            
+            if getattr(me, 'restricted', False):
+                # Получаем причину (если есть)
+                reason = getattr(me, 'restriction_reason', [])
+                reason_str = str(reason) if reason else "Unknown"
+                logger.warning(f"⚠️ Account {me.id} is RESTRICTED: {reason_str}")
+                
+                # РЕШАЕМ: Считать ли это провалом? 
+                # Если аккаунт забанен на запись - для спама он бесполезен.
+                return {
+                    'success': False, 
+                    'method': 'self_check', 
+                    'error': f'ACCOUNT_RESTRICTED: {reason_str}',
+                    'error_type': 'restricted'
+                }
+
+        logger.info("✅ Passive Check: OK (Account is Active & Clean)")
         return {
             'success': True,
             'method': 'self_check',
-            'user_id': my_id,
-            'username': getattr(me, 'username', None),
-            'first_name': getattr(me, 'first_name', None),
-            'check_time': datetime.now().isoformat(),
-            'duration': '~3-5s',
-            'passive': True  # Flag indicating this was a read-only check
+            'user_id': me.id if me else 0,
+            'check_time': datetime.now().isoformat()
         }
-        
-    except FloodWaitError as e:
-        logger.error(f"FloodWait during self-check: {e.seconds}s")
-        return {
-            'success': False,
-            'method': 'self_check',
-            'error': f'FloodWait: {e.seconds}s',
-            'error_type': 'flood_wait',
-            'wait': e.seconds
-        }
-    except (UserDeactivatedError, UserDeactivatedBanError) as e:
-        logger.error(f"Account is banned/deactivated: {e}")
-        return {
-            'success': False,
-            'method': 'self_check',
-            'error': 'Account is BANNED by Telegram',
-            'error_type': 'banned'
-        }
-    except AuthKeyError as e:
-        logger.error(f"Invalid session (AuthKeyError): {e}")
-        return {
-            'success': False,
-            'method': 'self_check',
-            'error': 'Session is invalid (AuthKeyError)',
-            'error_type': 'invalid_session'
-        }
+
     except Exception as e:
-        error_msg = str(e).lower()
-        logger.error(f"Self-check error: {e}", exc_info=True)
-        
-        # Check if error message indicates ban
-        if any(keyword in error_msg for keyword in ['peer', 'deactivated', 'banned', 'terminated']):
-            logger.warning(f"Detected potential ban from error message: {e}")
-            return {
-                'success': False,
-                'method': 'self_check',
-                'error': 'Account may be banned or restricted',
-                'error_type': 'banned'
-            }
-        
-        return {
-            'success': False,
-            'method': 'self_check',
-            'error': str(e),
-            'error_type': 'generic_error'
-        }
+        logger.error(f"❌ Self-check error: {e}")
+        return {'success': False, 'method': 'self_check', 'error': str(e)}
 
 
 async def safe_get_me(client, last_check_time=None):

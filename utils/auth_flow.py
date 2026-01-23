@@ -178,34 +178,51 @@ async def perform_desktop_handshake(
 
 async def verify_session_light(client: TelegramClient) -> bool:
     """
-    Light verification for subsequent checks
-    Only checks if session is still alive without GetMe
+    Light verification (Strict TDesktop Mode).
+    Checks if account is ALIVE by looking at User flags.
+    GetStateRequest is NOT enough (it passes for deleted accounts).
     
     Args:
         client: Connected Telethon client
         
     Returns:
-        bool: True if session is alive
-        
-    Raises:
-        Exception: If session is dead/banned
+        bool: True if session is alive AND account is not deleted/banned
     """
-    from telethon.errors import (
-        UserDeactivatedError,
-        UserDeactivatedBanError,
-        AuthKeyUnregisteredError
-    )
+    from telethon.tl.functions.users import GetUsersRequest
+    from telethon.tl.types import InputPeerSelf
     
     try:
-        logger.info("🔍 Light verification: Checking session status...")
+        logger.info("🔍 Light verification: Checking account status...")
         
         if not client.is_connected():
             await client.connect()
-        
-        # Lightest possible request to check if session is valid
-        await client(GetStateRequest())
-        
-        logger.info("✅ Light check passed - session is alive")
+
+        # Вместо GetState используем GetUsers([InputPeerSelf])
+        # Это дешевый запрос, который вернет актуальные флаги пользователя
+        try:
+            # Используем прямой запрос, чтобы обойти кэш Telethon
+            result = await client(GetUsersRequest([InputPeerSelf()]))
+            me = result[0]
+        except Exception:
+            # Fallback
+            me = await client.get_me()
+
+        if not me:
+            logger.error("❌ Light check: Could not get user entity")
+            return False
+
+        # 🔥 ПРОВЕРКА ФЛАГОВ
+        if getattr(me, 'deleted', False):
+            logger.error(f"❌ Light check FAILED: Account {me.id} is DELETED flag=True")
+            raise UserDeactivatedError("ACCOUNT_DELETED")
+            
+        if getattr(me, 'restricted', False):
+            reason = getattr(me, 'restriction_reason', [])
+            reason_str = str(reason) if reason else "Unknown"
+            logger.warning(f"⚠️ Light check WARNING: Account {me.id} is RESTRICTED: {reason_str}")
+            # raise Exception(f"ACCOUNT_RESTRICTED: {reason_str}")
+
+        logger.info(f"✅ Light check passed: {me.first_name} (ID: {me.id}) [Alive]")
         return True
         
     except (UserDeactivatedError, UserDeactivatedBanError) as e:
