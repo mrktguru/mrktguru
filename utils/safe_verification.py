@@ -57,23 +57,27 @@ async def safe_self_check(client):
                 'error_type': 'protocol_error'
             }
 
-        # 4. Check Flags & Attributes (v3 Strict Mode)
-        from telethon.tl.types import UserEmpty
-        
-        # LOG RAW DETAILS FOR DEBUGGING
-        logger.info(f"�️ v3 CHECK: Type={type(me).__name__} ID={getattr(me, 'id', '?')} Deleted={getattr(me, 'deleted', '?')} Name='{getattr(me, 'first_name', 'None')}'")
+        debug_info = f"v3 CHECK: Type={type(me).__name__} ID={getattr(me, 'id', '?')} Deleted={getattr(me, 'deleted', '?')} Name='{getattr(me, 'first_name', 'None')}'"
+        logger.info(f"🕵️ {debug_info}")
 
         if isinstance(me, UserEmpty):
              logger.error(f"❌ Account is UserEmpty (Deleted)")
-             return {'success': False, 'method': 'self_check', 'error': 'ACCOUNT_IS_EMPTY', 'error_type': 'banned'}
+             return {
+                 'success': False, 
+                 'method': 'self_check', 
+                 'error': 'ACCOUNT_IS_EMPTY', 
+                 'error_type': 'banned',
+                 'debug_info': debug_info
+             }
 
         if getattr(me, 'deleted', False):
             logger.error(f"❌ Account {me.id} detected as DELETED (User.deleted=True)")
             return {
                 'success': False, 
                 'method': 'self_check', 
-                'error': 'ACCOUNT_DELETED',
-                'error_type': 'banned'
+                'error': 'ACCOUNT_DELETED', 
+                'error_type': 'banned',
+                'debug_info': debug_info
             }
             
         # Heuristic: Valid accounts MUST have a first_name
@@ -83,11 +87,13 @@ async def safe_self_check(client):
              return {
                 'success': False, 
                 'method': 'self_check', 
-                'error': 'ACCOUNT_nameless_ghost',
-                'error_type': 'banned'
+                'error': 'ACCOUNT_nameless_ghost', 
+                'error_type': 'banned',
+                'debug_info': debug_info
             }
             
         if getattr(me, 'restricted', False):
+            # ... (rest of logic same)
             reason = getattr(me, 'restriction_reason', [])
             reason_str = str(reason) if reason else "Unknown"
             logger.warning(f"⚠️ Account {me.id} is RESTRICTED: {reason_str}")
@@ -96,7 +102,8 @@ async def safe_self_check(client):
                 'success': False, 
                 'method': 'self_check', 
                 'error': f'ACCOUNT_RESTRICTED: {reason_str}',
-                'error_type': 'restricted'
+                'error_type': 'restricted',
+                'debug_info': debug_info
             }
 
         logger.info("✅ Passive Check: OK (v3-validated)")
@@ -104,7 +111,8 @@ async def safe_self_check(client):
             'success': True,
             'method': 'self_check',
             'user_id': me.id,
-            'check_time': datetime.now().isoformat()
+            'check_time': datetime.now().isoformat(),
+            'debug_info': debug_info
         }
 
     except Exception as e:

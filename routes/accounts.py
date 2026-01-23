@@ -1380,11 +1380,11 @@ def verify_safe(account_id):
             logger.log(
                 action_type='safe_verification_success',
                 status='success',
-                description=f'Verification successful via {method}',
+                description=f'Verification successful via {method}. ({result.get("debug_info", "")})',
                 category='system'
             )
             
-            flash(f"✅ Verification successful via {method}!", "success")
+            flash(f"✅ Verification successful via {method}! {result.get('debug_info', '')}", "success")
             return jsonify({
                 'success': True,
                 'method': method,
@@ -1394,14 +1394,17 @@ def verify_safe(account_id):
                     'first_name': user.get('first_name')
                 },
                 'duration': result.get('duration'),
-                'next_check_allowed': result.get('next_check_allowed')
+                'next_check_allowed': result.get('next_check_allowed'),
+                'debug_info': result.get('debug_info')
             })
             
         else:
             # Handle errors
             error_type = result.get('error_type', 'generic_error')
+            debug_info = result.get('debug_info', '')
             
             if error_type == 'cooldown':
+                # ... (keep cooldown as is)
                 flash(f"⏱️ {result.get('error')}", "warning")
                 return jsonify({
                     'success': False,
@@ -1419,7 +1422,7 @@ def verify_safe(account_id):
                 logger.log(
                     action_type='safe_verification_failed',
                     status='error',
-                    description=f"FloodWait: {wait_time}s (method: {method})",
+                    description=f"FloodWait: {wait_time}s (method: {method}) {debug_info}",
                     category='system'
                 )
                 
@@ -1435,9 +1438,13 @@ def verify_safe(account_id):
                 account.health_score = 0
                 db.session.commit()
                 
-                flash(f"❌ Account is BANNED by Telegram", "error")
+                flash(f"❌ Account is BANNED by Telegram: {result.get('error')}", "error")
                 logger.log(
                     action_type='safe_verification_failed',
+                    status='error',
+                    description=f"BANNED: {result.get('error')} {debug_info}",
+                    category='system'
+                )
                     status='error',
                     description=f"ACCOUNT BANNED (method: {method})",
                     category='system'
