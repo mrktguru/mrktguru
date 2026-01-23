@@ -3,20 +3,78 @@ import asyncio
 import logging
 import random
 import string
+import inspect
 
 # ---------------------------------------------------------------------------
 # 🔥 ГЛАВНОЕ ИЗМЕНЕНИЕ:
 # Импортируем TelegramClient из opentele, а не из telethon.
-# Этот класс поддерживает lang_pack, system_lang_code и другие параметры TDesktop.
 try:
-    from opentele.tl.telethon import TelegramClient
+    from opentele.tl.telethon import TelegramClient as OpenteleClient
     OPENTELE_AVAILABLE = True
 except ImportError:
-    # Fallback для подсказки, если библиотека не установлена
     logging.getLogger(__name__).critical("❌ Opentele library not found! Run: pip install opentele")
-    from telethon import TelegramClient
+    from telethon import TelegramClient as OpenteleClient
     OPENTELE_AVAILABLE = False
 # ---------------------------------------------------------------------------
+
+
+class ExtendedTelegramClient(OpenteleClient):
+    """
+    💉 Extended Telegram Client with lang_pack support
+    
+    Решает проблему: opentele 1.15.1 не поддерживает lang_pack в конструкторе.
+    
+    Паттерн "Наследование + Инъекция":
+    1. Перехватываем lang_pack в __init__ (не передаём parent)
+    2. Инициализируем родителя без lang_pack
+    3. Внедряем lang_pack во внутреннюю структуру _init_request
+    """
+    
+    def __init__(self, *args, lang_pack: str = None, **kwargs):
+        # Перехватываем lang_pack — родитель его не принимает
+        self._custom_lang_pack = lang_pack
+        
+        # Вызываем конструктор родителя БЕЗ lang_pack
+        super().__init__(*args, **kwargs)
+        
+        # Инъекция lang_pack во внутреннюю структуру
+        if lang_pack:
+            self._inject_lang_pack(lang_pack)
+    
+    def _inject_lang_pack(self, lang_pack: str):
+        """
+        Внедряет lang_pack в структуру InitConnectionRequest
+        Telethon хранит её в self._init_request (InitConnectionRequest)
+        """
+        try:
+            # Telethon 1.x хранит init request здесь
+            if hasattr(self, '_init_request') and self._init_request:
+                self._init_request.lang_pack = lang_pack
+                logging.info(f"✅ lang_pack='{lang_pack}' injected into _init_request")
+            else:
+                # Fallback: попробуем после первого connect()
+                self._pending_lang_pack = lang_pack
+                logging.debug(f"⏳ lang_pack='{lang_pack}' queued for injection after connect")
+        except Exception as e:
+            logging.warning(f"⚠️ Failed to inject lang_pack: {e}")
+    
+    async def connect(self):
+        """Override connect to inject lang_pack if pending"""
+        result = await super().connect()
+        
+        # Попытка инъекции после connect если ещё не сделано
+        if hasattr(self, '_pending_lang_pack') and self._pending_lang_pack:
+            if hasattr(self, '_init_request') and self._init_request:
+                self._init_request.lang_pack = self._pending_lang_pack
+                logging.info(f"✅ lang_pack='{self._pending_lang_pack}' injected after connect")
+                del self._pending_lang_pack
+        
+        return result
+
+
+# Алиас для совместимости
+TelegramClient = ExtendedTelegramClient
+
 from telethon.sessions import StringSession
 from config import Config
 from telethon.tl.functions.messages import AddChatUserRequest
@@ -278,42 +336,32 @@ def get_telethon_client(account_id, proxy=None):
         # Default empty session
         session = StringSession('')
 
-    # Create client - conditionally add lang_pack if opentele is available
-    client_kwargs = {
-        'device_model': device_params['device_model'],
-        'system_version': device_params['system_version'],
-        'app_version': device_params['app_version'],
-        'lang_code': device_params['lang_code'],
-        'system_lang_code': device_params['system_lang_code'],
-        'proxy': proxy_dict,
-        'connection_retries': 3,
-        'flood_sleep_threshold': 60,
-        'request_retries': 3,
-        'base_logger': None,
-        'catch_up': False
-    }
-    
-    # CRITICAL: Check if TelegramClient actually supports lang_pack parameter
-    # opentele 1.15.1 claims to but doesn't actually support it in constructor
-    import inspect
-    try:
-        sig = inspect.signature(TelegramClient.__init__)
-        LANG_PACK_SUPPORTED = 'lang_pack' in sig.parameters
-    except:
-        LANG_PACK_SUPPORTED = False
-    
-    if LANG_PACK_SUPPORTED:
-        client_kwargs['lang_pack'] = 'tdesktop'
-        logging.info(f"✅ Client created with lang_pack='tdesktop'")
-    else:
-        logging.warning(f"⚠️ lang_pack not supported by TelegramClient (opentele {OPENTELE_AVAILABLE})")
-    
+    # Create client using ExtendedTelegramClient (safe lang_pack injection)
     client = TelegramClient(
         session,
         api_id,
         api_hash,
-        **client_kwargs
+        
+        # Device parameters
+        device_model=device_params['device_model'],
+        system_version=device_params['system_version'],
+        app_version=device_params['app_version'],
+        lang_code=device_params['lang_code'],
+        system_lang_code=device_params['system_lang_code'],
+        
+        # CRITICAL: lang_pack='tdesktop'
+        # Now safely handled by ExtendedTelegramClient via injection
+        lang_pack='tdesktop',
+        
+        proxy=proxy_dict,
+        connection_retries=3,
+        flood_sleep_threshold=60,
+        request_retries=3,
+        base_logger=None,
+        catch_up=False
     )
+    
+    logging.info(f"✅ Client created via ExtendedTelegramClient (lang_pack='tdesktop')")
     
     # Save session back to DB on disconnect (if modified)
     # Save session back to DB on disconnect (if modified)
