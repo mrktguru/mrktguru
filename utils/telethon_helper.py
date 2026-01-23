@@ -1,7 +1,9 @@
 import os
 import asyncio
 import logging
-from telethon import TelegramClient
+import random
+# Use opentele's TelegramClient - it supports lang_pack natively!
+from opentele.tl.telethon import TelegramClient
 from telethon.sessions import StringSession
 from config import Config
 from telethon.tl.functions.messages import AddChatUserRequest
@@ -263,7 +265,7 @@ def get_telethon_client(account_id, proxy=None):
         # Default empty session
         session = StringSession('')
 
-    # Create client
+    # Create client using opentele's TelegramClient (supports lang_pack!)
     client = TelegramClient(
         session,
         api_id,
@@ -275,15 +277,20 @@ def get_telethon_client(account_id, proxy=None):
         lang_code=device_params['lang_code'],
         system_lang_code=device_params['system_lang_code'],
         
-        # lang_pack removed (passed manually in auth_flow via InitConnection)
+        # CRITICAL: lang_pack='tdesktop' - this is the #1 anti-detection fix!
+        # Standard Telethon doesn't support this, but opentele does.
+        lang_pack='tdesktop',
+        
         proxy=proxy_dict,
         # Enhanced timeouts for stability
         connection_retries=3,
         flood_sleep_threshold=60,  # Auto-sleep on floods up to 60s
         request_retries=3,
-        base_logger=None, # Disable internal logs as suggested
-        catch_up=False    # Don't sync history as suggested
+        base_logger=None,  # Disable internal logs
+        catch_up=False     # Don't sync history
     )
+    
+    print(f"✅ Client created with lang_pack='tdesktop' (opentele)")
     
     # Save session back to DB on disconnect (if modified)
     # Save session back to DB on disconnect (if modified)
@@ -309,46 +316,8 @@ def get_telethon_client(account_id, proxy=None):
     
     client.disconnect = disconnect_and_save
     
-    # ==================== LANG_PACK MONKEY PATCH ====================
-    # CRITICAL: Telethon 1.x sends empty lang_pack by default.
-    # This is the #1 detection vector. Real TDesktop sends 'tdesktop'.
-    # We patch the internal _init_connection to inject correct lang_pack.
-    
-    def patch_lang_pack(telethon_client):
-        """
-        Monkey-patch Telethon to send lang_pack='tdesktop' in InitConnection.
-        Works for Telethon 1.33.x
-        """
-        try:
-            # Check if _init_connection exists (Telethon 1.x specific)
-            if hasattr(telethon_client, '_init_connection'):
-                original_init = telethon_client._init_connection
-                
-                def patched_init(*args, **kwargs):
-                    req = original_init(*args, **kwargs)
-                    # req should be InvokeWithLayerRequest containing InitConnectionRequest
-                    from telethon.tl.functions import InvokeWithLayerRequest
-                    from telethon.tl.functions.help import InitConnectionRequest
-                    
-                    if hasattr(req, 'query'):
-                        inner = req.query if hasattr(req, 'query') else req
-                        if hasattr(inner, 'lang_pack'):
-                            inner.lang_pack = 'tdesktop'
-                            print("🔧 PATCHED: lang_pack = 'tdesktop'")
-                    return req
-                
-                telethon_client._init_connection = patched_init
-                print("✅ lang_pack patch applied successfully")
-            else:
-                # Telethon 2.x or different version - try sender approach
-                print("⚠️ Using alternative lang_pack patch approach...")
-                # For newer Telethon, we'd need different approach
-                # But for 1.33 this should work
-        except Exception as e:
-            print(f"⚠️ lang_pack patch failed (non-fatal): {e}")
-    
-    # Apply the patch
-    patch_lang_pack(client)
+    # NOTE: lang_pack='tdesktop' is now passed natively via opentele
+    # No monkey-patching needed!
     
     return client
 
