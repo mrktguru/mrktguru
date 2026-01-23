@@ -294,7 +294,7 @@ async def connect_client(account_id):
     return client
 
 
-async def verify_session(account_id, force_full=False):
+async def verify_session(account_id, force_full=False, disable_anchor=False):
     """
     Hybrid Session Verification
     - Full Verify: First-time verification with complete handshake + GetMe
@@ -467,11 +467,17 @@ async def verify_session(account_id, force_full=False):
                 logger.info("✅ First verification completed - timestamp saved")
             
             # TRIGGER DIGITAL ANCHOR (Background Task)
-            try:
-                from utils.digital_anchor import run_digital_anchor_background
-                run_digital_anchor_background(account_id)
-            except Exception as anchor_err:
-                logger.warning(f"Failed to start Digital Anchor: {anchor_err}")
+            # TRIGGER DIGITAL ANCHOR (Background Task)
+            # Only run if disable_anchor is False (checkbox was checked)
+            if not disable_anchor:
+                try:
+                    from utils.digital_anchor import run_digital_anchor_background
+                    run_digital_anchor_background(account_id)
+                    logger.info("⚓ Digital Anchor initiated")
+                except Exception as anchor_err:
+                    logger.warning(f"Failed to start Digital Anchor: {anchor_err}")
+            else:
+                logger.info("⏭️ Digital Anchor skipped (disabled by user)")
             
             return {
                 "success": True,

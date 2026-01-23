@@ -84,6 +84,12 @@
 
                     <!-- 2. Light Verify Button (Check Status) - Only if verified -->
                     <form method="POST" action="{{ url_for('accounts.verify', account_id=account.id) }}">
+                        <div class="form-check form-switch mb-2">
+                            <input class="form-check-input" type="checkbox" id="anchorSwitchLight" name="enable_anchor"
+                                checked>
+                            <label class="form-check-label small" for="anchorSwitchLight">Enable Digital Anchor
+                                (10-25m)</label>
+                        </div>
                         <button type="submit" class="btn btn-outline-success w-100">
                             <i class="bi bi-lightning-charge"></i> Check Status (Light Verify)
                         </button>
@@ -91,6 +97,12 @@
                     {% else %}
                     <!-- Active if NOT verified yet -->
                     <form method="POST" action="{{ url_for('accounts.verify', account_id=account.id) }}">
+                        <div class="form-check form-switch mb-2">
+                            <input class="form-check-input" type="checkbox" id="anchorSwitch" name="enable_anchor"
+                                checked>
+                            <label class="form-check-label small" for="anchorSwitch">Enable Digital Anchor
+                                (10-25m)</label>
+                        </div>
                         <button type="submit" class="btn btn-success w-100">
                             <i class="bi bi-shield-check"></i> Verify Session
                         </button>

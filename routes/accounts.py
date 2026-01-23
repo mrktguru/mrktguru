@@ -368,9 +368,14 @@ def verify(account_id):
     asyncio.set_event_loop(loop)
     
     try:
+        # Check if anchor is enabled in the form (checkbox)
+        # Checkbox is 'on' if checked, missing if unchecked
+        enable_anchor = request.form.get('enable_anchor') == 'on'
+        
         # Run verification in helper
         from utils.telethon_helper import verify_session
-        result = loop.run_until_complete(verify_session(account_id))
+        # Pass disable_anchor=True if checkbox is NOT checked
+        result = loop.run_until_complete(verify_session(account_id, disable_anchor=not enable_anchor))
         
         if result['success']:
             verification_type = result.get('verification_type', 'unknown')
