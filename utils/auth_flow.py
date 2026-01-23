@@ -211,13 +211,23 @@ async def verify_session_light(client: TelegramClient) -> bool:
             logger.error("❌ Light check: Could not get user entity")
             return False
 
+        # v3 STRICT CHECKS
+        from telethon.tl.types import UserEmpty
+        debug_info = f"Light v3: Type={type(me).__name__} ID={getattr(me, 'id', '?')} Deleted={getattr(me, 'deleted', '?')} Name='{getattr(me, 'first_name', 'None')}'"
+        logger.info(f"🕵️ {debug_info}")
+
+        if isinstance(me, UserEmpty):
+             logger.error(f"❌ Light check FAILED: Account is UserEmpty (Deleted)")
+             raise UserDeactivatedError("ACCOUNT_IS_USER_EMPTY")
+
         # 🔥 ПРОВЕРКА ФЛАГОВ
         if getattr(me, 'deleted', False):
             logger.error(f"❌ Light check FAILED: Account {me.id} is DELETED flag=True")
             raise UserDeactivatedError("ACCOUNT_DELETED")
             
         # Heuristic: Valid accounts MUST have a first_name
-        if not getattr(me, 'first_name', None):
+        first_name = getattr(me, 'first_name', None)
+        if not first_name or str(first_name).strip() == "" or str(first_name) == "None":
              logger.error(f"❌ Light check FAILED: Account {me.id} has NO NAME (Deleted/Ghost)")
              raise UserDeactivatedError("ACCOUNT_nameless_ghost")
             

@@ -59,6 +59,9 @@ async def safe_self_check(client):
 
         debug_info = f"v3 CHECK: Type={type(me).__name__} ID={getattr(me, 'id', '?')} Deleted={getattr(me, 'deleted', '?')} Name='{getattr(me, 'first_name', 'None')}'"
         logger.info(f"🕵️ {debug_info}")
+        
+        from telethon.tl.types import UserEmpty
+
 
         if isinstance(me, UserEmpty):
              logger.error(f"❌ Account is UserEmpty (Deleted)")
