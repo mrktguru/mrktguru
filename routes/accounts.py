@@ -1626,7 +1626,7 @@ def human_check(account_id):
         # Log to DB (Create new logger inst since session was closed)
         # Re-fetch account to update status
         try:
-            from models import Account
+            from models.account import Account
             account_ref = Account.query.get(account_id)
             
             if status == 'clean':
