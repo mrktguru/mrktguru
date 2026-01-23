@@ -293,12 +293,20 @@ def get_telethon_client(account_id, proxy=None):
         'catch_up': False
     }
     
-    # CRITICAL: Add lang_pack only if opentele is available
-    if OPENTELE_AVAILABLE:
+    # CRITICAL: Check if TelegramClient actually supports lang_pack parameter
+    # opentele 1.15.1 claims to but doesn't actually support it in constructor
+    import inspect
+    try:
+        sig = inspect.signature(TelegramClient.__init__)
+        LANG_PACK_SUPPORTED = 'lang_pack' in sig.parameters
+    except:
+        LANG_PACK_SUPPORTED = False
+    
+    if LANG_PACK_SUPPORTED:
         client_kwargs['lang_pack'] = 'tdesktop'
-        print(f"✅ Client created with lang_pack='tdesktop' (opentele)")
+        print(f"✅ Client created with lang_pack='tdesktop'")
     else:
-        print(f"⚠️ Client created WITHOUT lang_pack (standard Telethon)")
+        print(f"⚠️ lang_pack not supported by TelegramClient (opentele {OPENTELE_AVAILABLE})")
     
     client = TelegramClient(
         session,
