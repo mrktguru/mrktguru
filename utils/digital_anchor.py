@@ -1,125 +1,133 @@
 """
-Digital Anchor (Цифровой Якорь)
-Rule: After successful verification, keep session online for 2-5 minutes.
-Periodically send GetStateRequest to keep socket alive and mimic user activity.
-This builds "Trust Score" by showing stable connection/reading behavior.
+Digital Anchor (Цифровой Якорь) v2.0
+=====================================
+Scenario: "User opens Telegram Desktop -> Idle -> PC goes to sleep"
+
+This version emulates realistic idle behavior:
+1. Connect to Telegram
+2. Stay connected passively (Telethon handles MTProto keep-alive internally)
+3. Optionally do ONE status check halfway through
+4. Disconnect cleanly (simulating PC sleep mode)
+
+NO GetState spam - real TDesktop doesn't ping every 30 seconds when idle.
 """
 import asyncio
 import random
 import logging
 import threading
-from telethon import TelegramClient
 from telethon.tl.functions.updates import GetStateRequest
 from utils.telethon_helper import get_telethon_client
-from utils.activity_logger import ActivityLogger  # Import ActivityLogger
+from utils.activity_logger import ActivityLogger
 
 logger = logging.getLogger(__name__)
 
+
 async def _run_anchor_logic(account_id):
     """
-    Async logic for Digital Anchor
+    ⚓ Idle -> Sleep Scenario
+    
+    1. Account connects (Telethon auto-sends InitConnection)
+    2. Stays connected passively for 10-25 minutes
+    3. Optional: Single GetState check at midpoint
+    4. Disconnects (simulating PC going to sleep)
     """
     client = None
-    activity_logger = ActivityLogger(account_id) # Init logger
+    activity_logger = ActivityLogger(account_id)
     
     try:
-        # Random duration: 2 to 5 minutes (120 to 300 seconds)
-        duration = random.randint(120, 300)
+        # Emulate Windows/macOS sleep timer settings (typically 15-30 min)
+        # We use 10-25 min range for variability
+        sleep_timer = random.randint(600, 1500)  # 10-25 minutes
         
-        # Log start to DB/UI
         activity_logger.log(
             action_type='anchor_start',
             status='info',
-            description=f'⚓ Digital Anchor started (Keeping session alive for {duration}s)',
+            description=f'⚓ Idle session started (PC sleep in {sleep_timer // 60} min)',
             category='system'
         )
-        logger.info(f"⚓ Digital Anchor started for Account {account_id}. Duration: {duration}s")
+        logger.info(f"⚓ Account {account_id}: Idle session started. Sleep timer: {sleep_timer}s")
         
-        # Create NEW client connection for the anchor
+        # Create client
         client = get_telethon_client(account_id)
-        
         if not client:
-            activity_logger.log(
-                action_type='anchor_error',
-                status='error',
-                description='⚓ Anchor failed: Could not create client',
-                category='system'
-            )
-            return
-
-        # Connect if not connected
+            raise Exception("Failed to create client")
+        
+        # Connect
         if not client.is_connected():
             await client.connect()
-
-        # Log connection success
-        # activity_logger.log(
-        #     action_type='anchor_connected',
-        #     status='success',
-        #     description='⚓ Anchor connected to Telegram socket',
-        #     category='system'
-        # )
-
-        # Main Loop
-        start_time = asyncio.get_event_loop().time()
-        ping_count = 0
         
-        while (asyncio.get_event_loop().time() - start_time) < duration:
-            # 1. Send GetState (Ping)
-            try:
-                await client(GetStateRequest())
-                ping_count += 1
-                
-                # Log detailed ping only periodically to avoid spamming logs (every ~3 pings)
-                if ping_count == 1 or ping_count % 3 == 0:
-                     activity_logger.log(
-                        action_type='anchor_ping',
-                        status='debug', # Debug shows in expanded logs
-                        description=f'⚓ Anchor heartbeat (GetState) #{ping_count}',
-                        category='system'
-                    )
-            except Exception as e:
-                logger.warning(f"⚓ Anchor Ping warning: {e}")
-                if "AuthKey" in str(e) or "Deactivated" in str(e):
-                    activity_logger.log(
-                        action_type='anchor_error',
-                        status='error',
-                        description=f'⚓ Anchor interrupted: {str(e)}',
-                        category='system'
-                    )
-                    break
-
-            # 2. Sleep for random interval (5-15 MINUTES, not seconds!)
-            # Real TDesktop idles for minutes between GetState calls, not seconds.
-            # FIX #5: Changed from 30-60s to 300-900s (5-15 min)
-            sleep_time = random.randint(300, 900)
-            remaining = duration - (asyncio.get_event_loop().time() - start_time)
+        # Verify session is valid (this does one get_me internally)
+        if not await client.is_user_authorized():
+            raise Exception("Session invalid or unauthorized")
+        
+        logger.info(f"⚓ Account {account_id}: Connected, entering idle mode...")
+        
+        # === IDLE PHASE ===
+        # We just wait. Telethon handles MTProto ping internally.
+        # This is exactly what minimized TDesktop does.
+        
+        elapsed = 0
+        check_interval = 10  # Check connection status every 10 sec
+        midpoint = sleep_timer // 2
+        midpoint_check_done = False
+        
+        while elapsed < sleep_timer:
+            # Ensure connection is alive
+            if not client.is_connected():
+                logger.warning(f"⚓ Account {account_id}: Connection lost, reconnecting...")
+                await client.connect()
             
-            if remaining <= 0:
-                break
-                
-            sleep_time = min(sleep_time, remaining)
-            await asyncio.sleep(sleep_time)
-
-        # Finished
+            await asyncio.sleep(check_interval)
+            elapsed += check_interval
+            
+            # Optional: Single GetState at midpoint (mimics occasional tab switch)
+            # This is realistic - user might glance at Telegram once during idle
+            if not midpoint_check_done and elapsed >= midpoint:
+                try:
+                    await client(GetStateRequest())
+                    midpoint_check_done = True
+                    logger.debug(f"⚓ Account {account_id}: Midpoint check OK")
+                except Exception as e:
+                    logger.warning(f"⚓ Midpoint check failed: {e}")
+                    if "AuthKey" in str(e) or "Deactivated" in str(e):
+                        activity_logger.log(
+                            action_type='anchor_error',
+                            status='error',
+                            description=f'Session error during idle: {str(e)}',
+                            category='system'
+                        )
+                        break
+            
+            # Progress log every 5 minutes
+            if elapsed % 300 == 0:
+                logger.debug(f"⚓ Account {account_id}: Idle... {elapsed // 60}/{sleep_timer // 60} min")
+        
+        # === SLEEP PHASE ===
+        # PC "went to sleep" - network interface disabled
+        # We just disconnect cleanly
+        
         activity_logger.log(
             action_type='anchor_finish',
             status='success',
-            description=f'⚓ Digital Anchor finished successfully ({ping_count} heartbeats)',
+            description=f'💤 PC went to sleep (idle {sleep_timer // 60} min)',
             category='system'
         )
-        logger.info(f"⚓ Digital Anchor finished for Account {account_id} (Success)")
-
+        logger.info(f"💤 Account {account_id}: PC went to sleep after {sleep_timer // 60} min idle")
+        
     except Exception as e:
-        logger.error(f"⚓ Digital Anchor error for Account {account_id}: {e}")
+        logger.error(f"⚓ Anchor error for Account {account_id}: {e}")
         activity_logger.log(
             action_type='anchor_error',
             status='error',
-            description=f'⚓ Anchor crashed: {str(e)}',
+            description=f'Anchor error: {str(e)}',
             category='system'
         )
     finally:
-        if client:
+        # Clean disconnect (simulates network interface shutdown)
+        if client and client.is_connected():
             await client.disconnect()
+            logger.debug(f"⚓ Account {account_id}: Disconnected")
+
 
 def run_digital_anchor_background(account_id):
     """
@@ -127,17 +135,14 @@ def run_digital_anchor_background(account_id):
     Call this AFTER successful verification.
     """
     def thread_target():
-        # Import app here to avoid circular imports during startup
         from app import app
         
-        # Create app context for DB access (ActivityLogger)
         with app.app_context():
-            # Create new event loop for this thread
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             loop.run_until_complete(_run_anchor_logic(account_id))
             loop.close()
-
+    
     thread = threading.Thread(target=thread_target, name=f"Anchor-{account_id}", daemon=True)
     thread.start()
     logger.info(f"⚓ Digital Anchor thread spawned for Account {account_id}")
