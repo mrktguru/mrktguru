@@ -296,6 +296,36 @@ def get_telethon_client(account_id, proxy=None):
         with open('/tmp/proxy_debug.log', 'a') as f:
             f.write(f"PROXY TUPLE PASSED TO TELETHON: {proxy_dict}\n")
             f.write(f"PROXY TYPE STRING: '{proxy_type_str}' (type: {type(proxy_type_str)})\n")
+            
+        # ===================================================================
+        # 🌍 REAL IP VERIFICATION (Requested by User)
+        # ===================================================================
+        try:
+            import requests
+            # Construct requests proxy dict
+            auth = f"{account.proxy.username}:{account.proxy.password}@" if account.proxy.username else ""
+            requests_proxy = {
+                "http": f"{account.proxy.type}://{auth}{account.proxy.host}:{account.proxy.port}",
+                "https": f"{account.proxy.type}://{auth}{account.proxy.host}:{account.proxy.port}"
+            }
+            
+            # Short timeout to avoid blocking
+            ip_response = requests.get(
+                "http://checkip.amazonaws.com", 
+                proxies=requests_proxy, 
+                timeout=3
+            )
+            
+            if ip_response.status_code == 200:
+                real_ip = ip_response.text.strip()
+                print(f"🌍 Proxy Exit IP: {real_ip}")
+            else:
+                print(f"🌍 Proxy Exit IP: [Check Failed - Status {ip_response.status_code}]")
+                
+        except Exception as e:
+            # Don't fail the client creation if IP check fails
+            print(f"🌍 Proxy Exit IP: [Check Failed - {str(e)}]")
+        # ===================================================================
     
     # ==================== SESSION CONFIGURATION ====================
     # Support both StringSession (DB storage) and SQLite file (TData import)
