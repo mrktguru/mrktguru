@@ -1,6 +1,6 @@
 /**
  * Warmup Scheduler V2 - Time-Grid Logic
- * Features: Time-Grid (30m slots), Pagination, Resize, Drag-n-Drop
+ * Features: Time-Grid (30m slots), Pagination, Resize, Drag-n-Drop (Sidebar + Internal)
  */
 
 (function () {
@@ -170,11 +170,13 @@
         // Try to get duration from config or specific node types
         if (node.config && node.config.duration_minutes) {
             durationMin = parseInt(node.config.duration_minutes);
-        } else if (node.config && node.config.scroll_duration_max) {
-            // For random scroll, visualize max duration or avg? Let's verify config
+        } else if (node.node_type === 'passive_activity' || node.node_type === 'idle') {
+            // For passive/idle without config, assume default or previously set UI duration
+            durationMin = node._ui_duration || 60;
+        } else {
+            durationMin = node._ui_duration || 30;
         }
-        // Save duration on node object for resize logic
-        node._ui_duration = node._ui_duration || durationMin;
+        node._ui_duration = durationMin;
 
         const topPx = startMin * PIXELS_PER_MINUTE;
         const heightPx = node._ui_duration * PIXELS_PER_MINUTE;
@@ -185,7 +187,7 @@
         el.className = 'scheduled-node position-absolute rounded shadow-sm p-1';
         el.style.top = `${topPx}px`;
         el.style.left = `${leftPercent}%`;
-        el.style.width = `${widthPercent}%`; // Subtract margin?
+        el.style.width = `${widthPercent}%`;
         el.style.height = `${heightPx}px`;
         el.style.fontSize = '10px';
         el.style.lineHeight = '1.1';
@@ -193,27 +195,57 @@
         el.style.zIndex = 20;
         el.style.backgroundColor = getNodeColor(node.node_type);
         el.style.border = '1px solid rgba(0,0,0,0.1)';
-        el.style.pointerEvents = 'auto'; // Re-enable events for the node itself
+        el.style.cursor = 'move';
+        el.style.pointerEvents = 'auto';
 
         el._nodeObj = node; // Link data
 
+        // Internal Drag Handlers
+        el.setAttribute('draggable', 'true');
+        el.addEventListener('dragstart', (e) => {
+            e.stopPropagation();
+            e.dataTransfer.setData('source', 'internal');
+            // Store node reference globally for this drag session
+            window._draggedNode = node;
+            e.dataTransfer.effectAllowed = 'move';
+            el.style.opacity = '0.5';
+        });
+
+        el.addEventListener('dragend', () => {
+            el.style.opacity = '1';
+            window._draggedNode = null;
+        });
+
         // Inner Content
         el.innerHTML = `
-            <div class="d-flex justify-content-between">
-                <strong>${getNodeLabel(node.node_type)}</strong>
-                <span class="remove-node" style="cursor:pointer;">×</span>
+            <div class="d-flex justify-content-between align-items-center">
+                <strong class="text-truncate">${getNodeLabel(node.node_type)}</strong>
+                <div class="d-flex gap-1" style="background: rgba(255,255,255,0.5); border-radius: 4px; padding: 0 2px;">
+                    <i class="bi bi-gear-fill node-config-btn" style="cursor:pointer; font-size: 10px;" title="Configure"></i>
+                    <i class="bi bi-x node-remove-btn" style="cursor:pointer; font-size: 10px; color: #dc3545;" title="Remove"></i>
+                </div>
             </div>
-            <div class="small">${node.is_random_time ? '🎲' : node.execution_time}</div>
+            <div class="small text-truncate mt-1">${node.is_random_time ? '🎲' : node.execution_time}</div>
             <div class="resize-handle position-absolute bottom-0 start-0 w-100" style="height:5px; cursor:ns-resize"></div>
         `;
 
-        // Click to Edit
-        el.addEventListener('click', (e) => {
-            if (e.target.classList.contains('remove-node')) {
-                removeNode(node);
-                return;
-            }
-            if (e.target.classList.contains('resize-handle')) return; // handled by drag
+        // Click Handlers
+        const configBtn = el.querySelector('.node-config-btn');
+        const removeBtn = el.querySelector('.node-remove-btn');
+
+        configBtn.addEventListener('click', (e) => {
+            e.stopPropagation(); // prevent drag or other bubble
+            openNodeConfig(node);
+        });
+
+        removeBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            removeNode(node);
+        });
+
+        // Double click to config
+        el.addEventListener('dblclick', (e) => {
+            e.stopPropagation();
             openNodeConfig(node);
         });
 
@@ -239,13 +271,15 @@
         return colors[type] || '#f8f9fa';
     }
 
-    // --- DRAG AND DROP (FROM SIDEBAR) ---
+    // --- DRAG AND DROP ---
     function initDragAndDrop() {
+        // Sidebar items
         const sidebarItems = document.querySelectorAll('.node-item.draggable');
 
         sidebarItems.forEach(item => {
             item.setAttribute('draggable', 'true');
             item.addEventListener('dragstart', (e) => {
+                e.dataTransfer.setData('source', 'sidebar');
                 e.dataTransfer.setData('nodeType', item.dataset.nodeType);
             });
         });
@@ -253,58 +287,77 @@
         // Grid Background is the drop zone
         elements.gridBackground.addEventListener('dragover', (e) => {
             e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
         });
 
         elements.gridBackground.addEventListener('drop', (e) => {
             e.preventDefault();
-            const nodeType = e.dataTransfer.getData('nodeType');
-            if (!nodeType) return;
 
-            // Calculate Drop Target
-            // We need to know which column (day) and which row (time) was clicked
-            const rect = elements.gridBackground.getBoundingClientRect();
-            const offsetX = e.clientX - rect.left;
-            const offsetY = e.clientY - rect.top + elements.container.parentNode.scrollTop; // Adjust for scroll if needed?
-            // Actually eventsContainer scroll is handled by CSS output. 
-            // Better: use e.target if it's a slot
+            // Determine Drop Target
+            // Easiest is closest .grid-slot if dropped directly element
+            let slotEl = e.target.closest('.grid-slot');
+            let dayNumber = null;
+            let timeStr = null;
 
-            // Simpler: Use e.target if it falls on a 'grid-slot' or 'grid-day-col'
-            // But 'grid-slot' is inside 'grid-day-col'.
-
-            // Manual calc relative to main grid area (which is 100% width/height of scrollable area)
-            // But wait, the grid area scrolls. We need Y relative to the top of the SCROLLABLE CONTENT.
-            // elements.timeLabelsCol has height 1440. eventsContainer has height 1440.
-
-            // e.offsetY relative to the target element. 
-            // If dropped on .grid-slot, e.offsetY is within that slot (0-30). Not good.
-
-            // Let's use the .grid-day-col logic.
-            const colWidth = rect.width / DAYS_PER_VIEW;
-            const colIndex = Math.floor(offsetX / colWidth);
-            const relativeY = e.offsetY; // This might be tricky depending on exact target.
-
-            // Reliable way: Loop up to find closest .grid-slot or calculate from Grid Container
-            // The drop event bubbles. If we catch it on gridBackground, we can use e.layerY or similar IF positioning is relative.
-            // Or better:
-            // Since we generated .grid-slot with dataset.slotIndex!
-
-            const slotEl = e.target.closest('.grid-slot');
             if (slotEl) {
-                // We have the slot index!
+                // Perfect hit on slot
                 const slotIdx = parseInt(slotEl.dataset.slotIndex);
                 const colEl = slotEl.parentElement;
                 const colIdx = parseInt(colEl.dataset.dayIndex);
 
-                const dayNumber = (currentWeekOffset * 7) + 1 + colIdx;
+                dayNumber = (currentWeekOffset * 7) + 1 + colIdx;
+                const h = Math.floor(slotIdx / 2);
+                const m = (slotIdx % 2) * 30;
+                timeStr = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
 
-                // Calc time
-                const hour = Math.floor(slotIdx / 2);
-                const min = (slotIdx % 2) * 30;
-                const timeStr = `${hour.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}`;
+            } else {
+                // Missed a slot element (e.g. hit border, or dropped on margin). 
+                // Calculate from coordinates relative to gridBackground
+                const rect = elements.gridBackground.getBoundingClientRect();
+                const x = e.clientX - rect.left;
 
-                addNode(nodeType, dayNumber, timeStr);
+                // e.clientY relative to viewport. rect.top relative to viewport.
+                // So y = e.clientY - rect.top is Y relative to top-left of gridBackground.
+                // This works even if scrolled, because rect.top shifts with scroll.
+                const y = e.clientY - rect.top;
+
+                const colWidth = rect.width / DAYS_PER_VIEW;
+                const colIndex = Math.floor(x / colWidth);
+                const slotIndex = Math.floor(y / SLOT_HEIGHT);
+
+                if (colIndex >= 0 && colIndex < DAYS_PER_VIEW && slotIndex >= 0 && slotIndex < 48) {
+                    dayNumber = (currentWeekOffset * 7) + 1 + colIndex;
+                    const h = Math.floor((slotIndex * 30) / 60);
+                    const m = (slotIndex * 30) % 60;
+                    timeStr = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+                }
+            }
+
+            if (dayNumber !== null && timeStr !== null) {
+                handleDropAction(e, dayNumber, timeStr);
             }
         });
+    }
+
+    function handleDropAction(e, dayNumber, timeStr) {
+        const source = e.dataTransfer.getData('source');
+
+        if (source === 'sidebar') {
+            const nodeType = e.dataTransfer.getData('nodeType');
+            if (nodeType) addNode(nodeType, dayNumber, timeStr);
+        }
+        else if (source === 'internal') {
+            if (window._draggedNode) {
+                moveNode(window._draggedNode, dayNumber, timeStr);
+            }
+        }
+    }
+
+    function moveNode(node, day, time) {
+        node.day_number = day;
+        node.execution_time = time;
+        node.is_random_time = false; // Reset random if manually placed
+        renderNodes();
     }
 
     function addNode(type, day, time) {
@@ -325,8 +378,8 @@
         scheduleData.nodes.push(node);
         renderNodes();
 
-        // Auto-save logic? Or just open config.
-        openNodeConfig(node);
+        // No longer auto-open config
+        // openNodeConfig(node);
     }
 
     function removeNode(node) {
@@ -404,9 +457,6 @@
         container.innerHTML = '';
         config = config || {};
         let html = '';
-
-        // ... (Include all previous field generation logic here - keeping it shortened for tool call, assuming standard fields) ...
-        // I will copy relevant parts for passive_activity and common nodes
 
         if (type === 'passive_activity') {
             html += `
@@ -605,21 +655,25 @@
 
         container.innerHTML = html;
 
-        // Listeners
+        // Listeners for dynamic fields
         if (type === 'passive_activity') {
             const cb = document.getElementById('enableScrollCheck');
             if (cb) cb.addEventListener('change', e => document.getElementById('scrollOptions').classList.toggle('d-none', !e.target.checked));
         }
         if (type === 'photo') {
-            // Photo upload logic (simplified)
-            document.getElementById('photoInput').addEventListener('change', async (e) => {
-                const f = e.target.files[0];
-                if (!f) return;
-                const fd = new FormData(); fd.append('file', f);
-                const res = await fetch('/scheduler/upload', { method: 'POST', body: fd });
-                const d = await res.json();
-                if (res.ok) document.querySelector('input[name="photo_path"]').value = d.path;
-            });
+            const phInput = document.getElementById('photoInput');
+            if (phInput) {
+                phInput.addEventListener('change', async (e) => {
+                    const f = e.target.files[0];
+                    if (!f) return;
+                    const fd = new FormData(); fd.append('file', f);
+                    try {
+                        const res = await fetch('/scheduler/upload', { method: 'POST', body: fd });
+                        const d = await res.json();
+                        if (res.ok) document.querySelector('input[name="photo_path"]').value = d.path;
+                    } catch (e) { console.error(e); }
+                });
+            }
         }
     }
 
@@ -647,7 +701,7 @@
     }
 
     // --- API ACTIONS ---
-    async function loadSchedule() {
+    async function loadSchedule() { /* ... */
         try {
             const res = await fetch(`/scheduler/accounts/${schedulerAccountId}/schedule`);
             const data = await res.json();
@@ -666,7 +720,7 @@
         }
     }
 
-    async function saveSchedule() {
+    async function saveSchedule() { /* ... */
         try {
             // 1. Delete removed
             const deleted = window._deletedNodeIds || [];
@@ -768,7 +822,6 @@
         // Show running status on node element in calendar
         if (currentNode.el) {
             currentNode.el.classList.add('executing');
-            const originalHTML = currentNode.el.innerHTML;
 
             // Visual feedback
             const badge = document.createElement('span');
@@ -840,6 +893,7 @@
         document.body.appendChild(container);
         return container;
     }
+
     function getNodeLabel(type) {
         const labels = {
             'bio': '👤 Bio', 'username': '@Username', 'photo': '📷 Photo',
