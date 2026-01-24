@@ -271,9 +271,10 @@
                             <form id="nodeConfigForm">
                                 <!-- Common Fields -->
                                 <div class="mb-3">
-                                    <label class="form-label">Execution Time</label>
+                                    <label class="form-label">Execution Time (24h)</label>
                                     <div class="d-flex gap-2">
-                                        <input type="time" class="form-control" name="execution_time">
+                                        <input type="text" class="form-control" name="execution_time"
+                                            placeholder="23:30" pattern="([01]?[0-9]|2[0-3]):[0-5][0-9]">
                                         <div class="form-check d-flex align-items-center">
                                             <input class="form-check-input me-2" type="checkbox" name="is_random_time"
                                                 id="isRandomTime">
