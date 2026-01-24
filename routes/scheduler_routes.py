@@ -360,6 +360,20 @@ def get_schedule_status(schedule_id):
         logger.error(f"Error getting schedule status: {e}")
         return jsonify({'error': str(e)}), 500
 
+
+@scheduler_bp.route('/accounts/<int:account_id>/status', methods=['GET'])
+def get_account_schedule_status(account_id):
+    """Get schedule status by account_id"""
+    try:
+        schedule = WarmupSchedule.query.filter_by(account_id=account_id).first()
+        if not schedule:
+            return jsonify({'schedule': None}), 200
+        
+        return get_schedule_status(schedule.id)
+    except Exception as e:
+        logger.error(f"Error getting account schedule status: {e}")
+        return jsonify({'error': str(e)}), 500
+
 @scheduler_bp.route('/upload', methods=['POST'])
 def upload_asset():
     """Upload asset for scheduler node (e.g. photo)"""
