@@ -244,6 +244,7 @@
         const sidebarItems = document.querySelectorAll('.node-item.draggable');
 
         sidebarItems.forEach(item => {
+            item.setAttribute('draggable', 'true');
             item.addEventListener('dragstart', (e) => {
                 e.dataTransfer.setData('nodeType', item.dataset.nodeType);
             });
