@@ -250,12 +250,29 @@ def execute_scheduled_node(node_id):
             
             # Execute node using async wrapper
             import asyncio
-            result = asyncio.run(execute_node(
-                node.node_type,
-                client,
-                account_id,
-                node.config or {}
-            ))
+            
+            async def run_wrapper():
+                 if not client.is_connected():
+                     await client.connect()
+                     
+                 # Double check auth
+                 if not await client.is_user_authorized():
+                     return {'success': False, 'error': 'Client not authorized'}
+                     
+                 return await execute_node(
+                    node.node_type,
+                    client,
+                    account_id,
+                    node.config or {}
+                )
+
+            try:
+                result = asyncio.run(run_wrapper())
+            except Exception as loop_e:
+                result = {'success': False, 'error': f"Loop error: {loop_e}"}
+            finally:
+                # Cleanup if needed (though disconnect happens typically in loop or after)
+                pass
             
             # Update node status based on result
             if result.get('success'):
