@@ -23,10 +23,13 @@ def check_warmup_schedules():
     and execute pending nodes that are due
     """
     from app import app
+    from config import Config
+    import pytz
     
     with app.app_context():
         try:
-            now = datetime.now()
+            tz = pytz.timezone(Config.TIMEZONE)
+            now = datetime.now(tz)
             logger.info(f"Checking warmup schedules at {now}")
             
             # Find all active schedules
