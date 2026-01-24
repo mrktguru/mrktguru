@@ -149,6 +149,12 @@ def execute_stage_1_task(self, account_id, data):
                                 logger.error(f"Final commit failed for account {account_id}: {commit_err}")
                                 db.session.rollback()
                                 raise 
+                            
+                            # 🔥 NEW: Stay online for a while (Simulate reading/idle before closing)
+                            stay_online_seconds = random.randint(60, 180) # Reduced slightly for testing, user suggested 120-300
+                            logger.info(f"Task done. Staying online for {stay_online_seconds}s before orchestrator shutdown...")
+                            WarmupLog.log(account_id, 'info', f"Idle: Staying online for {stay_online_seconds}s", stage=1, action='idle_wait')
+                            await asyncio.sleep(stay_online_seconds)
                                 
                             return {'success': True}
                         
