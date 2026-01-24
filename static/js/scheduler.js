@@ -732,20 +732,80 @@
     // --- API ACTIONS ---
     async function loadSchedule() {
         try {
-            const res = await fetch(`/scheduler/accounts/${schedulerAccountId}/schedule`);
+            const res = await fetch(`/scheduler/accounts/${schedulerAccountId}/status`);
             const data = await res.json();
+
             if (data.schedule) {
-                scheduleData = data; // {schedule: {...}, nodes: [...]}
+                scheduleData = data; // includes status_counts
                 if (!scheduleData.nodes) scheduleData.nodes = [];
-                // Init ui_duration for existing nodes
+
+                // Init ui_duration
                 scheduleData.nodes.forEach(n => {
                     if (n.config && n.config.duration_minutes) n._ui_duration = parseInt(n.config.duration_minutes);
                     else n._ui_duration = 60;
-
-                    // Enforce visual min
                     n._ui_duration = Math.max(n._ui_duration, 60);
                 });
+
                 renderNodes();
+                updateControlsState();
+            }
+        } catch (e) {
+            console.error(e);
+        }
+    }
+
+    function updateControlsState() {
+        const startBtn = document.getElementById('start-schedule-btn');
+        const headerTitle = document.querySelector('.card-header h5') || document.querySelector('h3, h4, h5');
+
+        // Remove existing pause/badge
+        const existingPause = document.getElementById('pause-schedule-btn');
+        if (existingPause) existingPause.remove();
+
+        const statusBadge = document.getElementById('schedule-status-badge');
+        if (statusBadge) statusBadge.remove();
+
+        if (!scheduleData.schedule) return;
+
+        const isRunning = scheduleData.schedule.status === 'active';
+
+        // Badge
+        if (headerTitle) {
+            const badge = document.createElement('span');
+            badge.id = 'schedule-status-badge';
+            badge.className = `badge ms-2 ${isRunning ? 'bg-success' : 'bg-secondary'}`;
+            badge.innerText = isRunning ? 'RUNNING ▶' : 'STOPPED ⏹';
+            headerTitle.appendChild(badge);
+        }
+
+        if (isRunning) {
+            startBtn.classList.add('d-none');
+
+            // Create Pause Button
+            const pauseBtn = document.createElement('button');
+            pauseBtn.id = 'pause-schedule-btn';
+            pauseBtn.className = 'btn btn-warning btn-sm';
+            pauseBtn.innerHTML = '<i class="bi bi-pause-fill"></i> Pause';
+            pauseBtn.onclick = pauseSchedule;
+
+            startBtn.parentNode.insertBefore(pauseBtn, startBtn);
+        } else {
+            startBtn.classList.remove('d-none');
+        }
+    }
+
+    async function pauseSchedule() {
+        if (!scheduleData.schedule || !scheduleData.schedule.id) return;
+        if (!confirm('Pause execution?')) return;
+
+        try {
+            const res = await fetch(`/scheduler/schedules/${scheduleData.schedule.id}/pause`, { method: 'POST' });
+            if (res.ok) {
+                showToast('⏸ Paused', 'Schedule logic paused.', 'warning');
+                loadSchedule();
+            } else {
+                const d = await res.json();
+                showToast('❌ Error', d.error, 'danger');
             }
         } catch (e) {
             console.error(e);
@@ -810,8 +870,12 @@
         try {
             const res = await fetch(`/scheduler/schedules/${finalId}/start`, { method: 'POST' });
             const d = await res.json();
-            if (res.ok) showToast('✅ Started', 'Warmup started', 'success');
-            else showToast('❌ Error', d.error, 'danger');
+            if (res.ok) {
+                showToast('🚀 Started', 'Warmup started!', 'success');
+                loadSchedule();
+            } else {
+                showToast('❌ Error', d.error, 'danger');
+            }
         } catch (e) {
             showToast('❌ Error', e.message, 'danger');
         }

@@ -187,6 +187,12 @@ def update_node(node_id):
         if 'config' in data:
             node.config = data['config']
         
+        # Reset status if critical fields changed (so it runs again)
+        # But NOT if just position changed? Arguably even then.
+        # Simplest: always reset status to pending on update.
+        node.status = 'pending'
+        node.error_message = None
+        
         node.updated_at = datetime.now()
         db.session.commit()
         
