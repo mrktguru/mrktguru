@@ -514,15 +514,24 @@
                     </div>
                 </div>
 
-                <script>
-                    document.getElementById('enableScrollCheck').addEventListener('change', function(e) {
-                         document.getElementById('scrollOptions').classList.toggle('d-none', !e.target.checked);
-                    });
-                </script>
+                </div>
             `;
         }
 
         container.innerHTML = html;
+
+        // Attach event listeners after rendering
+        if (type === 'passive_activity') {
+            const checkBox = document.getElementById('enableScrollCheck');
+            if (checkBox) {
+                checkBox.addEventListener('change', function (e) {
+                    const scrollOptions = document.getElementById('scrollOptions');
+                    if (scrollOptions) {
+                        scrollOptions.classList.toggle('d-none', !e.target.checked);
+                    }
+                });
+            }
+        }
 
         // Attach upload handler for photo
         if (type === 'photo') {
