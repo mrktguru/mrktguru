@@ -401,7 +401,7 @@ async def connect_client(account_id):
     return client
 
 
-async def verify_session(account_id, force_full=False, disable_anchor=False):
+async def verify_session(account_id, force_full=False, disable_anchor=False, client=None):
     """
     Hybrid Session Verification
     - Full Verify: First-time verification with complete handshake + GetMe
@@ -410,6 +410,8 @@ async def verify_session(account_id, force_full=False, disable_anchor=False):
     Args:
         account_id: Account ID to verify
         force_full: Force full verification even if already verified
+        disable_anchor: Skip anchor logic
+        client: Optional existing client (for Orchestrator)
     
     Returns:
         dict: {
@@ -435,8 +437,9 @@ async def verify_session(account_id, force_full=False, disable_anchor=False):
     import random
     import os
     
-    client = None
     verification_type = "light"
+    # Track if we created the client locally (to close it later)
+    created_locally = False
     
     try:
         logger.info(f"🔍 Starting verification for account {account_id}...")
@@ -451,12 +454,15 @@ async def verify_session(account_id, force_full=False, disable_anchor=False):
             }
         
         # Write proxy status to debug log
-        with open('/tmp/proxy_debug.log', 'a') as f:
-            f.write(f"\n=== VERIFY SESSION {account_id} ===\n")
-            if account.proxy:
-                f.write(f"🔒 PROXY: {account.proxy.host}:{account.proxy.port} ({account.proxy.country})\n")
-            else:
-                f.write("⚠️  NO PROXY - SERVER IP EXPOSED!\n")
+        try:
+            with open('/tmp/proxy_debug.log', 'a') as f:
+                f.write(f"\n=== VERIFY SESSION {account_id} ===\n")
+                if account.proxy:
+                    f.write(f"🔒 PROXY: {account.proxy.host}:{account.proxy.port} ({account.proxy.country})\n")
+                else:
+                    f.write("⚠️  NO PROXY - SERVER IP EXPOSED!\n")
+        except:
+             pass
 
         
         # Determine verification type
@@ -466,9 +472,17 @@ async def verify_session(account_id, force_full=False, disable_anchor=False):
         else:
             logger.info(f"📋 Verification type: LIGHT (already verified)")
         
-        # Create client
-        client = get_telethon_client(account_id)
-        await client.connect()
+        # Use existing client or create new one
+        if not client:
+            client = get_telethon_client(account_id)
+            await client.connect()
+            created_locally = True
+        
+        if not client.is_connected():
+            if created_locally:
+                await client.connect()
+            else:
+                 raise Exception("Provided client is not connected")
         
         if not client.is_connected():
             raise Exception("Client failed to connect")
@@ -700,7 +714,7 @@ async def verify_session(account_id, force_full=False, disable_anchor=False):
         }
         
     finally:
-        if client and client.is_connected():
+        if created_locally and client and client.is_connected():
             await client.disconnect()
 
 

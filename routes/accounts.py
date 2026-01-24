@@ -367,6 +367,19 @@ def verify(account_id):
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     
+    # Session Orchestrator Refactor
+    from utils.session_orchestrator import SessionOrchestrator
+    # We must import verify_session from helper to use as a task
+    from utils.telethon_helper import verify_session
+
+    # Anti-Lock
+    db.session.close()
+
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    
+    bot = SessionOrchestrator(account_id)
+    
     try:
         # Check if anchor is enabled in account settings
         # This respects the preference saved during TData upload/config
@@ -376,11 +389,21 @@ def verify(account_id):
         if 'enable_anchor' in request.form:
              enable_anchor = request.form.get('enable_anchor') == 'on'
         
-        # Run verification in helper
-        from utils.telethon_helper import verify_session
-        # Pass disable_anchor=True if checkbox is NOT checked
-        result = loop.run_until_complete(verify_session(account_id, disable_anchor=not enable_anchor))
+        # Define wrapper task for Orchestrator
+        async def task_full_verify(client):
+            # We reuse the robust logic in verify_session, passing the Orchestrator's client
+            return await verify_session(account_id, force_full=True, disable_anchor=not enable_anchor, client=client)
+
+        # Execute via Orchestrator
+        # This ensures we handle connection limits, idle states, and reuse active connections
+        result = loop.run_until_complete(bot.execute(task_full_verify))
         
+        # Re-fetch account
+        from models.account import Account
+        account_ref = Account.query.get(account_id)
+        if not account_ref:
+            return redirect(url_for('accounts.detail', account_id=account_id))
+
         if result['success']:
             verification_type = result.get('verification_type', 'unknown')
             
@@ -389,35 +412,31 @@ def verify(account_id):
                 user = result['user']
                 
                 # Check for name changes
-                if account.last_name and not user.get('last_name'):
-                    from flask import current_app
-                    current_app.logger.warning(f"Verification: Last name for {account.phone} is being removed (Telegram returned None)")
+                if account_ref.last_name and not user.get('last_name'):
                     flash("⚠️ Note: Telegram did not return a last name.", "warning")
                 
-                account.telegram_id = user['id']
+                account_ref.telegram_id = user['id']
                 # Only update last_name if Telegram returned non-empty value
                 if user.get('last_name') and user['last_name'].strip():
-                    account.last_name = user['last_name']
+                    account_ref.last_name = user['last_name']
                 
                 # SAFETY: Don't overwrite existing first_name with None if account is marked active
-                # This prevents data wipe for deleted accounts that bypass detection
                 if user.get('first_name'):
-                    account.first_name = user['first_name']
-                elif not account.first_name:
-                    # Only set to None if it wasn't set before
-                    account.first_name = user.get('first_name')
+                    account_ref.first_name = user['first_name']
+                elif not account_ref.first_name:
+                    account_ref.first_name = user.get('first_name')
                 
                 if user.get('username'):
-                    account.username = user['username']
-                account.status = 'active'
-                account.last_check_status = 'active'
+                    account_ref.username = user['username']
+                account_ref.status = 'active'
+                account_ref.last_check_status = 'active'
                 
                 if user.get('photo'):
-                    account.photo_url = "photo_available"
+                    account_ref.photo_url = "photo_available"
                 
                 if hasattr(Account, 'verified'):
                     try:
-                        account.verified = True
+                        account_ref.verified = True
                     except:
                         pass
                 
@@ -427,8 +446,8 @@ def verify(account_id):
             
             # LIGHT VERIFICATION - Only update status
             elif verification_type == 'light':
-                account.status = 'active'
-                account.last_check_status = 'active'
+                account_ref.status = 'active'
+                account_ref.last_check_status = 'active'
                 db.session.commit()
                 
                 flash("✅ Account check passed (Light verification)", "success")
@@ -442,34 +461,34 @@ def verify(account_id):
             error_type = result.get('error_type', 'generic_error')
             
             if error_type == 'flood_wait':
-                account.status = 'flood_wait'
-                account.last_check_status = 'flood_wait'
+                account_ref.status = 'flood_wait'
+                account_ref.last_check_status = 'flood_wait'
                 wait_time = result.get('wait', 0)
                 flash(f"⏱️ FloodWait: {wait_time}s", "error")
                 logger.log(action_type='verification_failed', status='error', description=f"FloodWait: {wait_time}s", category='system')
                 
             elif error_type == 'banned':
-                account.status = 'banned'
-                account.last_check_status = 'banned'
-                account.health_score = 0
+                account_ref.status = 'banned'
+                account_ref.last_check_status = 'banned'
+                account_ref.health_score = 0
                 flash(f"🚫 Account BANNED: {result.get('error')}", "error")
                 logger.log(action_type='verification_failed', status='error', description=f"BANNED: {result.get('error')}", category='system')
                 
             elif error_type == 'invalid_session':
-                account.status = 'error'
-                account.last_check_status = 'session_invalid'
+                account_ref.status = 'error'
+                account_ref.last_check_status = 'session_invalid'
                 flash(f"🔑 Session Invalid: {result.get('error')}", "error")
                 logger.log(action_type='verification_failed', status='error', description=f"Invalid: {result.get('error')}", category='system')
             
             elif error_type == 'handshake_failed':
-                account.status = 'error'
-                account.last_check_status = 'handshake_failed'
+                account_ref.status = 'error'
+                account_ref.last_check_status = 'handshake_failed'
                 flash(f"❌ Handshake failed: {result.get('error')}", "error")
                 logger.log(action_type='verification_failed', status='error', description=f"Handshake: {result.get('error')}", category='system')
                 
             else:
-                account.status = 'error'
-                account.last_check_status = 'error'
+                account_ref.status = 'error'
+                account_ref.last_check_status = 'error'
                 flash(f"❌ Failed: {result.get('error')}", "error")
                 logger.log(action_type='verification_failed', status='error', description=f"Error: {result.get('error')}", category='system')
             
@@ -479,6 +498,7 @@ def verify(account_id):
         flash(f"System Error: {str(e)}", "error")
         logger.log(action_type='verification_error', status='error', description=f"System Error: {str(e)}", category='system')
     finally:
+        loop.run_until_complete(bot.stop())
         loop.close()
         
     return redirect(url_for('accounts.detail', account_id=account_id))
@@ -502,33 +522,38 @@ def sync_from_telegram(account_id):
             flash(f"⏱️ Please wait {remaining} more minute(s) before syncing again (cooldown: {COOLDOWN_MINUTES} min)", "warning")
             return redirect(url_for("accounts.detail", account_id=account_id))
     
+    # Session Orchestrator Refactor
+    from utils.session_orchestrator import SessionOrchestrator
+    
+    # Anti-Lock
+    db.session.close()
+
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     
-    async def sync_profile():
-        client = None
+    bot = SessionOrchestrator(account_id)
+    
+    async def task_sync_profile(client):
         try:
-            client = get_telethon_client(account_id)
-            await client.connect()
-            
             # Get user info
             me = await client.get_me()
             
-            # Check for name changes
-            if account.last_name and not getattr(me, "last_name", None):
-                 print(f"⚠️ WARNING: Last name for {account.phone} is being removed (Telegram returned None)")
-                 
-            # Update fields
-            account.telegram_id = me.id if hasattr(me, "id") else account.telegram_id
-            account.first_name = getattr(me, "first_name", None) or account.first_name
-            account.last_name = getattr(me, "last_name", None) or account.last_name
-            account.username = getattr(me, "username", None)
+            # Prepare result dict to pass back
+            result = {
+                'id': me.id,
+                'first_name': getattr(me, "first_name", None),
+                'last_name': getattr(me, "last_name", None),
+                'username': getattr(me, "username", None),
+                'bio': None,
+                'photo_url': None,
+                'photo_available': False
+            }
             
             # Get bio (about)
             try:
                 full_user = await client.get_entity(me)
                 if hasattr(full_user, 'about'):
-                    account.bio = full_user.about
+                    result['bio'] = full_user.about
             except:
                 pass
             
@@ -537,54 +562,63 @@ def sync_from_telegram(account_id):
                 if hasattr(me, "photo") and me.photo:
                     photo_path = f"uploads/photos/{account.phone}_profile.jpg"
                     os.makedirs("uploads/photos", exist_ok=True)
+                    # We need to await the download
                     await client.download_profile_photo(me, file=photo_path)
-                    account.photo_url = photo_path
+                    result['photo_url'] = photo_path
             except Exception as photo_err:
-                if hasattr(me, "photo") and me.photo:
-                    account.photo_url = "photo_available"
+                 pass
             
-            # Update sync timestamp
-            account.last_sync_at = datetime.utcnow()
-            
-            return True, account.first_name
+            # Check availability if download failed or succeeded
+            if hasattr(me, "photo") and me.photo:
+                 result['photo_available'] = True
+
+            return result
             
         except Exception as e:
-            return False, str(e)
-            
-        finally:
-            if client and client.is_connected():
-                await client.disconnect()
-                await asyncio.sleep(0.1)
+            raise e
     
     try:
-        success, info = loop.run_until_complete(sync_profile())
+        user_data = loop.run_until_complete(bot.execute(task_sync_profile))
         
-        # Check if last name was removed during this transaction (before commit)
-        if success and account.last_name is None:
-             # Check if it was previously set (we need to query DB or remember it)
-             # But here account is the attached object.
+        # Re-fetch account
+        from models.account import Account
+        account_ref = Account.query.get(account_id)
+        if not account_ref:
+             # Should not happen
              pass
-
-        db.session.commit()
-        
-        if success:
-            msg = f"✅ Profile synced from Telegram: {info}"
-            if not account.last_name:
+        else:
+            # Check for name changes
+            if account_ref.last_name and not user_data.get('last_name'):
+                 print(f"⚠️ WARNING: Last name for {account_ref.phone} is being removed (Telegram returned None)")
+                 
+            # Update fields
+            account_ref.telegram_id = user_data['id']
+            account_ref.first_name = user_data['first_name'] or account_ref.first_name
+            account_ref.last_name = user_data['last_name'] or account_ref.last_name
+            account_ref.username = user_data['username']
+            
+            if user_data.get('bio'):
+                account_ref.bio = user_data['bio']
+            
+            if user_data.get('photo_url'):
+                account_ref.photo_url = user_data['photo_url']
+            elif user_data.get('photo_available'):
+                account_ref.photo_url = "photo_available"
+            
+            # Update sync timestamp
+            account_ref.last_sync_at = datetime.utcnow()
+            
+            db.session.commit()
+            
+            msg = f"✅ Profile synced from Telegram: {account_ref.first_name}"
+            if not account_ref.last_name:
                  msg += " (Note: No last name returned from Telegram)"
             flash(msg, "success")
-        else:
-            flash(f"❌ Sync failed: {info}", "error")
             
     except Exception as e:
         flash(f"Error: {str(e)}", "error")
     finally:
-        pending = asyncio.all_tasks(loop)
-        for task in pending:
-            task.cancel()
-        try:
-            loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
-        except:
-            pass
+        loop.run_until_complete(bot.stop())
         loop.close()
     
     return redirect(url_for("accounts.detail", account_id=account_id))
