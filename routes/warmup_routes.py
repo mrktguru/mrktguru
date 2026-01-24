@@ -165,39 +165,28 @@ def search_channels(account_id):
     if not query:
         return jsonify({'success': False, 'error': 'Query is required'}), 400
     
-    # This one (search) should probably remain synchronous as it's quick
-    # BUT we need to handle the loop correctly
+    # Session Orchestrator Refactor
+    from utils.session_orchestrator import SessionOrchestrator
+    from tasks.warmup import task_search_channels
+    import asyncio
+    
+    # Anti-Lock
+    db.session.close()
+    
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     
-    async def search():
-        client = get_telethon_client(account_id)
-        try:
-            async def search_action(client, account_id):
-                result = await client(SearchRequest(q=query, limit=10))
-                channels = []
-                for chat in result.chats:
-                    if hasattr(chat, 'username') and chat.username:
-                        channels.append({
-                            'id': chat.id,
-                            'username': chat.username,
-                            'title': chat.title,
-                            'participants_count': getattr(chat, 'participants_count', 0)
-                        })
-                return {'success': True, 'results': channels}
-            
-            return await execute_warmup_action(client, account_id, search_action, estimated_duration=30)
-        finally:
-            if client.is_connected():
-                await client.disconnect()
-
+    bot = SessionOrchestrator(account_id)
+    
     try:
-        result = loop.run_until_complete(search())
+        result = loop.run_until_complete(bot.execute(task_search_channels, query=query))
         return jsonify(result)
+        
     except Exception as e:
         logger.error(f"Search failed: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
     finally:
+        loop.run_until_complete(bot.stop())
         loop.close()
 
 

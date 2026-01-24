@@ -756,63 +756,31 @@ def add_subscription(account_id):
         category='manual'
     )
     
-    # Create new event loop
+    # Orchestrator Refactor
+    from utils.session_orchestrator import SessionOrchestrator
+    from tasks.warmup import task_join_channel
+    
+    db.session.close() # Anti-Lock
+    
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     
-    async def join_channel():
-        client = None
-        try:
-            client = get_telethon_client(account_id)
-            await client.connect()
-            
-            # Get channel entity - try different formats
-            try:
-                # Try as @username
-                entity = await client.get_entity(f"@{channel_username}")
-            except:
-                try:
-                    # Try without @
-                    entity = await client.get_entity(channel_username)
-                except:
-                    # Try as t.me link
-                    entity = await client.get_entity(f"https://t.me/{channel_username}")
-            
-            # Try to join
-            try:
-                await client(JoinChannelRequest(entity))
-                return "active", f"Successfully joined @{channel_username}"
-            except Exception as join_err:
-                # Check if already member
-                try:
-                    me = await client.get_me()
-                    participants = await client.get_participants(entity, limit=100)
-                    if any(p.id == me.id for p in participants):
-                        return "active", f"Already a member of @{channel_username}"
-                    else:
-                        return "failed", f"Could not join: {str(join_err)}"
-                except Exception as check_err:
-                    return "failed", f"Could not verify membership: {str(check_err)}"
-                    
-        except Exception as e:
-            return "failed", f"Error: {str(e)}"
-            
-        finally:
-            if client and client.is_connected():
-                await client.disconnect()
-                # Give time for cleanup
-                await asyncio.sleep(0.1)
+    bot = SessionOrchestrator(account_id)
     
     try:
-        subscription_status, message = loop.run_until_complete(join_channel())
+        result = loop.run_until_complete(bot.execute(task_join_channel, channel_username=channel_username))
+        
+        subscription_status = result['status']
+        message = result['message']
         
         # Log result
+        logger = ActivityLogger(account_id)
         if subscription_status == "active":
             logger.log(
                 action_type='join_group',
                 status='success',
                 target=f"@{channel_username}",
-                description=f"Successfully joined @{channel_username}",
+                description=message,
                 category='manual'
             )
             flash(message, "success")
@@ -839,14 +807,7 @@ def add_subscription(account_id):
         )
         flash(f"Error: {str(e)}", "error")
     finally:
-        # Cancel all pending tasks
-        pending = asyncio.all_tasks(loop)
-        for task in pending:
-            task.cancel()
-        try:
-            loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
-        except:
-            pass
+        loop.run_until_complete(bot.stop())
         loop.close()
     
     # Save subscription
@@ -904,57 +865,65 @@ def update_profile(account_id):
             photo.save(photo_path)
             photo_file = photo_path
     
-    # Create new event loop for async operations
+    # Session Orchestrator Refactor
+    from utils.session_orchestrator import SessionOrchestrator
+    from tasks.profile import task_update_profile, task_update_photo, task_update_username
+    
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     
+    bot = SessionOrchestrator(account_id)
+    
+    # Anti-Lock? We need to keep DB open to read request.form, but for long tasks close it?
+    # Request form is already read above. 
+    db.session.close() # Close session for long op
+    
     try:
-        # Update profile info (username, bio)
-        if username or bio:
-            result = loop.run_until_complete(update_telegram_profile(
-                account_id,
-                username=username if username else None,
-                bio=bio if bio else None
-            ))
+        # 1. Update Profile Info (Name/Bio)
+        # Note: Username update is separate in Telethon
+        if bio: # We can only update Bio via UpdateProfileRequest in some versions, or About.
+            # Our task_update_profile handles first_name, last_name, about
+            # We don't have first/last name in form? The view code only extracted username/bio.
+            # If we want to support name update, we need to add fields to form.
+            # Assuming 'bio' maps to 'about'.
             
-            if not result['success']:
-                flash(f"Failed to update Telegram profile: {result['error']}", "error")
-                return redirect(url_for("accounts.detail", account_id=account_id))
-            
-            # Update local database only if Telegram update succeeded
-            if username:
-                account.username = username
-            if bio:
-                account.bio = bio
-            
-            flash(f"Profile updated in Telegram: {', '.join(result['updated_fields'])}", "success")
-        
-        # Update photo
-        if photo_file:
-            photo_result = loop.run_until_complete(update_telegram_photo(
-                account_id,
-                photo_file
-            ))
-            
-            if photo_result['success']:
-                account.photo_url = photo_file
-                flash("Profile photo updated in Telegram", "success")
+            res = loop.run_until_complete(bot.execute(task_update_profile, about=bio))
+            if not res['success']:
+                flash(f"Failed to update bio: {res['error']}", "error")
             else:
-                flash(f"Failed to update photo: {photo_result['error']}", "error")
-        
-        db.session.commit()
+                # Re-open session to update info
+                account = Account.query.get(account_id)
+                account.bio = bio
+                db.session.commit()
+                db.session.close()
+
+        if username:
+             res = loop.run_until_complete(bot.execute(task_update_username, username=username))
+             if not res['success']:
+                 flash(f"Failed to update username: {res['error']}", "error")
+             else:
+                 account = Account.query.get(account_id)
+                 account.username = username
+                 db.session.commit()
+                 db.session.close()
+                 
+        # 2. Update Photo
+        if photo_file:
+             res = loop.run_until_complete(bot.execute(task_update_photo, photo_path=photo_file))
+             if not res['success']:
+                 flash(f"Failed to update photo: {res['error']}", "error")
+             else:
+                 account = Account.query.get(account_id)
+                 account.photo_url = photo_file
+                 db.session.commit()
+                 db.session.close()
+                 
+        flash("Profile update sequence completed.", "info")
         
     except Exception as e:
         flash(f"Error updating profile: {str(e)}", "error")
     finally:
-        # Cleanup event loop
-        pending = asyncio.all_tasks(loop)
-        for task in pending:
-            task.cancel()
-        try:
-            loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
-        except:
-            pass
+        loop.run_until_complete(bot.stop())
         loop.close()
     
     return redirect(url_for("accounts.detail", account_id=account_id))
@@ -1340,46 +1309,61 @@ def verify_safe(account_id):
     if method not in valid_methods:
         return jsonify({'success': False, 'error': f'Invalid method. Use: {", ".join(valid_methods)}'}), 400
     
-    logger = ActivityLogger(account_id)
-    logger.log(
-        action_type='safe_verification_started',
-        status='info',
-        description=f'Starting safe verification: {method}',
-        category='system'
-    )
+    # Run with Session Orchestrator
+    from utils.session_orchestrator import SessionOrchestrator
+    from tasks.verification import task_safe_self_check, task_safe_get_me, task_public_channel_verify, task_perform_alignment_check
     
+    # Anti-Lock
+    db.session.close()
+
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     
+    bot = SessionOrchestrator(account_id)
+    
     try:
-        # Get Telethon client
-        client = get_telethon_client(account_id)
+        task_func = None
+        args = []
         
-        # Call appropriate verification method
         if method == 'self_check':
-            result = loop.run_until_complete(safe_self_check(client))
+            task_func = task_safe_self_check
         elif method == 'get_me':
-            result = loop.run_until_complete(safe_get_me(client, account.last_verification_time))
+            task_func = task_safe_get_me
+            args = [account.last_verification_time]
         elif method == 'public_channel':
-            result = loop.run_until_complete(check_via_public_channel(client))
+            task_func = task_public_channel_verify
+            
+        # Execute via Orchestrator
+        result = loop.run_until_complete(bot.execute(task_func, *args))
         
         if result['success']:
-            # Update account info
-            user = result
-            account.telegram_id = user.get('user_id')
-            account.first_name = user.get('first_name')
-            account.last_name = user.get('last_name')
-            account.username = user.get('username')
-            account.status = 'active'
-            account.verified = True
-            account.last_activity = datetime.utcnow()
-            
-            # Update verification tracking
-            account.last_verification_method = method
-            account.last_verification_time = datetime.utcnow()
-            account.verification_count = (account.verification_count or 0) + 1
-            
-            db.session.commit()
+            # ... (success logic remains similar, but we need to re-fetch account)
+            try:
+                from models.account import Account
+                account_ref = Account.query.get(account_id)
+                
+                # Check mapping from task result
+                user = result
+                # task_safe_self_check returns user_id, username etc top level? 
+                # Yes, checking utils/safe_verification.py, returns dict with keys.
+                
+                if user.get('user_id'): account_ref.telegram_id = user.get('user_id')
+                if user.get('first_name'): account_ref.first_name = user.get('first_name')
+                if user.get('last_name'): account_ref.last_name = user.get('last_name')
+                if user.get('username'): account_ref.username = user.get('username')
+                
+                account_ref.status = 'active'
+                account_ref.verified = True
+                account_ref.last_activity = datetime.utcnow()
+                
+                account_ref.last_verification_method = method
+                account_ref.last_verification_time = datetime.utcnow()
+                account_ref.verification_count = (account_ref.verification_count or 0) + 1
+                
+                db.session.commit()
+            except Exception as db_err:
+                 db.session.rollback()
+                 print(f"DB Error: {db_err}")
             
             logger.log(
                 action_type='safe_verification_success',
@@ -1390,132 +1374,56 @@ def verify_safe(account_id):
             
             flash(f"✅ Verification successful via {method}! {result.get('debug_info', '')}", "success")
             return jsonify({
-                'success': True,
-                'method': method,
-                'user': {
-                    'id': user.get('user_id'),
-                    'username': user.get('username'),
-                    'first_name': user.get('first_name')
-                },
-                'duration': result.get('duration'),
-                'next_check_allowed': result.get('next_check_allowed'),
-                'debug_info': result.get('debug_info')
+                 'success': True,
+                 'method': method,
+                 'user': {
+                     'id': result.get('user_id'),
+                     'username': result.get('username'),
+                     'first_name': result.get('first_name')
+                 },
+                 'duration': result.get('duration'),
+                 'next_check_allowed': result.get('next_check_allowed'),
+                 'debug_info': result.get('debug_info')
             })
             
         else:
-            # Handle errors
-            error_type = result.get('error_type', 'generic_error')
-            debug_info = result.get('debug_info', '')
-            
-            if error_type == 'cooldown':
-                # ... (keep cooldown as is)
-                flash(f"⏱️ {result.get('error')}", "warning")
-                return jsonify({
-                    'success': False,
-                    'error': result.get('error'),
-                    'error_type': 'cooldown',
-                    'remaining_minutes': result.get('remaining_minutes')
-                }), 429
+             # Handle failures (Error logic same as before, just using result dict)
+             error_type = result.get('error_type', 'generic_error')
+             
+             # Re-fetch for updating status
+             try:
+                from models.account import Account
+                account_ref = Account.query.get(account_id)
                 
-            elif error_type == 'flood_wait':
-                account.status = 'flood_wait'
-                wait_time = result.get('wait', 0)
+                if error_type == 'flood_wait':
+                    account_ref.status = 'flood_wait'
+                    wait_time = result.get('wait', 0)
+                    flash(f"❌ Telegram FloodWait limit. Please wait {wait_time} seconds.", "error")
+                    
+                elif error_type == 'banned':
+                    account_ref.status = 'banned'
+                    account_ref.health_score = 0
+                    flash(f"❌ Account is BANNED by Telegram: {result.get('error')}", "error")
+                    
+                elif error_type == 'invalid_session':
+                    account_ref.status = 'error'
+                    flash(f"❌ Session Invalid: {result.get('error')}", "error")
+                    
+                else:
+                    account_ref.status = 'error'
+                    flash(f"❌ Verification failed: {result.get('error')}", "error")
+                    
                 db.session.commit()
-                
-                flash(f"❌ Telegram FloodWait limit. Please wait {wait_time} seconds.", "error")
-                logger.log(
-                    action_type='safe_verification_failed',
-                    status='error',
-                    description=f"FloodWait: {wait_time}s (method: {method}) {debug_info}",
-                    category='system'
-                )
-                
-                return jsonify({
-                    'success': False,
-                    'error': result.get('error'),
-                    'error_type': 'flood_wait',
-                    'wait': wait_time
-                }), 429
-                
-            elif error_type == 'banned':
-                account.status = 'banned'
-                account.health_score = 0
-                db.session.commit()
-                
-                flash(f"❌ Account is BANNED by Telegram: {result.get('error')}", "error")
-                logger.log(
-                    action_type='safe_verification_failed',
-                    status='error',
-                    description=f"BANNED: {result.get('error')} {debug_info}",
-                    category='system'
-                )
+             except:
+                 pass
+                 
+             return jsonify(result), 400 if error_type == 'invalid_session' else (429 if error_type == 'flood_wait' or error_type == 'cooldown' else 500)
 
-                
-                return jsonify({
-                    'success': False,
-                    'error': 'Account is banned',
-                    'error_type': 'banned'
-                }), 403
-                
-            elif error_type == 'invalid_session':
-                account.status = 'error'
-                db.session.commit()
-                
-                flash(f"❌ Session Invalid: {result.get('error')}", "error")
-                logger.log(
-                    action_type='safe_verification_failed',
-                    status='error',
-                    description=f"Invalid Session (method: {method})",
-                    category='system'
-                )
-                
-                return jsonify({
-                    'success': False,
-                    'error': result.get('error'),
-                    'error_type': 'invalid_session'
-                }), 400
-                
-            else:
-                account.status = 'error'
-                db.session.commit()
-                
-                flash(f"❌ Verification failed: {result.get('error')}", "error")
-                logger.log(
-                    action_type='safe_verification_failed',
-                    status='error',
-                    description=f"Error: {result.get('error')} (method: {method})",
-                    category='system'
-                )
-                
-                return jsonify({
-                    'success': False,
-                    'error': result.get('error'),
-                    'error_type': error_type
-                }), 500
-                
     except Exception as e:
-        db.session.rollback()
-        flash(f"❌ System Error: {str(e)}", "error")
-        logger.log(
-            action_type='safe_verification_failed',
-            status='error',
-            description=f"System Error: {str(e)} (method: {method})",
-            category='system'
-        )
-        
-        return jsonify({
-            'success': False,
-            'error': str(e),
-            'error_type': 'system_error'
-        }), 500
+        return jsonify({'success': False, 'error': str(e)}), 500
         
     finally:
-        # Graceful cleanup to avoid "Event loop is closed" error
-        try:
-            if 'client' in locals() and client and client.is_connected():
-                loop.run_until_complete(client.disconnect())
-        except Exception:
-            pass
+        loop.run_until_complete(bot.stop())
         loop.close()
 
 
@@ -1528,33 +1436,43 @@ def sync_profile_from_telegram(account_id):
     """
     Sync profile info from Telegram (Manual Trigger)
     """
-    from utils.telethon_helper import sync_official_profile
+    # Session Orchestrator Refactor
+    from utils.session_orchestrator import SessionOrchestrator
+    from tasks.profile import task_sync_profile, task_update_profile
     from utils.activity_logger import ActivityLogger
     import asyncio
     
-    # Anti-Lock: Release DB session
+    # Anti-Lock
     db.session.close()
     
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     
+    bot = SessionOrchestrator(account_id)
+    
     try:
-        result = loop.run_until_complete(sync_official_profile(account_id))
+        # Execute Task
+        result = loop.run_until_complete(bot.execute(task_sync_profile))
         
-        # Re-query
-        account = Account.query.get(account_id)
-        if not account:
+        # Re-fetch account
+        from models.account import Account
+        account_ref = Account.query.get(account_id)
+        if not account_ref:
             return jsonify({"success": False, "error": "Account not found"}), 404
             
         if result['success']:
             data = result['data']
             
             # Update local DB
-            account.username = data.get('username')
-            account.first_name = data.get('first_name')
-            account.last_name = data.get('last_name')
-            account.phone = data.get('phone')
-            account.bio = data.get('bio')
+            # Use getattr with default to avoid None if key missing
+            if data.get('username') is not None: account_ref.username = data.get('username')
+            if data.get('first_name') is not None: account_ref.first_name = data.get('first_name')
+            if data.get('last_name') is not None: account_ref.last_name = data.get('last_name')
+            # phone? likely matches, but ignore for safety unless needed
+            if data.get('bio') is not None: account_ref.bio = data.get('bio')
+            if data.get('photo_path'): account_ref.photo_url = data.get('photo_path')
+            
+            account_ref.last_sync_at = datetime.utcnow()
             
             # Log
             logger = ActivityLogger(account_id)
@@ -1563,17 +1481,12 @@ def sync_profile_from_telegram(account_id):
             db.session.commit()
             return jsonify({"success": True, "data": data})
         else:
-            return jsonify({"success": False, "error": result['error']}), 500
+            return jsonify({"success": False, "error": result.get('error')}), 500
             
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
-        # Graceful cleanup
-        try:
-            if 'client' in locals() and client and client.is_connected():
-                loop.run_until_complete(client.disconnect())
-        except Exception:
-            pass
+        loop.run_until_complete(bot.stop())
         loop.close()
 
 
