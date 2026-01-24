@@ -797,6 +797,131 @@ async def execute_node_smart_subscribe(client, account_id, config):
         return {'success': False, 'error': str(e)}
 
 
+
+async def execute_node_passive_activity(client, account_id, config):
+    """
+    🧘 Node: Passive Activity (Universal).
+    Combines "Tray Session" and "Passive Scroll".
+    
+    Logic:
+    1. Bot goes Online.
+    2. Stays online for duration_minutes.
+    3. If enable_scroll is True — occasionally "wakes up", scrolls feed, then pauses.
+    4. Otherwise — IDLE status (handled by SessionOrchestrator).
+    
+    Config JSON:
+    {
+        "duration_minutes": 60,       # Total duration
+        "enable_scroll": true,        # Enable random scrolling?
+        "scroll_count": 3,            # Number of scroll events (default: random 3-5)
+        "scroll_duration_sec": 60     # Duration of each scroll (default: random 30-120)
+    }
+    """
+    import asyncio
+    import random
+    import logging
+    from datetime import datetime, timedelta
+    from telethon.tl.functions.messages import GetDialogsRequest
+    from telethon.tl.functions.account import UpdateStatusRequest
+    from telethon.tl.types import InputPeerEmpty
+
+    # --- 1. CONFIG PARSING ---
+    duration_mins = config.get('duration_minutes', 30)
+    total_seconds = duration_mins * 60
+    
+    enable_scroll = config.get('enable_scroll', False)
+    
+    # Generate scroll schedule
+    scroll_events = []
+    if enable_scroll:
+        # Determine count (3-5 or fixed)
+        count = config.get('scroll_count', random.randint(3, 5))
+        
+        # Generate random start times
+        # Buffer 2 mins at start/end
+        if total_seconds > 300: # Only if session > 5 mins
+            for _ in range(count):
+                start_sec = random.randint(120, total_seconds - 120)
+                duration = config.get('scroll_duration_sec', random.randint(30, 120))
+                scroll_events.append({
+                    'start_at': start_sec,
+                    'duration': duration,
+                    'done': False
+                })
+            # Sort by time
+            scroll_events.sort(key=lambda x: x['start_at'])
+
+    logger.info(f"[{account_id}] 🧘 Starting Passive Activity for {duration_mins}m. "
+                f"Scrolls scheduled: {len(scroll_events)}")
+
+    start_time = datetime.now()
+
+    try:
+        # Initial Status Online
+        await client(UpdateStatusRequest(offline=False))
+        
+        # === MAIN LOOP (SECONDLY) ===
+        while True:
+            elapsed = (datetime.now() - start_time).total_seconds()
+            
+            # 1. Check total duration
+            if elapsed >= total_seconds:
+                break
+
+            # 2. Check: time to scroll?
+            current_scroll = None
+            for event in scroll_events:
+                # If time reached and not done
+                if not event['done'] and elapsed >= event['start_at']:
+                    current_scroll = event
+                    break
+            
+            # === ACTIVE PHASE (SCROLLING) ===
+            if current_scroll:
+                logger.info(f"[{account_id}] 👀 Waking up to scroll feed for {current_scroll['duration']}s...")
+                
+                # 2.1. Explicitly set Online (in case we were Idle)
+                await client(UpdateStatusRequest(offline=False))
+                
+                # 2.2. Scroll logic
+                scroll_end_time = datetime.now() + timedelta(seconds=current_scroll['duration'])
+                offset_id = 0
+                offset_date = None
+                
+                while datetime.now() < scroll_end_time:
+                    # Simulation of reading
+                    await asyncio.sleep(random.uniform(2.0, 5.0))
+                    
+                    # Fetch dialogs
+                    try:
+                        await client(GetDialogsRequest(
+                            offset_date=offset_date, offset_id=offset_id,
+                            offset_peer=InputPeerEmpty(), limit=10, hash=0
+                        ))
+                    except Exception as e:
+                        logger.debug(f"Scroll tick error: {e}")
+
+                # 2.3. Finish scroll
+                current_scroll['done'] = True
+                logger.info(f"[{account_id}] 💤 Scroll finished. Going back to IDLE wait.")
+                # We do NOT set offline=True manually.
+                # Use natural timeout or Orchestrator IDLE logic.
+
+            # === PASSIVE PHASE (IDLE WAIT) ===
+            else:
+                # Sleep short intervals to check timer
+                await asyncio.sleep(5)
+                
+                # If > 3 mins inactivity, SessionOrchestrator handles IDLE state in background.
+
+    except Exception as e:
+        logger.error(f"[{account_id}] Passive Activity failed: {e}")
+        return {'success': False, 'error': str(e)}
+
+    logger.info(f"[{account_id}] 🧘 Activity finished. Shutting down.")
+    return {'success': True, 'message': f'Completed {duration_mins}m session with {len(scroll_events)} scrolls'}
+
+
 # Node executor registry
 NODE_EXECUTORS = {
     'bio': execute_node_bio,
@@ -808,6 +933,7 @@ NODE_EXECUTORS = {
     'visit': execute_node_visit_channels,
     'idle': execute_node_idle,
     'smart_subscribe': execute_node_smart_subscribe,
+    'passive_activity': execute_node_passive_activity, # 🔥 United Passive Node
 }
 
 
