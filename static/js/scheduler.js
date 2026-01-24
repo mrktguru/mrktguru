@@ -8,8 +8,8 @@
 
     // --- CONFIGURATION ---
     const PIXELS_PER_MINUTE = 1.0; // 1 min = 1px height
-    const SLOT_DURATION_MIN = 30; // 30 min slots
-    const SLOT_HEIGHT = SLOT_DURATION_MIN * PIXELS_PER_MINUTE; // 30px per slot
+    const SLOT_DURATION_MIN = 60; // 60 min slots (1 hour)
+    const SLOT_HEIGHT = SLOT_DURATION_MIN * PIXELS_PER_MINUTE; // 60px per slot
     const TOTAL_MINUTES = 24 * 60; // 1440 min
     const GRID_HEIGHT = TOTAL_MINUTES * PIXELS_PER_MINUTE; // 1440px total height
     const DAYS_PER_VIEW = 7; // Show 7 days at a time
@@ -82,22 +82,22 @@
 
     // --- RENDERING GRID ---
     function renderGridStructure() {
-        // 1. Render Time Labels (00:00 - 23:30)
+        // 1. Render Time Labels (00:00 - 23:00)
         elements.timeLabelsCol.innerHTML = '';
         elements.timeLabelsCol.style.height = `${GRID_HEIGHT}px`;
 
-        for (let i = 0; i < 48; i++) { // 48 slots of 30 mins
+        for (let i = 0; i < 24; i++) { // 24 slots of 60 mins
             const label = document.createElement('div');
             label.className = 'time-label small text-muted text-end pe-1';
             label.style.height = `${SLOT_HEIGHT}px`;
             label.style.borderBottom = '1px solid transparent'; // visual spacer
-            label.style.fontSize = '10px';
+            label.style.fontSize = '12px';
             label.style.lineHeight = '1';
+            label.style.paddingTop = '2px';
 
             // Calculate time string
-            const hour = Math.floor(i / 2);
-            const min = (i % 2) * 30;
-            label.innerText = `${hour.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}`;
+            const hour = i;
+            label.innerText = `${hour.toString().padStart(2, '0')}:00`;
 
             elements.timeLabelsCol.appendChild(label);
         }
@@ -114,7 +114,7 @@
             col.dataset.dayIndex = d; // 0-6 index in current view
 
             // Horizontal Slot Lines
-            for (let i = 0; i < 48; i++) {
+            for (let i = 0; i < 24; i++) {
                 const slot = document.createElement('div');
                 slot.className = 'grid-slot border-bottom';
                 slot.style.height = `${SLOT_HEIGHT}px`;
@@ -170,17 +170,16 @@
         const [h, m] = timeStr.split(':').map(Number);
         const startMin = (h * 60) + m;
 
-        let durationMin = 30; // default
+        let durationMin = 60; // default 1h
         // Try to get duration from config or specific node types
         if (node.config && node.config.duration_minutes) {
             durationMin = parseInt(node.config.duration_minutes);
         } else if (node.node_type === 'passive_activity' || node.node_type === 'idle') {
-            // For passive/idle without config, assume default or previously set UI duration
             durationMin = node._ui_duration || 60;
         } else {
-            durationMin = node._ui_duration || 30;
+            durationMin = node._ui_duration || 60;
         }
-        node._ui_duration = durationMin;
+        node._ui_duration = Math.max(durationMin, 60); // Minimum 1h visual
 
         const topPx = startMin * PIXELS_PER_MINUTE;
         const heightPx = node._ui_duration * PIXELS_PER_MINUTE;
@@ -310,8 +309,9 @@
                 const colIdx = parseInt(colEl.dataset.dayIndex);
 
                 dayNumber = (currentWeekOffset * 7) + 1 + colIdx;
-                const h = Math.floor(slotIdx / 2);
-                const m = (slotIdx % 2) * 30;
+                dayNumber = (currentWeekOffset * 7) + 1 + colIdx;
+                const h = slotIdx; // 1 slot = 1 hour
+                const m = 0;
                 timeStr = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
 
             } else {
@@ -329,10 +329,10 @@
                 const colIndex = Math.floor(x / colWidth);
                 const slotIndex = Math.floor(y / SLOT_HEIGHT);
 
-                if (colIndex >= 0 && colIndex < DAYS_PER_VIEW && slotIndex >= 0 && slotIndex < 48) {
+                if (colIndex >= 0 && colIndex < DAYS_PER_VIEW && slotIndex >= 0 && slotIndex < 24) {
                     dayNumber = (currentWeekOffset * 7) + 1 + colIndex;
-                    const h = Math.floor((slotIndex * 30) / 60);
-                    const m = (slotIndex * 30) % 60;
+                    const h = slotIndex; // 1 slot = 1 hour
+                    const m = 0;
                     timeStr = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
                 }
             }
@@ -372,7 +372,8 @@
             execution_time: time,
             is_random_time: false,
             config: {},
-            _ui_duration: 30 // Default 30 min
+            config: {},
+            _ui_duration: 60 // Default 60 min
         };
         // Auto-configure defaults
         if (type === 'passive_activity') {
@@ -720,7 +721,10 @@
                 // Init ui_duration for existing nodes
                 scheduleData.nodes.forEach(n => {
                     if (n.config && n.config.duration_minutes) n._ui_duration = parseInt(n.config.duration_minutes);
-                    else n._ui_duration = 30;
+                    else n._ui_duration = 60;
+
+                    // Enforce visual min
+                    n._ui_duration = Math.max(n._ui_duration, 60);
                 });
                 renderNodes();
             }
