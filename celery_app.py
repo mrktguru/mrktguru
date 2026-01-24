@@ -43,11 +43,11 @@ celery.conf.update(
 
 # Periodic Tasks Schedule
 celery.conf.beat_schedule = {
-    # Proxy rotation every 15 minutes
-    "rotate-mobile-proxies": {
-        "task": "workers.maintenance_workers.auto_rotate_mobile_proxies",
-        "schedule": crontab(minute="*/15"),
-    },
+    # Proxy rotation every 15 minutes (DISABLED)
+    # "rotate-mobile-proxies": {
+    #     "task": "workers.maintenance_workers.auto_rotate_mobile_proxies",
+    #     "schedule": crontab(minute="*/15"),
+    # },
     
     # Account health check every hour (DISABLED)
     # "check-account-health": {

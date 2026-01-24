@@ -212,7 +212,8 @@
             'subscribe': '📺 Subscribe',
             'visit': '👁️ Visit',
             'idle': '💤 Idle',
-            'smart_subscribe': '🔔 Smart Subscribe'
+            'smart_subscribe': '🔔 Smart Subscribe',
+            'passive_activity': '🧘 Passive Activity'
         };
         return labels[nodeType] || nodeType;
     }
@@ -469,6 +470,47 @@
                             value="${config.max_flood_wait_sec || 60}" min="10" max="300">
                     </div>
                 </div>
+            `;
+        }
+        else if (type === 'passive_activity') {
+            html += `
+                <div class="alert alert-warning small mb-3">
+                    <strong>🧘 Passive Activity:</strong> Simulates human behavior (Tray, Reading, Idle)
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label">Total Duration (minutes)</label>
+                    <input type="number" class="form-control" name="duration_minutes" value="${config.duration_minutes || 60}">
+                </div>
+                
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" name="enable_scroll" 
+                        ${config.enable_scroll ? 'checked' : ''} id="enableScrollCheck">
+                    <label class="form-check-label" for="enableScrollCheck">
+                        Enable Random Scrolling?
+                    </label>
+                </div>
+                
+                <div id="scrollOptions" class="${config.enable_scroll ? '' : 'd-none'}">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label class="form-label">Scroll Count</label>
+                            <input type="number" class="form-control" name="scroll_count" value="${config.scroll_count || 3}">
+                            <small class="text-muted">Times to wake up</small>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Scroll Duration (s)</label>
+                            <input type="number" class="form-control" name="scroll_duration_sec" value="${config.scroll_duration_sec || 60}">
+                            <small class="text-muted">Seconds per scroll</small>
+                        </div>
+                    </div>
+                </div>
+
+                <script>
+                    document.getElementById('enableScrollCheck').addEventListener('change', function(e) {
+                         document.getElementById('scrollOptions').classList.toggle('d-none', !e.target.checked);
+                    });
+                </script>
             `;
         }
 
