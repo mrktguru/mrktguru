@@ -360,8 +360,9 @@
     function moveNode(node, day, time) {
         node.day_number = day;
         node.execution_time = time;
-        node.is_random_time = false; // Reset random if manually placed
+        node.is_random_time = false;
         renderNodes();
+        saveSchedule(true);
     }
 
     function addNode(type, day, time) {
@@ -384,6 +385,7 @@
 
         // No longer auto-open config
         // openNodeConfig(node);
+        saveSchedule(true);
     }
 
     function removeNode(node) {
@@ -398,6 +400,7 @@
 
         scheduleData.nodes = scheduleData.nodes.filter(n => n !== node);
         renderNodes();
+        saveSchedule(true);
     }
 
     // --- RESIZE LOGIC ---
@@ -435,6 +438,7 @@
                 }
                 // Re-render to clean up styles/snap
                 renderNodes();
+                saveSchedule(true);
             }
 
             document.addEventListener('mousemove', onMouseMove);
@@ -702,10 +706,11 @@
 
         configModal.hide();
         renderNodes();
+        saveSchedule(true);
     }
 
     // --- API ACTIONS ---
-    async function loadSchedule() { /* ... */
+    async function loadSchedule() {
         try {
             const res = await fetch(`/scheduler/accounts/${schedulerAccountId}/schedule`);
             const data = await res.json();
@@ -724,7 +729,7 @@
         }
     }
 
-    async function saveSchedule() { /* ... */
+    async function saveSchedule(silent = false) {
         try {
             // 1. Delete removed
             const deleted = window._deletedNodeIds || [];
@@ -758,12 +763,13 @@
                 const d = await res.json();
                 if (d.node) node.id = d.node.id;
             }
-            showToast('✅ Saved', 'Schedule saved successfully!', 'success');
+            if (!silent) showToast('✅ Saved', 'Schedule saved successfully!', 'success');
         } catch (e) {
             console.error(e);
-            showToast('❌ Error', 'Save failed: ' + e.message, 'danger');
+            if (!silent) showToast('❌ Error', 'Save failed: ' + e.message, 'danger');
         }
     }
+
 
     async function startSchedule() {
         // Ensure we rely on scheduleData.schedule.id
