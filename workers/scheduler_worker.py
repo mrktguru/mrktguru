@@ -85,6 +85,14 @@ def check_warmup_schedules():
                     
                     # Check each node if it should execute now
                     for node in nodes:
+                        # Check expiration (skip if > 15 mins late)
+                        if is_node_expired(node, now):
+                            logger.info(f"Node {node.id} expired (Target: {node.execution_time}). Skipping.")
+                            node.status = 'skipped'
+                            node.executed_at = now
+                            db.session.commit()
+                            continue
+
                         if should_execute_now(node, now):
                             logger.info(f"Executing node {node.id} ({node.node_type}) for account {schedule.account_id}")
                             execute_scheduled_node.delay(node.id)
@@ -169,12 +177,31 @@ def should_execute_now(node, current_time):
             
             if current_hour == target_hour and abs(current_minute - target_min) <= 1:
                 return True
-            
-            return False
         
         except:
             logger.error(f"Invalid execution_time format for node {node.id}: {node.execution_time}")
             return True
+
+
+def is_node_expired(node, current_time, threshold_minutes=15):
+    """Check if node execution time is passed by threshold"""
+    if not node.execution_time or node.is_random_time:
+        return False # Random/Immediate nodes don't expire simple way
+        
+    try:
+        t_hour, t_min = map(int, node.execution_time.split(':'))
+        
+        # Compare with current time (same day assumed as we filtered by day)
+        target_dt = current_time.replace(hour=t_hour, minute=t_min, second=0, microsecond=0)
+        
+        # If target is more than threshold in the past
+        if current_time > target_dt + timedelta(minutes=threshold_minutes):
+            return True
+            
+        return False
+    except:
+        return False
+
 
 
 @celery.task(name='workers.scheduler_worker.execute_scheduled_node')

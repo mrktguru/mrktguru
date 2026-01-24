@@ -196,8 +196,27 @@
         el.style.lineHeight = '1.1';
         el.style.overflow = 'hidden';
         el.style.zIndex = 20;
-        el.style.backgroundColor = getNodeColor(node.node_type);
-        el.style.border = '1px solid rgba(0,0,0,0.1)';
+
+        // Status Colors
+        if (node.status === 'completed') {
+            el.style.backgroundColor = '#d1e7dd'; // Green ish
+            el.style.border = '1px solid #badbcc';
+            el.classList.add('node-completed');
+        } else if (node.status === 'failed') {
+            el.style.backgroundColor = '#f8d7da'; // Red ish
+            el.style.border = '1px solid #f5c2c7';
+        } else if (node.status === 'skipped') {
+            el.style.backgroundColor = '#e2e3e5'; // Gray
+            el.style.opacity = '0.7';
+        } else if (node.status === 'running') {
+            el.style.backgroundColor = '#fff3cd'; // Yellow
+            el.style.border = '1px solid #ffecb5';
+            el.classList.add('node-running'); // for animation
+        } else {
+            el.style.backgroundColor = getNodeColor(node.node_type);
+            el.style.border = '1px solid rgba(0,0,0,0.1)';
+        }
+
         el.style.cursor = 'move';
         el.style.pointerEvents = 'auto';
 
