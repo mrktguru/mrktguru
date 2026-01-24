@@ -68,17 +68,17 @@ def check_warmup_schedules():
                         continue
                     
                     # Check if there are any currently running nodes for this schedule
-                # We want to strictly enforce SERIAL execution per account to avoid collisions
-                running_nodes_count = WarmupScheduleNode.query.filter_by(
-                    schedule_id=schedule.id,
-                    status='running'
-                ).count()
-                
-                if running_nodes_count > 0:
-                    logger.debug(f"Schedule {schedule.id} has {running_nodes_count} running nodes. Skipping new checks to prevent parallel execution.")
-                    continue
+                    # We want to strictly enforce SERIAL execution per account to avoid collisions
+                    running_nodes_count = WarmupScheduleNode.query.filter_by(
+                        schedule_id=schedule.id,
+                        status='running'
+                    ).count()
+                    
+                    if running_nodes_count > 0:
+                        logger.debug(f"Schedule {schedule.id} has {running_nodes_count} running nodes. Skipping new checks to prevent parallel execution.")
+                        continue
 
-                logger.info(f"Schedule {schedule.id}: Found {len(nodes)} pending node(s) for day {day_number}")
+                    logger.info(f"Schedule {schedule.id}: Found {len(nodes)} pending node(s) for day {day_number}")
                     
                     # Check each node if it should execute now
                     for node in nodes:
