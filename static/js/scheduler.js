@@ -492,16 +492,24 @@
                 </div>
                 
                 <div id="scrollOptions" class="${config.enable_scroll ? '' : 'd-none'}">
-                    <div class="row">
+                    <div class="row mb-2">
                         <div class="col-md-6">
-                            <label class="form-label">Scroll Count</label>
-                            <input type="number" class="form-control" name="scroll_count" value="${config.scroll_count || 3}">
-                            <small class="text-muted">Times to wake up</small>
+                            <label class="form-label">Scroll Count (Min)</label>
+                            <input type="number" class="form-control" name="scroll_count_min" value="${config.scroll_count_min || 3}">
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label">Scroll Duration (s)</label>
-                            <input type="number" class="form-control" name="scroll_duration_sec" value="${config.scroll_duration_sec || 60}">
-                            <small class="text-muted">Seconds per scroll</small>
+                            <label class="form-label">Scroll Count (Max)</label>
+                            <input type="number" class="form-control" name="scroll_count_max" value="${config.scroll_count_max || 6}">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label class="form-label">Duration Min (s)</label>
+                            <input type="number" class="form-control" name="scroll_duration_min" value="${config.scroll_duration_min || 30}">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Duration Max (s)</label>
+                            <input type="number" class="form-control" name="scroll_duration_max" value="${config.scroll_duration_max || 120}">
                         </div>
                     </div>
                 </div>

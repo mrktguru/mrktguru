@@ -834,15 +834,21 @@ async def execute_node_passive_activity(client, account_id, config):
     # Generate scroll schedule
     scroll_events = []
     if enable_scroll:
-        # Determine count (3-5 or fixed)
-        count = config.get('scroll_count', random.randint(3, 5))
+        # Determine count (Range or fixed)
+        count_min = int(config.get('scroll_count_min', 3))
+        count_max = int(config.get('scroll_count_max', 6))
+        count = random.randint(count_min, count_max)
+        
+        # Duration limits
+        dur_min = int(config.get('scroll_duration_min', 30))
+        dur_max = int(config.get('scroll_duration_max', 120))
         
         # Generate random start times
         # Buffer 2 mins at start/end
         if total_seconds > 300: # Only if session > 5 mins
             for _ in range(count):
                 start_sec = random.randint(120, total_seconds - 120)
-                duration = config.get('scroll_duration_sec', random.randint(30, 120))
+                duration = random.randint(dur_min, dur_max)
                 scroll_events.append({
                     'start_at': start_sec,
                     'duration': duration,
