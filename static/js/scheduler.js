@@ -7,7 +7,7 @@
     'use strict';
 
     // --- CONFIGURATION ---
-    const VERSION = 'v37';
+    const VERSION = 'v38';
     console.log(`Scheduler ${VERSION} Loaded`);
 
     const PIXELS_PER_MINUTE = 1.0; // 1 min = 1px height
@@ -736,7 +736,14 @@
     async function loadSchedule() {
         try {
             const res = await fetch(`/scheduler/accounts/${schedulerAccountId}/status`);
-            const data = await res.json();
+            const text = await res.text();
+            let data;
+            try {
+                data = JSON.parse(text);
+            } catch (e) {
+                console.error('Server returned invalid JSON:', text.substring(0, 200));
+                return;
+            }
 
             if (data.schedule) {
                 scheduleData = data; // includes status_counts
@@ -825,13 +832,21 @@
             window._deletedNodeIds = [];
 
             // 2. Create Schedule if needed
+            // 2. Create Schedule if needed
             if (!scheduleData.schedule || !scheduleData.schedule.id) {
                 const res = await fetch(`/scheduler/accounts/${schedulerAccountId}/schedule`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ name: 'Warmup Schedule' })
                 });
-                const d = await res.json();
+
+                let d;
+                try {
+                    const text = await res.text();
+                    d = JSON.parse(text);
+                } catch (e) {
+                    throw new Error(`Server Error (${res.status}): Invalid response`);
+                }
 
                 if (res.ok) {
                     scheduleData.schedule = d.schedule;
@@ -839,12 +854,18 @@
                 } else if (d.error && d.error.includes('exists')) {
                     // It exists but we missing state. Fetch it WITHOUT overwriting nodes
                     const getRes = await fetch(`/scheduler/accounts/${schedulerAccountId}/status`);
-                    const getData = await getRes.json();
+                    let getData;
+                    try {
+                        const t = await getRes.text();
+                        getData = JSON.parse(t);
+                    } catch (e) {
+                        throw new Error('Could not recover existing schedule (invalid json)');
+                    }
 
                     if (getData.schedule) {
                         scheduleData.schedule = getData.schedule;
                         scheduleData.schedule_id = getData.schedule.id;
-                        // DO NOT overwrite scheduleData.nodes here, as we have unsaved new nodes
+                        // DO NOT overwrite scheduleData.nodes here
                     } else {
                         throw new Error('Could not recover existing schedule ID');
                     }
