@@ -834,10 +834,17 @@
                     scheduleData.schedule = d.schedule;
                     scheduleData.schedule_id = d.schedule.id;
                 } else if (d.error && d.error.includes('exists')) {
-                    // It exists but we don't have it in state? fetch it
-                    await loadSchedule();
-                    // If still missing, abort
-                    if (!scheduleData.schedule) throw new Error('Could not recover existing schedule');
+                    // It exists but we missing state. Fetch it WITHOUT overwriting nodes
+                    const getRes = await fetch(`/scheduler/accounts/${schedulerAccountId}/status`);
+                    const getData = await getRes.json();
+
+                    if (getData.schedule) {
+                        scheduleData.schedule = getData.schedule;
+                        scheduleData.schedule_id = getData.schedule.id;
+                        // DO NOT overwrite scheduleData.nodes here, as we have unsaved new nodes
+                    } else {
+                        throw new Error('Could not recover existing schedule ID');
+                    }
                 } else {
                     throw new Error(d.error || 'Failed to create schedule');
                 }
