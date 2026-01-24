@@ -259,7 +259,8 @@ def execute_scheduled_node(node_id):
             
             # Disconnect client
             try:
-                client.disconnect()
+                import asyncio
+                asyncio.run(client.disconnect())
             except:
                 pass
             

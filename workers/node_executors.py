@@ -826,7 +826,7 @@ async def execute_node_passive_activity(client, account_id, config):
     from telethon.tl.types import InputPeerEmpty
 
     # --- 1. CONFIG PARSING ---
-    duration_mins = config.get('duration_minutes', 30)
+    duration_mins = int(config.get('duration_minutes', 30))
     total_seconds = duration_mins * 60
     
     enable_scroll = config.get('enable_scroll', False)
