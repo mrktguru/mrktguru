@@ -161,6 +161,9 @@ def should_execute_now(node, current_time):
             target_hour, target_min = map(int, node.execution_time.split(':'))
             
             # Execute if current time matches (within 1 minute window)
+            # LOGGING DEBUG
+            logger.info(f"Checking node {node.id}: Target={target_hour}:{target_min} vs Current={current_hour}:{current_minute}")
+            
             if current_hour == target_hour and abs(current_minute - target_min) <= 1:
                 return True
             

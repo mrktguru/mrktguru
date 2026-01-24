@@ -163,7 +163,11 @@
     function createNodeElement(node, viewStartDay) {
         // Calculate Position
         const dayIndex = node.day_number - viewStartDay; // 0-6
-        const [h, m] = node.execution_time.split(':').map(Number);
+
+        let timeStr = node.execution_time || '00:00';
+        if (!timeStr.includes(':')) timeStr = '00:00';
+
+        const [h, m] = timeStr.split(':').map(Number);
         const startMin = (h * 60) + m;
 
         let durationMin = 30; // default
