@@ -24,22 +24,24 @@
     let currentNode = null; // Node being configured
 
     // Cache UI Elements
-    const elements = {
-        container: document.getElementById('scheduler-calendar'),
-        dayHeaderRow: document.getElementById('day-header-row'),
-        timeLabelsCol: document.getElementById('time-labels-col'),
-        gridBackground: document.getElementById('grid-background'),
-        eventsContainer: document.getElementById('events-container'),
-        labelWeek: document.getElementById('current-week-label')
-    };
+    let elements = {};
 
     let configModal = null;
 
     // --- INITIALIZATION ---
     document.addEventListener('DOMContentLoaded', () => {
+        elements = {
+            container: document.getElementById('scheduler-calendar'),
+            dayHeaderRow: document.getElementById('day-header-row'),
+            timeLabelsCol: document.getElementById('time-labels-col'),
+            gridBackground: document.getElementById('grid-background'),
+            eventsContainer: document.getElementById('events-container'),
+            labelWeek: document.getElementById('current-week-label')
+        };
+
         if (!elements.container) return; // Not on scheduler page
 
-        const container = document.querySelector('.scheduler-calendar'); // Use class or parent ID check
+        const container = elements.container;
         schedulerAccountId = parseInt(container.dataset.accountId);
 
         configModal = new bootstrap.Modal(document.getElementById('nodeConfigModal'));
