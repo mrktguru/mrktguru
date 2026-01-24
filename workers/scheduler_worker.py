@@ -292,7 +292,7 @@ def execute_scheduled_node(node_id):
                 pass
             
         except Exception as e:
-            logger.error(f"Error executing node {node_id}: {e}")
+            logger.exception(f"Error executing node {node_id}: {e}")
             
             try:
                 node = WarmupScheduleNode.query.get(node_id)

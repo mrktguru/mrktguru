@@ -203,7 +203,7 @@ async def execute_node_import_contacts(client, account_id, config):
     }
     """
     try:
-        count = config.get('count', 5)
+        count = int(config.get('count', 5))
         contacts_data = config.get('contacts', [])
         
         if not contacts_data:
@@ -252,7 +252,7 @@ async def execute_node_send_message(client, account_id, config):
     """
     try:
         message = config.get('message', 'Test message')
-        count = config.get('count', 1)
+        count = int(config.get('count', 1))
         
         WarmupLog.log(account_id, 'info', f"Sending {count} message(s) to Saved Messages", action='send_start')
         
@@ -286,7 +286,7 @@ async def execute_node_subscribe_channels(client, account_id, config):
     """
     try:
         channels = config.get('channels', [])
-        read_count = config.get('read_count', 5)
+        read_count = int(config.get('read_count', 5))
         interaction = config.get('interaction_depth', {})
         
         if not channels:
@@ -378,7 +378,7 @@ async def execute_node_visit_channels(client, account_id, config):
     """
     try:
         channels = config.get('channels', [])
-        read_count = config.get('read_count', 5)
+        read_count = int(config.get('read_count', 5))
         interaction = config.get('interaction_depth', {})
         
         if not channels:
