@@ -851,17 +851,28 @@
             }
 
             // 3. Save/Update Nodes
+            const scheduleId = scheduleData.schedule_id || (scheduleData.schedule ? scheduleData.schedule.id : null);
+            if (!scheduleId) throw new Error('Schedule ID is missing after creation/recovery.');
+
             for (const node of scheduleData.nodes) {
                 const method = node.id ? 'PUT' : 'POST';
-                const url = node.id ? `/scheduler/nodes/${node.id}` : `/scheduler/schedules/${scheduleData.schedule_id || scheduleData.schedule.id}/nodes`;
+                const url = node.id ? `/scheduler/nodes/${node.id}` : `/scheduler/schedules/${scheduleId}/nodes`;
 
                 const res = await fetch(url, {
                     method: method,
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(node)
                 });
-                const d = await res.json();
-                if (d.node) node.id = d.node.id;
+
+                const text = await res.text();
+                try {
+                    const d = JSON.parse(text);
+                    if (!res.ok) throw new Error(d.error || 'Request failed');
+                    if (d.node) node.id = d.node.id;
+                } catch (e) {
+                    console.error('JSON Parse Error:', text);
+                    throw new Error(`Server Error (${res.status}): ${text.substring(0, 100)}`);
+                }
             }
             if (!silent) showToast('✅ Saved', 'Schedule saved successfully!', 'success');
         } catch (e) {
