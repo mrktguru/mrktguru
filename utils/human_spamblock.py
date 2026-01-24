@@ -118,57 +118,68 @@ async def run_immersive_spamblock_check(account_id):
         # === 7. ВЗАИМОДЕЙСТВИЕ (Start) ===
         log("💬 [Step 7] Sending /start command...")
         
-        # Имитация "печатает..." (SetTyping)
-        await client(SetTypingRequest(spambot_peer, action=SendMessageTypingAction()))
-        await asyncio.sleep(random.uniform(0.5, 1.5)) # Время на набор "/start"
-        
-        # Отправка
-        await client.send_message(spambot_entity, '/start')
-        
-        # Ожидание ответа (Глаза пользователя смотрят в экран)
+        try:
+            # Имитация "печатает..."
+            await client(SetTypingRequest(spambot_peer, action=SendMessageTypingAction()))
+            await asyncio.sleep(random.uniform(0.5, 1.5))
+            
+            # Попытка отправить сообщение
+            await client.send_message(spambot_entity, '/start')
+            
+        except Exception as e:
+            # 🔥 ВАРИАНТ 1: Мы даже написать не смогли (Hard Freeze)
+            if "FROZEN" in str(e) or "PEER_FLOOD" in str(e) or "USER_RESTRICTED" in str(e):
+                log(f"❄️ ACCOUNT FROZEN on SendMessage: {e}", 'error')
+                return {'status': 'restricted', 'reason': 'Hard Freeze (Send Failed)', 'is_frozen': True, 'log': log_messages}
+            log(f"❌ Send failed: {e}", 'error')
+            return {'status': 'error', 'log': log_messages, 'is_frozen': False, 'error': str(e)}
+
+        # Ожидание ответа
         log("⏳ Waiting for bot reply...")
         response = None
-        for _ in range(10): # Ждем до 10 сек
-            await asyncio.sleep(1)
-            history = await client.get_messages(spambot_entity, limit=1)
-            if history and not history[0].out: # Если последнее сообщение НЕ наше
-                response = history[0]
-                break
         
+        try:
+            for _ in range(10): 
+                await asyncio.sleep(1)
+                history = await client.get_messages(spambot_entity, limit=1)
+                if history and not history[0].out: 
+                    response = history[0]
+                    break
+        except Exception as e:
+             # 🔥 ВАРИАНТ 2: Мы не можем прочитать историю (Hard Freeze)
+             if "FROZEN" in str(e):
+                 log("❄️ ACCOUNT FROZEN on GetHistory", 'error')
+                 return {'status': 'restricted', 'reason': 'Hard Freeze (Read Failed)', 'is_frozen': True, 'log': log_messages}
+
         if response:
-            preview = response.text[:50].replace('\n', ' ')
-            log(f"🤖 [Result] Bot Replied: {preview}...")
+            log(f"🤖 [Result] Bot Replied: {response.text[:50]}...")
             
-            # === ЧТЕНИЕ ОТВЕТА (С ЗАЩИТОЙ ОТ FREEZE) ===
-            await human_delay('read') # Читаем текст
-            
+            # Попытка пометить прочитанным
             try:
-                # Пытаемся пометить прочитанным
+                await human_delay('read')
                 await client(ReadHistoryRequest(peer=spambot_entity, max_id=response.id))
             except Exception as e:
-                # 🔥 ЛОВИМ ОШИБКУ FROZEN
-                if "FROZEN_METHOD_INVALID" in str(e) or "PEER_FLOOD" in str(e):
-                    log("❄️ ACCOUNT IS HARD FROZEN (Detected via ReadHistory Error)", 'error')
-                    result_status = "restricted"
-                    log(f"❌ Hard Freeze Reason: {e}")
-                else:
-                    log(f"⚠️ ReadHistory failed (non-critical): {e}", 'warning')
+                # 🔥 ВАРИАНТ 3: Бот ответил, но мы не можем пометить прочитанным (Rare Freeze)
+                if "FROZEN" in str(e):
+                    log("❄️ ACCOUNT FROZEN on ReadHistory", 'error')
+                    return {'status': 'restricted', 'reason': 'Hard Freeze (Ack Failed)', 'is_frozen': True, 'log': log_messages}
 
-            # Логика определения бана по тексту
-            clean_markers = ["Good news", "Ваш аккаунт свободен", "no limits", "нет ограничений", "хорошие новости"]
+            # === АНАЛИЗ ТЕКСТА (Если мы дошли сюда - значит Hard Freeze НЕТ) ===
+            # Здесь мы проверяем обычный Спамблок
             
-            # Если в тексте есть маркеры чистоты
-            if any(m.lower() in response.text.lower() for m in clean_markers):
+            clean_markers = ["Good news", "Ваш аккаунт свободен", "no limits", "нет ограничений", "хорошие новости"]
+            if any(m in response.text for m in clean_markers):
                 log("✅ ACCOUNT IS GREEN (CLEAN)")
-                result_status = "clean"
+                # Return immediately as 'clean' (active)
+                return {'status': 'clean', 'is_frozen': False, 'log': log_messages}
             else:
-                # Текст не содержит "Good news" -> Значит там описание бана
-                preview_ban = response.text[:100].replace('\n', ' ')
-                log(f"❄️ ACCOUNT IS RESTRICTED. Reason: {preview_ban}", 'warning')
-                result_status = "restricted"
+                # Бот ответил текстом, что есть ограничения
+                log(f"⚠️ ACCOUNT IS RESTRICTED (Spamblock). Bot said: {response.text[:50]}", 'warning')
+                return {'status': 'restricted', 'reason': response.text, 'is_frozen': True, 'log': log_messages}
         else:
-            log("⚠️ Bot silent.")
-            result_status = "silent"
+            # Бот просто промолчал (бывает при лагах или shadowban)
+            log("⚠️ Bot silent (Timeout).", 'warning')
+            result_status = "unknown"
 
         # === 8. ВОЗВРАТ В МЕНЮ ===
         log("🔙 [Step 8] Closing bot chat, returning to main list...")

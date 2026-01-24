@@ -1608,27 +1608,36 @@ def delete_channel_candidate(candidate_id):
 @login_required
 def human_check(account_id):
     """
-    Run Immersive Human-Like SpamBlock Check.
-    This takes more time (5-15s) and simulates user behavior.
+    Run Immersive Human-Like SpamBlock Check using SessionOrchestrator.
+    This manages the session lifecycle (Cold/Hot start) automatically.
     """
     import asyncio
-    from utils.human_spamblock import run_immersive_spamblock_check
+    from utils.session_orchestrator import SessionOrchestrator
+    from tasks.basic import task_check_spamblock
     from utils.activity_logger import ActivityLogger
     
-    # Anti-Lock: Release DB session
+    # Anti-Lock: Release DB session during long operation
     db.session.close()
     
+    # Run in ephemeral loop (Orchestrator handles its own state mostly, but we need an event loop for the async execution)
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     
+    bot = SessionOrchestrator(account_id)
+    
     try:
-        result = loop.run_until_complete(run_immersive_spamblock_check(account_id))
+        # EXECUTE TASK via Orchestrator
+        # This will handles: Cold Start (if offline) -> Hot Start (if idle) -> Task -> Idle Timer
+        # Note: We are not starting the background monitor here because this is a short-lived HTTP request context.
+        # But the state transitions will still work for the execution duration.
         
+        result = loop.run_until_complete(bot.execute(task_check_spamblock))
+        
+        # Determine status
         status = result.get('status', 'unknown')
         log_msgs = result.get('log', [])
         
-        # Log to DB (Create new logger inst since session was closed)
-        # Re-fetch account to update status
+        # Log to DB (Re-fetch account)
         try:
             from models.account import Account
             account_ref = Account.query.get(account_id)
@@ -1636,16 +1645,15 @@ def human_check(account_id):
             if status == 'clean':
                 if account_ref.status != 'active':
                     account_ref.status = 'active'
-                # Update health score if needed?
+                # Update health if needed
             elif status == 'restricted':
-                # User requested: FROZEN/RESTRICTED -> BANNED badge
+                # User policy: Restricted = Banned
                 account_ref.status = 'banned'
                 account_ref.health_score = 0
             
             db.session.commit()
         except Exception as e:
             db.session.rollback()
-            # Non-critical, just log
             print(f"Failed to update account status: {e}")
 
         logger = ActivityLogger(account_id)
@@ -1654,33 +1662,37 @@ def human_check(account_id):
             logger.log(
                 action_type='human_check_success',
                 status='success',
-                description='Human Check: 🟢 CLEAN (No Limits). Status -> Active',
+                description='Human Check (Orchestrator): 🟢 CLEAN. Status -> Active',
                 category='system'
             )
             return jsonify({'success': True, 'status': 'clean', 'logs': log_msgs})
             
         elif status == 'restricted':
+            reason = result.get('reason', 'Unknown restriction')
             logger.log(
-                action_type='human_check_warning',
-                status='warning',
-                description='Human Check: 🔴 RESTRICTED (Frozen). Status -> Banned',
-                category='system'
+                action_type='human_check_failed',
+                status='failed', 
+                description=f'Human Check (Orchestrator): 🔴 RESTRICTED. Reason: {reason}',
+                category='security'
             )
-            return jsonify({'success': True, 'status': 'restricted', 'logs': log_msgs})
+            return jsonify({'success': True, 'status': 'restricted', 'reason': reason, 'logs': log_msgs})
             
         else:
-             error_msg = result.get("error", "Unknown Error")
-             logger.log(
-                action_type='human_check_failed',
+            error_msg = result.get('error', 'Unknown error')
+            logger.log(
+                action_type='human_check_error',
                 status='error',
-                description=f'Human Check Failed: {error_msg}',
+                description=f'Human Check Error: {error_msg}',
                 category='system'
             )
-             return jsonify({'success': False, 'status': 'error', 'error': error_msg, 'logs': log_msgs}), 500
-             
+            return jsonify({'success': False, 'error': error_msg, 'logs': log_msgs})
+
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
+        
     finally:
+        # Graceful shutdown of the orchestrator (disconnects client)
+        loop.run_until_complete(bot.stop())
         loop.close()
 
 @accounts_bp.route("/<int:account_id>/set-2fa", methods=["POST"])
