@@ -829,8 +829,18 @@
                     body: JSON.stringify({ name: 'Warmup Schedule' })
                 });
                 const d = await res.json();
-                scheduleData.schedule = d.schedule;
-                scheduleData.schedule_id = d.schedule.id;
+
+                if (res.ok) {
+                    scheduleData.schedule = d.schedule;
+                    scheduleData.schedule_id = d.schedule.id;
+                } else if (d.error && d.error.includes('exists')) {
+                    // It exists but we don't have it in state? fetch it
+                    await loadSchedule();
+                    // If still missing, abort
+                    if (!scheduleData.schedule) throw new Error('Could not recover existing schedule');
+                } else {
+                    throw new Error(d.error || 'Failed to create schedule');
+                }
             }
 
             // 3. Save/Update Nodes
