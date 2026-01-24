@@ -95,10 +95,18 @@
                 </div>
             </div>
 
-            <!-- Calendar Grid -->
             <div class="col-md-9 p-3">
+                <!-- Control Bar -->
                 <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h6 class="mb-0">14-Day Warmup Plan</h6>
+                    <div class="d-flex align-items-center gap-3">
+                        <button class="btn btn-outline-secondary btn-sm" id="prev-week-btn">
+                            <i class="bi bi-chevron-left"></i> Prev
+                        </button>
+                        <h6 class="mb-0" id="current-week-label">Week 1 (Days 1-7)</h6>
+                        <button class="btn btn-outline-secondary btn-sm" id="next-week-btn">
+                            Next <i class="bi bi-chevron-right"></i>
+                        </button>
+                    </div>
                     <div>
                         <button class="btn btn-sm btn-outline-secondary" id="clear-schedule-btn">
                             <i class="bi bi-trash"></i> Clear All
@@ -106,255 +114,183 @@
                     </div>
                 </div>
 
-                <!-- Calendar Grid -->
-                <div id="scheduler-calendar" class="scheduler-calendar" data-account-id="{{ account.id }}"
-                    data-bio="{{ account.bio | default('', true) | e }}"
-                    data-username="{{ account.username | default('', true) | e }}"
-                    data-first-name="{{ account.first_name | default('', true) | e }}"
-                    data-last-name="{{ account.last_name | default('', true) | e }}"
-                    data-photo-url="{{ account.photo_url | default('', true) | e }}">
-                    <!-- Days 1-7 -->
-                    <div class="row mb-2">
-                        <div class="col">
-                            <div class="day-cell droppable" data-day="1">
-                                <div class="day-header">Day 1</div>
-                                <div class="day-nodes" id="day-1-nodes"></div>
-                            </div>
-                        </div>
-                        <div class="col">
-                            <div class="day-cell droppable" data-day="2">
-                                <div class="day-header">Day 2</div>
-                                <div class="day-nodes" id="day-2-nodes"></div>
-                            </div>
-                        </div>
-                        <div class="col">
-                            <div class="day-cell droppable" data-day="3">
-                                <div class="day-header">Day 3</div>
-                                <div class="day-nodes" id="day-3-nodes"></div>
-                            </div>
-                        </div>
-                        <div class="col">
-                            <div class="day-cell droppable" data-day="4">
-                                <div class="day-header">Day 4</div>
-                                <div class="day-nodes" id="day-4-nodes"></div>
-                            </div>
-                        </div>
-                        <div class="col">
-                            <div class="day-cell droppable" data-day="5">
-                                <div class="day-header">Day 5</div>
-                                <div class="day-nodes" id="day-5-nodes"></div>
-                            </div>
-                        </div>
-                        <div class="col">
-                            <div class="day-cell droppable" data-day="6">
-                                <div class="day-header">Day 6</div>
-                                <div class="day-nodes" id="day-6-nodes"></div>
-                            </div>
-                        </div>
-                        <div class="col">
-                            <div class="day-cell droppable" data-day="7">
-                                <div class="day-header">Day 7</div>
-                                <div class="day-nodes" id="day-7-nodes"></div>
-                            </div>
-                        </div>
+                <!-- Time-Grid Container -->
+                <div class="scheduler-container border rounded"
+                    style="position: relative; height: 600px; overflow-y: auto; background: #fff;">
+
+                    <!-- Sticky Header: Day Labels -->
+                    <div class="d-flex border-bottom bg-light sticky-top" style="z-index: 10;">
+                        <div class="time-column-header border-end" style="width: 60px; flex-shrink: 0;"></div>
+                        <!-- Time label spacer -->
+                        <!-- Dynamic Day Headers injected here -->
+                        <div id="day-header-row" class="d-flex flex-grow-1"></div>
                     </div>
 
-                    <!-- Days 8-14 -->
-                    <div class="row">
-                        <div class="col">
-                            <div class="day-cell droppable" data-day="8">
-                                <div class="day-header">Day 8</div>
-                                <div class="day-nodes" id="day-8-nodes"></div>
-                            </div>
+                    <!-- Scrollable Grid Body -->
+                    <div class="d-flex position-relative">
+                        <!-- Time Labels Column -->
+                        <div id="time-labels-col" class="border-end bg-light" style="width: 60px; flex-shrink: 0;">
                         </div>
-                        <div class="col">
-                            <div class="day-cell droppable" data-day="9">
-                                <div class="day-header">Day 9</div>
-                                <div class="day-nodes" id="day-9-nodes"></div>
-                            </div>
-                        </div>
-                        <div class="col">
-                            <div class="day-cell droppable" data-day="10">
-                                <div class="day-header">Day 10</div>
-                                <div class="day-nodes" id="day-10-nodes"></div>
-                            </div>
-                        </div>
-                        <div class="col">
-                            <div class="day-cell droppable" data-day="11">
-                                <div class="day-header">Day 11</div>
-                                <div class="day-nodes" id="day-11-nodes"></div>
-                            </div>
-                        </div>
-                        <div class="col">
-                            <div class="day-cell droppable" data-day="12">
-                                <div class="day-header">Day 12</div>
-                                <div class="day-nodes" id="day-12-nodes"></div>
-                            </div>
-                        </div>
-                        <div class="col">
-                            <div class="day-cell droppable" data-day="13">
-                                <div class="day-header">Day 13</div>
-                                <div class="day-nodes" id="day-13-nodes"></div>
-                            </div>
-                        </div>
-                        <div class="col">
-                            <div class="day-cell droppable" data-day="14">
-                                <div class="day-header">Day 14</div>
-                                <div class="day-nodes" id="day-14-nodes"></div>
-                            </div>
+
+                        <!-- Main Grid (Slots + Nodes) -->
+                        <div id="main-grid-area" class="position-relative flex-grow-1">
+                            <!-- Grid Background (Lines) -->
+                            <div id="grid-background" class="w-100 h-100 position-absolute top-0 start-0"></div>
+
+                            <!-- Events Container (Nodes overlay) -->
+                            <div id="events-container"
+                                class="w-100 h-100 position-absolute top-0 start-0 pointer-events-none"></div>
                         </div>
                     </div>
                 </div>
             </div>
-        </div>
-    </div>
-</div>
 
-<style>
-    .scheduler-calendar {
-        min-height: 400px;
-    }
+            <style>
+                .scheduler-calendar {
+                    min-height: 400px;
+                }
 
-    .day-cell {
-        border: 2px dashed #dee2e6;
-        border-radius: 8px;
-        min-height: 150px;
-        padding: 8px;
-        background: white;
-        transition: all 0.2s;
-    }
+                .day-cell {
+                    border: 2px dashed #dee2e6;
+                    border-radius: 8px;
+                    min-height: 150px;
+                    padding: 8px;
+                    background: white;
+                    transition: all 0.2s;
+                }
 
-    .day-cell.drag-over {
-        border-color: #0d6efd;
-        background-color: #e7f1ff;
-    }
+                .day-cell.drag-over {
+                    border-color: #0d6efd;
+                    background-color: #e7f1ff;
+                }
 
-    .day-header {
-        font-weight: bold;
-        font-size: 0.875rem;
-        color: #6c757d;
-        margin-bottom: 8px;
-        padding-bottom: 4px;
-        border-bottom: 1px solid #dee2e6;
-    }
+                .day-header {
+                    font-weight: bold;
+                    font-size: 0.875rem;
+                    color: #6c757d;
+                    margin-bottom: 8px;
+                    padding-bottom: 4px;
+                    border-bottom: 1px solid #dee2e6;
+                }
 
-    .day-nodes {
-        min-height: 100px;
-    }
+                .day-nodes {
+                    min-height: 100px;
+                }
 
-    .node-item.draggable {
-        cursor: move;
-        user-select: none;
-    }
+                .node-item.draggable {
+                    cursor: move;
+                    user-select: none;
+                }
 
-    .node-item.draggable:hover {
-        opacity: 0.8;
-    }
+                .node-item.draggable:hover {
+                    opacity: 0.8;
+                }
 
-    .scheduled-node {
-        background: #e7f1ff;
-        border: 1px solid #0d6efd;
-        border-radius: 4px;
-        padding: 6px 8px;
-        margin-bottom: 6px;
-        font-size: 0.8rem;
-        cursor: pointer;
-        position: relative;
-    }
+                .scheduled-node {
+                    background: #e7f1ff;
+                    border: 1px solid #0d6efd;
+                    border-radius: 4px;
+                    padding: 6px 8px;
+                    margin-bottom: 6px;
+                    font-size: 0.8rem;
+                    cursor: pointer;
+                    position: relative;
+                }
 
-    .scheduled-node:hover {
-        background: #cfe2ff;
-    }
+                .scheduled-node:hover {
+                    background: #cfe2ff;
+                }
 
-    .scheduled-node .remove-node {
-        position: absolute;
-        top: 2px;
-        right: 2px;
-        cursor: pointer;
-        color: #dc3545;
-        font-size: 0.75rem;
-    }
+                .scheduled-node .remove-node {
+                    position: absolute;
+                    top: 2px;
+                    right: 2px;
+                    cursor: pointer;
+                    color: #dc3545;
+                    font-size: 0.75rem;
+                }
 
-    .scheduled-node .node-time {
-        font-size: 0.7rem;
-        color: #6c757d;
-        display: block;
-    }
+                .scheduled-node .node-time {
+                    font-size: 0.7rem;
+                    color: #6c757d;
+                    display: block;
+                }
 
-    .node-config-modal {
-        padding: 1rem;
-        max-height: 80vh;
-        overflow-y: auto;
-    }
+                .node-config-modal {
+                    padding: 1rem;
+                    max-height: 80vh;
+                    overflow-y: auto;
+                }
 
-    /* Executing state */
-    .scheduled-node.executing {
-        background: #fff3cd !important;
-        border-color: #ffc107 !important;
-        animation: pulse 1.5s infinite;
-    }
+                /* Executing state */
+                .scheduled-node.executing {
+                    background: #fff3cd !important;
+                    border-color: #ffc107 !important;
+                    animation: pulse 1.5s infinite;
+                }
 
-    /* Success state */
-    .scheduled-node.node-success {
-        background: #d1e7dd !important;
-        border-color: #198754 !important;
-    }
+                /* Success state */
+                .scheduled-node.node-success {
+                    background: #d1e7dd !important;
+                    border-color: #198754 !important;
+                }
 
-    /* Error state */
-    .scheduled-node.node-error {
-        background: #f8d7da !important;
-        border-color: #dc3545 !important;
-    }
+                /* Error state */
+                .scheduled-node.node-error {
+                    background: #f8d7da !important;
+                    border-color: #dc3545 !important;
+                }
 
-    @keyframes pulse {
+                @keyframes pulse {
 
-        0%,
-        100% {
-            opacity: 1;
-        }
+                    0%,
+                    100% {
+                        opacity: 1;
+                    }
 
-        50% {
-            opacity: 0.7;
-        }
-    }
-</style>
+                    50% {
+                        opacity: 0.7;
+                    }
+                }
+            </style>
 
-<!-- Node Configuration Modal -->
-<div class="modal fade" id="nodeConfigModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Configure Node</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <form id="nodeConfigForm">
-                    <!-- Common Fields -->
-                    <div class="mb-3">
-                        <label class="form-label">Execution Time</label>
-                        <div class="d-flex gap-2">
-                            <input type="time" class="form-control" name="execution_time">
-                            <div class="form-check d-flex align-items-center">
-                                <input class="form-check-input me-2" type="checkbox" name="is_random_time"
-                                    id="isRandomTime">
-                                <label class="form-check-label" for="isRandomTime">Random</label>
-                            </div>
+            <!-- Node Configuration Modal -->
+            <div class="modal fade" id="nodeConfigModal" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Configure Node</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                         </div>
-                    </div>
+                        <div class="modal-body">
+                            <form id="nodeConfigForm">
+                                <!-- Common Fields -->
+                                <div class="mb-3">
+                                    <label class="form-label">Execution Time</label>
+                                    <div class="d-flex gap-2">
+                                        <input type="time" class="form-control" name="execution_time">
+                                        <div class="form-check d-flex align-items-center">
+                                            <input class="form-check-input me-2" type="checkbox" name="is_random_time"
+                                                id="isRandomTime">
+                                            <label class="form-check-label" for="isRandomTime">Random</label>
+                                        </div>
+                                    </div>
+                                </div>
 
-                    <!-- Dynamic Fields Container -->
-                    <div id="dynamicFields"></div>
-                </form>
-            </div>
-            <div class="modal-footer justify-content-between">
-                <div>
-                    <button type="button" class="btn btn-warning" id="runNodeNowBtn">
-                        <i class="bi bi-lightning-fill"></i> Run Now
-                    </button>
-                </div>
-                <div>
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-primary" id="saveNodeConfigBtn">Save Configuration</button>
+                                <!-- Dynamic Fields Container -->
+                                <div id="dynamicFields"></div>
+                            </form>
+                        </div>
+                        <div class="modal-footer justify-content-between">
+                            <div>
+                                <button type="button" class="btn btn-warning" id="runNodeNowBtn">
+                                    <i class="bi bi-lightning-fill"></i> Run Now
+                                </button>
+                            </div>
+                            <div>
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                <button type="button" class="btn btn-primary" id="saveNodeConfigBtn">Save
+                                    Configuration</button>
 
-                    <!-- Scheduler JavaScript - loaded from external file -->
-                    <script src="{{ url_for('static', filename='js/scheduler.js') }}"></script>
+                                <!-- Scheduler JavaScript - loaded from external file -->
+                                <script src="{{ url_for('static', filename='js/scheduler.js') }}"></script>
