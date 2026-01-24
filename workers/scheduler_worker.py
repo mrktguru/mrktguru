@@ -235,54 +235,41 @@ def execute_scheduled_node(node_id):
             logger.info(f"Executing node {node_id}: {node.node_type} for account {account_id}")
             WarmupLog.log(account_id, 'info', f"Starting {node.node_type} node", action=f'{node.node_type}_start')
             
-            # Get Telethon client
-            client = get_telethon_client(account_id)
-            
-            if not client:
-                error_msg = "Failed to get Telethon client"
-                logger.error(error_msg)
-                node.status = 'failed'
-                node.error_message = error_msg
-                node.executed_at = datetime.now()
-                db.session.commit()
-                WarmupLog.log(account_id, 'error', error_msg, action=f'{node.node_type}_error')
-                return
-            
-            # Execute node using async wrapper
+            # Execute node using SessionOrchestrator
+            from utils.session_orchestrator import SessionOrchestrator
             import asyncio
             
-            async def run_wrapper():
-                 if not client.is_connected():
-                     await client.connect()
-                     
-                 # Double check auth
-                 if not await client.is_user_authorized():
-                     return {'success': False, 'error': 'Client not authorized'}
-                     
-                 return await execute_node(
-                    node.node_type,
-                    client,
-                    account_id,
-                    node.config or {}
-                )
+            async def run_with_orchestrator():
+                orch = SessionOrchestrator(account_id)
+                try:
+                    # Inner function passed to orchestrator
+                    async def task_wrapper(client):
+                        return await execute_node(
+                            node.node_type,
+                            client,
+                            account_id,
+                            node.config or {}
+                        )
+                    
+                    return await orch.execute(task_wrapper)
+                finally:
+                    await orch.stop()
 
             try:
-                result = asyncio.run(run_wrapper())
+                result = asyncio.run(run_with_orchestrator())
             except Exception as loop_e:
-                result = {'success': False, 'error': f"Loop error: {loop_e}"}
-            finally:
-                # Cleanup if needed (though disconnect happens typically in loop or after)
-                pass
+                 logger.exception(f"Orchestrator error: {loop_e}")
+                 result = {'success': False, 'error': f"Orchestrator failed: {loop_e}"}
             
             # Update node status based on result
-            if result.get('success'):
+            if result and result.get('success'):
                 node.status = 'completed'
                 node.executed_at = datetime.now()
                 logger.info(f"Node {node_id} completed successfully")
                 WarmupLog.log(account_id, 'success', f"{node.node_type} node completed", action=f'{node.node_type}_complete')
             else:
                 # Check if this is a FLOOD_WAIT error
-                if result.get('flood_wait'):
+                if result and result.get('flood_wait'):
                     # Critical: Update account status and pause entire warmup
                     account = Account.query.get(account_id)
                     if account and result.get('flood_wait_until'):
@@ -294,7 +281,7 @@ def execute_scheduled_node(node_id):
                         WarmupLog.log(account_id, 'critical', f"FLOOD_WAIT: All warmup paused until {account.flood_wait_until}", action='flood_wait_critical')
                 
                 node.status = 'failed'
-                node.error_message = result.get('error', 'Unknown error')
+                node.error_message = result.get('error', 'Unknown error') if result else 'Unknown error'
                 node.executed_at = datetime.now()
                 logger.error(f"Node {node_id} failed: {node.error_message}")
                 WarmupLog.log(account_id, 'error', f"{node.node_type} failed: {node.error_message}", action=f'{node.node_type}_error')
