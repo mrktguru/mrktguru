@@ -115,8 +115,13 @@
                 </div>
 
                 <!-- Time-Grid Container -->
-                <div class="scheduler-container border rounded"
-                    style="position: relative; height: 600px; overflow-y: auto; background: #fff;">
+                <div id="scheduler-calendar" class="scheduler-calendar scheduler-container border rounded"
+                    style="position: relative; height: 600px; overflow-y: auto; background: #fff;"
+                    data-account-id="{{ account.id }}" data-bio="{{ account.bio | default('', true) | e }}"
+                    data-username="{{ account.username | default('', true) | e }}"
+                    data-first-name="{{ account.first_name | default('', true) | e }}"
+                    data-last-name="{{ account.last_name | default('', true) | e }}"
+                    data-photo-url="{{ account.photo_url | default('', true) | e }}">
 
                     <!-- Sticky Header: Day Labels -->
                     <div class="d-flex border-bottom bg-light sticky-top" style="z-index: 10;">
