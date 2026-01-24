@@ -49,11 +49,11 @@ celery.conf.beat_schedule = {
         "schedule": crontab(minute="*/15"),
     },
     
-    # Account health check every hour
-    "check-account-health": {
-        "task": "workers.maintenance_workers.check_account_health",
-        "schedule": crontab(minute=0),
-    },
+    # Account health check every hour (DISABLED)
+    # "check-account-health": {
+    #     "task": "workers.maintenance_workers.check_account_health",
+    #     "schedule": crontab(minute=0),
+    # },
     
     # Reset cooldown accounts every 30 minutes
     "reset-cooldown-accounts": {
