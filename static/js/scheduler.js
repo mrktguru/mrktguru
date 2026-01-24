@@ -7,6 +7,9 @@
     'use strict';
 
     // --- CONFIGURATION ---
+    const VERSION = 'v37';
+    console.log(`Scheduler ${VERSION} Loaded`);
+
     const PIXELS_PER_MINUTE = 1.0; // 1 min = 1px height
     const SLOT_DURATION_MIN = 60; // 60 min slots (1 hour)
     const SLOT_HEIGHT = SLOT_DURATION_MIN * PIXELS_PER_MINUTE; // 60px per slot
