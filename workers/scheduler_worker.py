@@ -240,10 +240,21 @@ def execute_scheduled_node(node_id):
             import asyncio
             
             async def run_with_orchestrator():
+                logger.info(f"SessionOrchestrator initializing for account {account_id}")
                 orch = SessionOrchestrator(account_id)
                 try:
                     # Inner function passed to orchestrator
                     async def task_wrapper(client):
+                        logger.info(f"Task wrapper received client. Connected: {client.is_connected()}")
+                        
+                        if not client.is_connected():
+                             logger.warning("⚠️ Client disconnected in wrapper! Forcing connection...")
+                             await client.connect()
+                        
+                        # Verify auth
+                        if not await client.is_user_authorized():
+                             return {'success': False, 'error': 'Client not authorized (checked in wrapper)'}
+
                         return await execute_node(
                             node.node_type,
                             client,
