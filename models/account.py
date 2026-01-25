@@ -68,7 +68,14 @@ class Account(db.Model):
     
     def __repr__(self):
         return f'<Account {self.phone}>'
-
+    @property
+    def days_age(self):
+        """Days since creation (inclusive of today)"""
+        if not self.created_at:
+            return 1 # Fallback
+        
+        delta = datetime.utcnow() - self.created_at
+        return max(1, delta.days + 1)  # Day 1 is the day of creation
 
 class DeviceProfile(db.Model):
     """Device emulation profiles"""
@@ -101,11 +108,4 @@ class AccountSubscription(db.Model):
     status = db.Column(db.String(20), default="pending")  # pending/active/failed
     notes = db.Column(db.Text)
     
-    @property
-    def days_age(self):
-        """Days since creation (inclusive of today)"""
-        if not self.created_at:
-            return 1 # Fallback
-        
-        delta = datetime.utcnow() - self.created_at
-        return max(1, delta.days + 1)  # Day 1 is the day of creation
+

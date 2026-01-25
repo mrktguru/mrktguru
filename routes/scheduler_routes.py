@@ -24,14 +24,72 @@ def get_schedule(account_id):
         schedule = WarmupSchedule.query.filter_by(account_id=account_id).first()
         
         if not schedule:
-            return jsonify({'schedule': None}), 200
-        
+            # Create dummy schedule dict if none exists, to allow showing logs
+            schedule_dict = {'id': 0, 'status': 'draft'}
+        else:
+            schedule_dict = schedule.to_dict()
+            
         # Get all nodes for this schedule
-        nodes = WarmupScheduleNode.query.filter_by(schedule_id=schedule.id).all()
+        nodes = []
+        if schedule:
+            nodes = WarmupScheduleNode.query.filter_by(schedule_id=schedule.id).all()
         
+        node_dicts = [node.to_dict() for node in nodes]
+
+        # ---------------------------------------------------------
+        # BACKFILL: Fetch historical logs and convert to ghost nodes
+        # ---------------------------------------------------------
+        from models.warmup_log import WarmupLog
+        from models.account import Account
+        
+        account = Account.query.get(account_id)
+        if account and account.created_at:
+            logs = WarmupLog.query.filter_by(
+                account_id=account_id, 
+                status='success'
+            ).all()
+            
+            # Map logs to ghost nodes
+            ghost_id_counter = -1
+            for log in logs:
+                # Calculate Day Number
+                delta = log.timestamp - account.created_at
+                day_num = max(1, delta.days + 1)
+                
+                # Format time
+                time_str = log.timestamp.strftime('%H:%M')
+                
+                # Determine Node Type from action/category
+                # Actions: 'complete', 'set_photo', 'send_saved_message', 'read_posts_success', 'visit_success'
+                node_type = 'passive_activity' # default
+                if log.action_type == 'set_photo': node_type = 'photo'
+                elif log.action_type == 'update_bio': node_type = 'bio'
+                elif log.action_type == 'update_username': node_type = 'username'
+                elif 'subscribe' in (log.action_type or ''): node_type = 'subscribe'
+                elif 'visit' in (log.action_type or ''): node_type = 'visit'
+                elif 'message' in (log.action_type or ''): node_type = 'send_message'
+                
+                ghost_node = {
+                    'id': ghost_id_counter,
+                    'is_ghost': True, # Flag for frontend
+                    'schedule_id': schedule.id if schedule else 0,
+                    'node_type': node_type,
+                    'day_number': day_num,
+                    'execution_time': time_str,
+                    'is_random_time': False,
+                    'config': {'description': log.message},
+                    'status': 'completed',
+                    'executed_at': log.timestamp.isoformat(),
+                    'error_message': None,
+                    'created_at': log.timestamp.isoformat(),
+                    'updated_at': log.timestamp.isoformat()
+                }
+                node_dicts.append(ghost_node)
+                ghost_id_counter -= 1
+
         return jsonify({
-            'schedule': schedule.to_dict(),
-            'nodes': [node.to_dict() for node in nodes]
+            'schedule': schedule_dict,
+            'nodes': node_dicts
         }), 200
         
     except Exception as e:
