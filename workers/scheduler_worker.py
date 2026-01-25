@@ -48,26 +48,42 @@ def check_warmup_schedules():
                         logger.warning(f"Schedule {schedule.id} has no start_date, skipping")
                         continue
                     
-                    days_elapsed = (now.date() - schedule.start_date).days
+                    # DATE-BASED SCHEDULING
+                    # We now strictly check for nodes scheduled for TODAY's date.
+                    today_date = now.date()
+                    
+                    # Check if schedule is completed (legacy check based on days or if end_date passed)
+                    if schedule.end_date and today_date > schedule.end_date:
+                         logger.info(f"Schedule {schedule.id} past end date {schedule.end_date}")
+                         schedule.status = 'completed'
+                         db.session.commit()
+                         continue
+
+                    # Find pending nodes for TODAY (execution_date)
+                    # Use fallback to day_number if execution_date is null (legacy support)
+                    
+                    # Logic: 
+                    # 1. Fetch nodes where execution_date == today
+                    # 2. OR where execution_date is NULL AND day_number == (today - start + 1)
+                    
+                    days_elapsed = (today_date - schedule.start_date).days
                     day_number = days_elapsed + 1
                     
-                    # DIAGNOSTIC LOG
-                    logger.info(f"Schedule {schedule.id}: Start={schedule.start_date}, Now={now.date()}, Day={day_number}")
-
-                    # Check if schedule is completed
-                    if day_number > 14:
-                        logger.info(f"Schedule {schedule.id} completed (day {day_number})")
-                        schedule.status = 'completed'
-                        schedule.end_date = now.date()
-                        db.session.commit()
-                        continue
+                    logger.info(f"Schedule {schedule.id}: Checking for nodes on {today_date} (Day {day_number})")
                     
-                    # Find pending nodes for current day
-                    nodes = WarmupScheduleNode.query.filter_by(
-                        schedule_id=schedule.id,
-                        day_number=day_number,
-                        status='pending'
+                    nodes = WarmupScheduleNode.query.filter(
+                        WarmupScheduleNode.schedule_id == schedule.id,
+                        WarmupScheduleNode.status == 'pending',
+                        db.or_(
+                            WarmupScheduleNode.execution_date <= today_date,
+                            db.and_(
+                                WarmupScheduleNode.execution_date == None,
+                                WarmupScheduleNode.day_number <= day_number
+                            )
+                        )
                     ).all()
+                    
+
                     
                     if not nodes:
                         # Fetch ALL pending nodes to see where they are

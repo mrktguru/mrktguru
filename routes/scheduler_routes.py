@@ -153,11 +153,18 @@ def add_node(schedule_id):
         if 'day_number' not in data:
             return jsonify({'error': 'day_number is required'}), 400
         
+        # Calculate execution date if schedule is active
+        execution_date = None
+        if schedule.start_date:
+            from datetime import timedelta
+            execution_date = schedule.start_date + timedelta(days=int(data['day_number']) - 1)
+        
         # Create node
         node = WarmupScheduleNode(
             schedule_id=schedule_id,
             node_type=data['node_type'],
             day_number=data['day_number'],
+            execution_date=execution_date,
             execution_time=data.get('execution_time'),
             is_random_time=data.get('is_random_time', False),
             config=data.get('config', {}),
@@ -190,6 +197,10 @@ def update_node(node_id):
         # Update fields
         if 'day_number' in data:
             node.day_number = data['day_number']
+            # Recalculate date if schedule is active
+            if node.schedule and node.schedule.start_date:
+                from datetime import timedelta
+                node.execution_date = node.schedule.start_date + timedelta(days=int(node.day_number) - 1)
         
         if 'execution_time' in data:
             node.execution_time = data['execution_time']

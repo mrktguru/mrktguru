@@ -15,6 +15,7 @@ class WarmupScheduleNode(db.Model):
     # Node configuration
     node_type = db.Column(db.String(50), nullable=False)  # bio, username, photo, contacts, subscribe, visit, idle
     day_number = db.Column(db.Integer, nullable=False)  # 1-14
+    execution_date = db.Column(db.Date, nullable=True)  # Specific date: 2025-01-25
     execution_time = db.Column(db.String(20), nullable=True)  # "14:00" or "random:10:00-18:00"
     is_random_time = db.Column(db.Boolean, nullable=False, default=False)
     
