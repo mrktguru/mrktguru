@@ -101,5 +101,11 @@ class AccountSubscription(db.Model):
     status = db.Column(db.String(20), default="pending")  # pending/active/failed
     notes = db.Column(db.Text)
     
-    def __repr__(self):
-        return f'<AccountSubscription {self.channel_username}>'
+    @property
+    def days_since_verification(self):
+        """Days since first verification (inclusive of today)"""
+        if not self.first_verified_at:
+            return 0
+        
+        delta = datetime.utcnow() - self.first_verified_at
+        return max(1, delta.days + 1)  # Day 1 is the day of verification

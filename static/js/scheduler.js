@@ -108,6 +108,15 @@
         // 2. Render Grid Background (Columns & Rows)
         elements.gridBackground.innerHTML = '';
 
+        // Calculate reference dates
+        let verificationDate = null;
+        if (elements.container.dataset.verificationDate) {
+            verificationDate = new Date(elements.container.dataset.verificationDate);
+        }
+
+        const now = new Date();
+        const todayStr = now.toDateString();
+
         // Vertical Day Columns
         for (let d = 0; d < DAYS_PER_VIEW; d++) {
             const col = document.createElement('div');
@@ -115,6 +124,30 @@
             col.style.width = `${100 / DAYS_PER_VIEW}%`;
             col.style.left = `${(d * 100) / DAYS_PER_VIEW}%`;
             col.dataset.dayIndex = d; // 0-6 index in current view
+
+            // Day Logic
+            const dayNum = (currentWeekOffset * 7) + 1 + d;
+            let isPast = false;
+            let isToday = false;
+
+            if (verificationDate) {
+                // Calculate actual date for this column
+                const colDate = new Date(verificationDate);
+                colDate.setDate(verificationDate.getDate() + (dayNum - 1));
+
+                if (colDate.toDateString() === todayStr) {
+                    isToday = true;
+                } else if (colDate < now) {
+                    isPast = true;
+                }
+            }
+
+            if (isPast) {
+                col.style.backgroundColor = '#f8f9fa'; // Light gray for past
+            }
+            if (isToday) {
+                col.style.backgroundColor = 'rgba(13, 110, 253, 0.05)'; // Very light blue for today
+            }
 
             // Horizontal Slot Lines
             for (let i = 0; i < 24; i++) {
@@ -136,7 +169,28 @@
     function renderHeader() {
         const startDay = (currentWeekOffset * 7) + 1;
         const endDay = startDay + 6;
-        elements.labelWeek.innerText = `Week ${currentWeekOffset + 1} (Days ${startDay}-${endDay})`;
+
+        // Calculate dates
+        let verificationDate = null;
+        if (elements.container.dataset.verificationDate) {
+            verificationDate = new Date(elements.container.dataset.verificationDate);
+        }
+
+        const now = new Date();
+        const todayStr = now.toDateString();
+
+        if (verificationDate) {
+            const startDate = new Date(verificationDate);
+            startDate.setDate(verificationDate.getDate() + (startDay - 1));
+
+            const endDate = new Date(verificationDate);
+            endDate.setDate(verificationDate.getDate() + (endDay - 1));
+
+            elements.labelWeek.innerText = `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()} (Week ${currentWeekOffset + 1})`;
+        } else {
+            elements.labelWeek.innerText = `Week ${currentWeekOffset + 1} (Days ${startDay}-${endDay})`;
+        }
+
 
         elements.dayHeaderRow.innerHTML = '';
         for (let i = 0; i < DAYS_PER_VIEW; i++) {
@@ -144,7 +198,32 @@
             const header = document.createElement('div');
             header.className = 'flex-grow-1 text-center border-end py-1 small fw-bold text-secondary';
             header.style.width = `${100 / DAYS_PER_VIEW}%`;
-            header.innerText = `Day ${dayNum}`;
+
+            let dateStr = '';
+            let isToday = false;
+
+            if (verificationDate) {
+                const d = new Date(verificationDate);
+                d.setDate(verificationDate.getDate() + (dayNum - 1));
+
+                const dd = String(d.getDate()).padStart(2, '0');
+                const mm = String(d.getMonth() + 1).padStart(2, '0');
+                dateStr = `<div style="font-size: 1.1em; color: #000;">${dd}.${mm}</div>`;
+
+                if (d.toDateString() === todayStr) {
+                    isToday = true;
+                    header.classList.add('bg-primary', 'text-white');
+                    header.classList.remove('text-secondary');
+                }
+            }
+
+            header.innerHTML = `${dateStr}Day ${dayNum}`;
+
+            if (isToday) {
+                // Ensure text stays white if bg-primary
+                header.style.color = 'white !important';
+            }
+
             elements.dayHeaderRow.appendChild(header);
         }
     }
