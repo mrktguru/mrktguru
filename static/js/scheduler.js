@@ -109,13 +109,16 @@
         elements.gridBackground.innerHTML = '';
 
         // Calculate reference dates
-        let verificationDate = null;
-        if (elements.container.dataset.verificationDate) {
-            verificationDate = new Date(elements.container.dataset.verificationDate);
+        let startDate = null;
+        if (elements.container.dataset.startDate) {
+            startDate = new Date(elements.container.dataset.startDate);
+            // Customize to midnight for day comparison
+            startDate.setHours(0, 0, 0, 0);
         }
 
         const now = new Date();
-        const todayStr = now.toDateString();
+        const todayMidnight = new Date(now);
+        todayMidnight.setHours(0, 0, 0, 0);
 
         // Vertical Day Columns
         for (let d = 0; d < DAYS_PER_VIEW; d++) {
@@ -130,14 +133,15 @@
             let isPast = false;
             let isToday = false;
 
-            if (verificationDate) {
+            if (startDate) {
                 // Calculate actual date for this column
-                const colDate = new Date(verificationDate);
-                colDate.setDate(verificationDate.getDate() + (dayNum - 1));
+                const colDate = new Date(startDate);
+                colDate.setDate(startDate.getDate() + (dayNum - 1));
+                colDate.setHours(0, 0, 0, 0); // specific normalization
 
-                if (colDate.toDateString() === todayStr) {
+                if (colDate.getTime() === todayMidnight.getTime()) {
                     isToday = true;
-                } else if (colDate < now) {
+                } else if (colDate < todayMidnight) {
                     isPast = true;
                 }
             }
@@ -171,22 +175,24 @@
         const endDay = startDay + 6;
 
         // Calculate dates
-        let verificationDate = null;
-        if (elements.container.dataset.verificationDate) {
-            verificationDate = new Date(elements.container.dataset.verificationDate);
+        let startDate = null;
+        if (elements.container.dataset.startDate) {
+            startDate = new Date(elements.container.dataset.startDate);
+            startDate.setHours(0, 0, 0, 0);
         }
 
         const now = new Date();
-        const todayStr = now.toDateString();
+        const todayMidnight = new Date(now);
+        todayMidnight.setHours(0, 0, 0, 0);
 
-        if (verificationDate) {
-            const startDate = new Date(verificationDate);
-            startDate.setDate(verificationDate.getDate() + (startDay - 1));
+        if (startDate) {
+            const viewStartDate = new Date(startDate);
+            viewStartDate.setDate(startDate.getDate() + (startDay - 1));
 
-            const endDate = new Date(verificationDate);
-            endDate.setDate(verificationDate.getDate() + (endDay - 1));
+            const viewEndDate = new Date(startDate);
+            viewEndDate.setDate(startDate.getDate() + (endDay - 1));
 
-            elements.labelWeek.innerText = `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()} (Week ${currentWeekOffset + 1})`;
+            elements.labelWeek.innerText = `${viewStartDate.toLocaleDateString()} - ${viewEndDate.toLocaleDateString()} (Week ${currentWeekOffset + 1})`;
         } else {
             elements.labelWeek.innerText = `Week ${currentWeekOffset + 1} (Days ${startDay}-${endDay})`;
         }
@@ -202,15 +208,16 @@
             let dateStr = '';
             let isToday = false;
 
-            if (verificationDate) {
-                const d = new Date(verificationDate);
-                d.setDate(verificationDate.getDate() + (dayNum - 1));
+            if (startDate) {
+                const d = new Date(startDate);
+                d.setDate(startDate.getDate() + (dayNum - 1));
+                d.setHours(0, 0, 0, 0);
 
                 const dd = String(d.getDate()).padStart(2, '0');
                 const mm = String(d.getMonth() + 1).padStart(2, '0');
                 dateStr = `<div style="font-size: 1.1em; color: #000;">${dd}.${mm}</div>`;
 
-                if (d.toDateString() === todayStr) {
+                if (d.getTime() === todayMidnight.getTime()) {
                     isToday = true;
                     header.classList.add('bg-primary', 'text-white');
                     header.classList.remove('text-secondary');

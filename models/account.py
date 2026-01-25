@@ -102,10 +102,10 @@ class AccountSubscription(db.Model):
     notes = db.Column(db.Text)
     
     @property
-    def days_since_verification(self):
-        """Days since first verification (inclusive of today)"""
-        if not self.first_verified_at:
-            return 0
+    def days_age(self):
+        """Days since creation (inclusive of today)"""
+        if not self.created_at:
+            return 1 # Fallback
         
-        delta = datetime.utcnow() - self.first_verified_at
-        return max(1, delta.days + 1)  # Day 1 is the day of verification
+        delta = datetime.utcnow() - self.created_at
+        return max(1, delta.days + 1)  # Day 1 is the day of creation

@@ -133,7 +133,7 @@
                             <i class="bi bi-person-plus"></i> {{ account.invites_sent_today }}
                         </small>
                     </td>
-                    <td>{{ account.days_since_verification }} days</td>
+                    <td>{{ account.days_age }} days</td>
                     <td>
                         {% if account.last_activity %}
                         <small>{{ account.last_activity.strftime('%Y-%m-%d %H:%M') }}</small>

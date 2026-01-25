@@ -117,7 +117,7 @@
                 <!-- Time-Grid Container -->
                 <div id="scheduler-calendar" class="scheduler-calendar scheduler-container border rounded"
                     style="position: relative; background: #fff;" data-account-id="{{ account.id }}"
-                    data-verification-date="{{ account.first_verified_at.isoformat() if account.first_verified_at else '' }}"
+                    data-start-date="{{ account.created_at.isoformat() if account.created_at else '' }}"
                     data-bio="{{ account.bio | default('', true) | e }}"
                     data-username="{{ account.username | default('', true) | e }}"
                     data-first-name="{{ account.first_name | default('', true) | e }}"
