@@ -286,189 +286,152 @@ def is_node_expired(node, current_time, threshold_minutes=15):
 
 
 
+# 🔥 GLOBAL SESSION CACHE
+# Stores live SessionOrchestrator objects between tasks
+ACTIVE_SESSIONS = {} 
+
 @celery.task(name='workers.scheduler_worker.execute_scheduled_node')
 def execute_scheduled_node(node_id):
-    """
-    Execute a single scheduled warmup node
-    
-    Args:
-        node_id: ID of WarmupScheduleNode to execute
-    """
     from app import app
     
     with app.app_context():
         try:
             node = WarmupScheduleNode.query.get(node_id)
-            
-            if not node:
-                logger.error(f"Node {node_id} not found")
+            if not node or node.status not in ['pending', 'running']:
                 return
-            
-            if node.status not in ['pending', 'running']:
-                logger.warning(f"Node {node_id} status is {node.status}, skipping")
-                return
-            
-            # Update status to running (if not already)
+
             if node.status != 'running':
                 node.status = 'running'
                 db.session.commit()
             
             account_id = node.schedule.account_id
+            logger.info(f"▶️ Executing node {node_id}: {node.node_type} for account {account_id}")
             
-            logger.info(f"Executing node {node_id}: {node.node_type} for account {account_id}")
-            WarmupLog.log(account_id, 'info', f"Starting {node.node_type} node", action=f'{node.node_type}_start')
-            
-            # Execute node using SessionOrchestrator
+            # --- ORCHESTRATOR LOGIC WITH CACHING ---
             from utils.session_orchestrator import SessionOrchestrator
             import asyncio
             
             async def run_with_orchestrator():
-                logger.info(f"SessionOrchestrator initializing for account {account_id}")
-                orch = SessionOrchestrator(account_id)
-                try:
-                    # Inner function passed to orchestrator
-                    async def task_wrapper(client):
-                        logger.info(f"Task wrapper received client. Connected: {client.is_connected()}")
-                        
-                        if not client.is_connected():
-                             logger.warning("⚠️ Client disconnected in wrapper! Forcing connection...")
-                             await client.connect()
-                        
-                        # Verify auth
-                        if not await client.is_user_authorized():
-                             return {'success': False, 'error': 'Client not authorized (checked in wrapper)'}
-
-                        return await execute_node(
-                            client,
-                            node.node_type,
-                            account_id,
-                            node.config or {}
-                        )
+                # 1. Check for live session
+                orch = ACTIVE_SESSIONS.get(account_id)
+                
+                # If no session or disconnected -> create new
+                if not orch or not orch.client or not orch.client.is_connected():
+                    if account_id in ACTIVE_SESSIONS:
+                        del ACTIVE_SESSIONS[account_id] # Cleaning
                     
-                    logger.info("Calling orch.execute(task_wrapper)...")
-                    res = await orch.execute(task_wrapper)
-                    logger.info("orch.execute finished.")
-                    return res
-                finally:
-                    logger.info("Calling orch.stop()...")
-                    try:
-                        await orch.stop()
-                        logger.info("orch.stop() finished.")
-                    except Exception as e:
-                         # Log but don't crash the result if the task actually succeeded
-                         logger.error(f"Error in orch.stop(): {e}")
-                         if "NoneType" in str(e) and "await" in str(e):
-                             logger.critical("Detecting the Async NoneType error in orch.stop()!")
+                    orch = SessionOrchestrator(account_id)
+                    ACTIVE_SESSIONS[account_id] = orch
+                    
+                    # 🔥 IMPORTANT: Start monitor so it auto-kills session after 10-15 min
+                    await orch.start_monitoring()
+                    logger.info(f"[{account_id}] Created NEW SessionOrchestrator (Cached)")
+                else:
+                    logger.info(f"[{account_id}] ♻️ Reusing EXISTING active session")
 
+                # 2. Task Wrapper
+                async def task_wrapper(client):
+                    # Connection check
+                    if not client.is_connected():
+                         await client.connect()
+                    
+                    if not await client.is_user_authorized():
+                         raise Exception("Client not authorized")
+
+                    return await execute_node(
+                        client,
+                        node.node_type,
+                        account_id,
+                        node.config or {}
+                    )
+                
+                # 3. Execute
+                # ❌ WE REMOVED FINALLY WITH ORCH.STOP()
+                # Session stays in ACTIVE_SESSIONS
+                return await orch.execute(task_wrapper)
+
+            # Run
             try:
                 result = asyncio.run(run_with_orchestrator())
             except Exception as loop_e:
                  logger.exception(f"Orchestrator error: {loop_e}")
-                 result = {'success': False, 'error': f"Orchestrator failed: {loop_e}"}
-            
-            # Update node status based on result
+                 result = {'success': False, 'error': str(loop_e)}
+                 
+                 # On crash, remove from cache to start fresh next time
+                 if account_id in ACTIVE_SESSIONS:
+                     del ACTIVE_SESSIONS[account_id]
+
+            # --- RESULT HANDLING (Same as before) ---
             if result and result.get('success'):
                 node.status = 'completed'
                 node.executed_at = datetime.now()
-                logger.info(f"Node {node_id} completed successfully")
-                WarmupLog.log(account_id, 'success', f"{node.node_type} node completed", action=f'{node.node_type}_complete')
+                WarmupLog.log(account_id, 'success', f"{node.node_type} completed", action=f'{node.node_type}_complete')
             else:
-                # Check if this is a FLOOD_WAIT error
+                # Check for FLOOD_WAIT
                 if result and result.get('flood_wait'):
-                    # Critical: Update account status and pause entire warmup
-                    account = Account.query.get(account_id)
+                    account = node.schedule.account
                     if account and result.get('flood_wait_until'):
                         account.status = 'flood_wait'
                         account.flood_wait_until = result['flood_wait_until']
                         account.flood_wait_action = node.node_type
                         account.last_flood_wait = datetime.now()
-                        logger.critical(f"FLOOD_WAIT triggered for account {account_id} until {account.flood_wait_until}")
-                        WarmupLog.log(account_id, 'critical', f"FLOOD_WAIT: All warmup paused until {account.flood_wait_until}", action='flood_wait_critical')
+                        logger.critical(f"FLOOD_WAIT triggered for account {account_id}")
+                        WarmupLog.log(account_id, 'critical', f"FLOOD_WAIT until {account.flood_wait_until}", action='flood_wait_critical')
                 
                 node.status = 'failed'
-                node.error_message = result.get('error', 'Unknown error') if result else 'Unknown error'
+                node.error_message = result.get('error', 'Unknown error') if result else 'Unknown'
                 node.executed_at = datetime.now()
-                logger.error(f"Node {node_id} failed: {node.error_message}")
-                WarmupLog.log(account_id, 'error', f"{node.node_type} failed: {node.error_message}", action=f'{node.node_type}_error')
-            
+                WarmupLog.log(account_id, 'error', f"Node failed: {node.error_message}", action=f'{node.node_type}_error')
+
             db.session.commit()
-            
-            # Disconnect client
-            try:
-                import asyncio
-                asyncio.run(client.disconnect())
-            except:
-                pass
-            
+
         except Exception as e:
-            logger.exception(f"Error executing node {node_id}: {e}")
-            
-            try:
-                node = WarmupScheduleNode.query.get(node_id)
-                if node:
-                    node.status = 'failed'
-                    node.error_message = str(e)
-                    node.executed_at = datetime.now()
-                    db.session.commit()
-                    
-                    if node.schedule:
-                        WarmupLog.log(
-                            node.schedule.account_id,
-                            'error',
-                            f"Node execution failed: {str(e)}",
-                            action=f'{node.node_type}_error'
-                        )
-            except:
-                pass
+            logger.exception(f"System error node {node_id}: {e}")
+
 
 @celery.task(name='workers.scheduler_worker.execute_adhoc_node')
 def execute_adhoc_node(account_id, node_type, config):
-    """
-    Execute a node immediately (adhoc) without a schedule record
-    """
     from app import app
-    from models.account import Account
     
     with app.app_context():
         try:
             logger.info(f"Executing ADHOC node: {node_type} for account {account_id}")
-            WarmupLog.log(account_id, 'info', f"Starting manual {node_type} execution", action=f'{node_type}_manual_start')
             
-            # Execute logic
             from utils.session_orchestrator import SessionOrchestrator
             import asyncio
             
             async def run_with_orchestrator():
-                orch = SessionOrchestrator(account_id)
-                try:
-                    async def task_wrapper(client):
-                        if not client.is_connected():
-                             await client.connect()
-                        
-                        return await execute_node(
-                            client,
-                            node_type,
-                            account_id,
-                            config
-                        )
-                    return await orch.execute(task_wrapper)
-                finally:
-                    await orch.stop()
+                # CACHING LOGIC
+                orch = ACTIVE_SESSIONS.get(account_id)
+                
+                if not orch or not orch.client or not orch.client.is_connected():
+                    if account_id in ACTIVE_SESSIONS: del ACTIVE_SESSIONS[account_id]
+                    orch = SessionOrchestrator(account_id)
+                    ACTIVE_SESSIONS[account_id] = orch
+                    await orch.start_monitoring() # Start auto-kill timer
+                    logger.info(f"[{account_id}] Adhoc: Created NEW session")
+                else:
+                    logger.info(f"[{account_id}] Adhoc: Reusing EXISTING session")
+
+                async def task_wrapper(client):
+                    if not client.is_connected(): await client.connect()
+                    return await execute_node(client, node_type, account_id, config)
+                
+                # NO finally: stop()
+                return await orch.execute(task_wrapper)
 
             try:
                 result = asyncio.run(run_with_orchestrator())
-            except Exception as loop_e:
-                 logger.exception(f"Orchestrator error: {loop_e}")
-                 result = {'success': False, 'error': f"Orchestrator failed: {loop_e}"}
+            except Exception as e:
+                logger.error(f"Adhoc Orchestrator error: {e}")
+                if account_id in ACTIVE_SESSIONS: del ACTIVE_SESSIONS[account_id]
+                result = {'success': False, 'error': str(e)}
             
+            # Log result
             if result and result.get('success'):
-                logger.info(f"Adhoc node {node_type} completed")
-                WarmupLog.log(account_id, 'success', f"Manual {node_type} completed", action=f'{node_type}_manual_complete')
+                logger.info(f"Adhoc {node_type} success")
             else:
-                error = result.get('error', 'Unknown error') if result else 'Unknown error'
-                logger.error(f"Adhoc node {node_type} failed: {error}")
-                WarmupLog.log(account_id, 'error', f"Manual {node_type} failed: {error}", action=f'{node_type}_manual_error')
-                
+                logger.error(f"Adhoc {node_type} failed")
+
         except Exception as e:
             logger.error(f"Error in execute_adhoc_node: {e}")
-            WarmupLog.log(account_id, 'error', f"System error executing {node_type}: {str(e)}", action='system_error')
