@@ -85,13 +85,20 @@ def check_warmup_schedules():
                     
 
                     
-                    if not nodes:
-                        # Fetch ALL pending nodes to see where they are
-                        all_pending = WarmupScheduleNode.query.filter_by(
+                        # Fetch info about next pending node
+                        next_node = WarmupScheduleNode.query.filter_by(
                             schedule_id=schedule.id,
                             status='pending'
-                        ).count()
-                        logger.info(f"No pending nodes for schedule {schedule.id} day {day_number}. (Total pending in schedule: {all_pending})")
+                        ).order_by(WarmupScheduleNode.day_number.asc(), WarmupScheduleNode.execution_time.asc()).first()
+                        
+                        msg = f"No pending nodes for schedule {schedule.id} today ({today_date})."
+                        if next_node:
+                            exec_date_info = f"Date={next_node.execution_date}" if next_node.execution_date else "Date=Not Set"
+                            msg += f" Next task: Node {next_node.id} ({next_node.node_type}) on Day {next_node.day_number} ({exec_date_info}) at {next_node.execution_time}"
+                        else:
+                            msg += " No future tasks found."
+                            
+                        logger.info(msg)
                         continue
                     
                     # Check if there are any currently running nodes for this schedule
