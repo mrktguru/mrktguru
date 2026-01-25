@@ -24,13 +24,15 @@ logger = logging.getLogger(__name__)
 def migrate_dates():
     app = create_app()
     with app.app_context():
-        # 1. Add column if not exists (using raw SQL for safety if Alembic not used)
+        # 1. Add column if not exists
+        from sqlalchemy import text
         try:
             with db.engine.connect() as conn:
-                conn.execute('ALTER TABLE warmup_schedule_nodes ADD COLUMN execution_date DATE')
-                logger.info("Added 'execution_date' column")
+                conn.execute(text('ALTER TABLE warmup_schedule_nodes ADD COLUMN IF NOT EXISTS execution_date DATE'))
+                conn.commit()
+                logger.info("Executed ALTER TABLE statement.")
         except Exception as e:
-            logger.info(f"Column likely exists: {e}")
+            logger.warning(f"Schema update note: {e}")
 
         # 2. Migrate Data
         nodes = WarmupScheduleNode.query.all()
