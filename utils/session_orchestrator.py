@@ -40,6 +40,15 @@ class SessionOrchestrator:
         # 🔒 LOCK: Предотвращает гонку потоков при одновременном запуске задач
         self._lock = asyncio.Lock()
 
+        # 🔥 RANDOMIZED LIFECYCLE THRESHOLDS
+        # Interval for IDLE state (Sleep): 2.5 - 4.5 minutes
+        self.next_idle_threshold = random.randint(150, 270)
+        
+        # Interval for Full Shutdown (Kill): 9 - 14 minutes
+        self.next_kill_threshold = random.randint(540, 840)
+        
+        logger.info(f"[{account_id}] Session limits: Idle after {self.next_idle_threshold}s, Kill after {self.next_kill_threshold}s")
+
     async def start_monitoring(self):
         """Starts a background monitor to handle Auto-Idle state transitions."""
         if self._monitor_task is None:
