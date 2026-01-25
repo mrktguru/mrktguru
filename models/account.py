@@ -77,6 +77,13 @@ class Account(db.Model):
         delta = datetime.utcnow() - self.created_at
         return max(1, delta.days + 1)  # Day 1 is the day of creation
 
+    @property
+    def active_schedule(self):
+        """Get currently active warmup schedule"""
+        from models.warmup_schedule import WarmupSchedule
+        # Try to find 'active' first, then latest created
+        return self.warmup_schedules.filter_by(status='active').first()
+
 class DeviceProfile(db.Model):
     """Device emulation profiles"""
     __tablename__ = 'device_profiles'
