@@ -495,7 +495,8 @@ def upload_asset():
             
         if file:
             filename = secure_filename(f"{datetime.now().timestamp()}_{file.filename}")
-            upload_dir = os.path.join(os.getcwd(), 'storage', 'scheduler_uploads')
+            # Use 'uploads/scheduler' so it is served by Flask static route and accessible via web
+            upload_dir = os.path.join(os.getcwd(), 'uploads', 'scheduler')
             os.makedirs(upload_dir, exist_ok=True)
             
             filepath = os.path.join(upload_dir, filename)
