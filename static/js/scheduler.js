@@ -47,6 +47,41 @@
         const container = elements.container;
         schedulerAccountId = parseInt(container.dataset.accountId);
 
+        // --- Calculate Initial Week Offset ---
+        if (container.dataset.startDate) {
+            const startDate = new Date(container.dataset.startDate);
+            startDate.setHours(0, 0, 0, 0);
+
+            const now = new Date();
+            now.setHours(0, 0, 0, 0);
+
+            // Difference in time
+            const diffTime = now.getTime() - startDate.getTime();
+            // Difference in days
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+            if (diffDays > 0) {
+                // e.g. Day 1 (diff 0) -> Week 0
+                // Day 8 (diff 7) -> Week 1
+                // Day 15 (diff 14) -> Week 2
+                // We want to show the week containing "Today".
+                // Week 0: Days 1-7
+                // Week 1: Days 8-14
+                // Offset = floor((DayNum - 1) / 7)
+                // DayNum roughly diffDays + 1 (since diff 0 is Day 1)
+
+                // Let's use strict math:
+                // Start Date = Day 1.
+                // Today = Start + diffDays.
+                // Day Number of Today = 1 + diffDays.
+                // Week Offset = Math.floor((DayNumber - 1) / 7)
+
+                const dayNumberOfToday = diffDays + 1;
+                currentWeekOffset = Math.floor((dayNumberOfToday - 1) / 7);
+                if (currentWeekOffset < 0) currentWeekOffset = 0;
+            }
+        }
+
         configModal = new bootstrap.Modal(document.getElementById('nodeConfigModal'));
 
         setupControls();
