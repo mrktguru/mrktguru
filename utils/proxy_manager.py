@@ -1,4 +1,4 @@
-from app import db, app
+from database import db
 from models.proxy_network import ProxyNetwork
 from models.account import Account
 import logging
@@ -9,6 +9,9 @@ def assign_dynamic_port(account, network_id):
     """
     Finds the first available port in the network range and assigns it to the account.
     """
+    # Use local import to avoid circular dependency
+    from app import app
+    
     with app.app_context(): # Ensure we have app context if called from outside
         network = ProxyNetwork.query.get(network_id)
         if not network:
