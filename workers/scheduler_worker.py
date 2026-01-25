@@ -168,6 +168,7 @@ def should_execute_now(node, current_time):
     
     else:
         # Fixed time format: "14:00"
+        try:
             target_hour, target_min = map(int, node.execution_time.split(':'))
             
             # Convert to minutes for easier comparison
