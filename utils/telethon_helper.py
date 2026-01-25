@@ -110,6 +110,7 @@ def get_telethon_client(account_id, proxy=None):
     """
     from models.account import Account
     from models.api_credential import ApiCredential
+    from models.proxy_network import ProxyNetwork
     from database import db
     from utils.encryption import decrypt_api_hash
     
@@ -268,29 +269,53 @@ def get_telethon_client(account_id, proxy=None):
             "username": proxy.get("username"),
             "password": proxy.get("password"),
         }
+    elif account.proxy_network_id and account.assigned_port:
+        # ==========================================================
+        # 📡 DYNAMIC PROXY NETWORK
+        # ==========================================================
+        network = ProxyNetwork.query.get(account.proxy_network_id)
+        if network:
+            from utils.validators import validate_proxy
+            # Construct connection string and parse it
+            conn_str = f"{network.base_url}:{account.assigned_port}"
+            is_valid, res = validate_proxy(conn_str)
+            
+            if is_valid:
+                proxy_type_str = 'socks5' if res['type'] == 'socks5' else 'http'
+                proxy_dict = (
+                    proxy_type_str,
+                    res['host'],
+                    res['port'],
+                    True, # rdns
+                    res.get('username'),
+                    res.get('password')
+                )
+                print(f"✅ [{account_id}] Using Dynamic Proxy Network: '{network.name}' via {res['host']}:{res['port']}")
+            else:
+                print(f"❌ [{account_id}] Invalid Proxy Network Config ('{network.name}'): {res}")
+        else:
+            print(f"❌ [{account_id}] Proxy Network {account.proxy_network_id} not found in DB")
+
     elif account.proxy:
-        # CRITICAL: Telethon expects proxy as tuple with STRING type identifier!
-        # Format: ('socks5' | 'http', addr, port, rdns, username, password)
-        # NOT: (socks.SOCKS5, ...) - that's just an integer!
-        
+        # ==========================================================
+        # 🔒 STATIC INDIVIDUAL PROXY
+        # ==========================================================
         if account.proxy.type == "socks5":
             proxy_type_str = 'socks5'
         elif account.proxy.type == "http":
             proxy_type_str = 'http'
         else:
-            # Fallback to socks5 for any other type
             proxy_type_str = 'socks5'
         
-        # Telethon proxy tuple format
         proxy_dict = (
-            proxy_type_str,  # Use STRING 'socks5' or 'http'!
+            proxy_type_str,
             account.proxy.host,
             account.proxy.port,
-            True,  # rdns - resolve DNS through proxy
+            True,
             account.proxy.username,
             account.proxy.password
         )
-        print(f"✅ Using proxy for account {account_id}: {account.proxy.host}:{account.proxy.port} (type: {proxy_type_str})")
+        print(f"✅ [{account_id}] Using Static Proxy: {account.proxy.host}:{account.proxy.port} (type: {proxy_type_str})")
         
         # CRITICAL DEBUG: Log exact proxy tuple
         with open('/tmp/proxy_debug.log', 'a') as f:
