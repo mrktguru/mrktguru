@@ -1155,6 +1155,42 @@ async def execute_node_set_2fa(client, account_id, config):
     password = config.get('password')
     hint = config.get('hint', '')
     
+    remove_password = config.get('remove_password', False)
+
+    # BRANCH: Remove Password
+    if remove_password:
+        logger.info(f"[{account_id}] 🗑️ Removing 2FA Password...")
+        try:
+            # We need the current password to remove it (Telegram requirement)
+            # Try to get it from our DB
+            with app.app_context():
+                acc = Account.query.get(account_id)
+                current_pwd = acc.two_fa_password if acc else None
+            
+            if not current_pwd:
+                return {'success': False, 'error': 'Cannot remove 2FA: No local password record found. Please set manually first.'}
+
+            # Edit 2FA: new_password=None removes it
+            await client.edit_2fa(current_password=current_pwd, new_password=None)
+            
+            # Clear DB record
+            with app.app_context():
+                acc = Account.query.get(account_id)
+                if acc:
+                    acc.two_fa_password = None
+                    db.session.commit()
+            
+            msg = "2FA Password Removed Successfully"
+            logger.info(f"[{account_id}] ✅ {msg}")
+            return {'success': True, 'message': msg}
+
+        except PasswordHashInvalidError:
+             return {'success': False, 'error': 'Current password incorrect (mismatch with DB).'}
+        except Exception as e:
+            return {'success': False, 'error': f"Failed to remove 2FA: {e}"}
+
+
+    # BRANCH: Set/Update Password
     if not password:
         return {'success': False, 'error': 'Password is required'}
 

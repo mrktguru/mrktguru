@@ -727,17 +727,40 @@
                     Sets or updates the Cloud Password (Two-Step Verification).
                 </div>
                 <div class="mb-3">
-                    <label class="form-label">New Password</label>
-                    <div class="input-group">
-                        <input type="text" class="form-control" name="password" value="${config.password || ''}" placeholder="Enter strong password">
-                        <button class="btn btn-outline-secondary" type="button" onclick="this.previousElementSibling.value = Math.random().toString(36).slice(-10) + 'A1!'">Generate</button>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="remove-2fa-check" name="remove_password" ${config.remove_password ? 'checked' : ''}>
+                        <label class="form-check-label" for="remove-2fa-check">
+                            Remove 2FA Password (Disable 2-Step Verification)
+                        </label>
                     </div>
-                    <small class="form-text text-muted">This password will be saved to the database.</small>
                 </div>
-                <div class="mb-3">
-                    <label class="form-label">Hint (Optional)</label>
-                    <input type="text" class="form-control" name="hint" value="${config.hint || ''}" placeholder="Hint text">
+
+                <div id="2fa-fields" style="display: ${config.remove_password ? 'none' : 'block'}">
+                    <div class="mb-3">
+                        <label class="form-label">New Password</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" name="password" value="${config.password || ''}" placeholder="Enter strong password">
+                            <button class="btn btn-outline-secondary" type="button" onclick="this.previousElementSibling.value = Math.random().toString(36).slice(-10) + 'A1!'">Generate</button>
+                        </div>
+                        <small class="form-text text-muted">This password will save to DB. Use 'Remove' to clear it.</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Hint (Optional)</label>
+                        <input type="text" class="form-control" name="hint" value="${config.hint || ''}" placeholder="Hint text">
+                    </div>
                 </div>
+
+                <script>
+                    setTimeout(() => {
+                         const ck = document.getElementById('remove-2fa-check');
+                         const fs = document.getElementById('2fa-fields');
+                         if(ck && fs) {
+                             ck.addEventListener('change', () => {
+                                 fs.style.display = ck.checked ? 'none' : 'block';
+                             });
+                         }
+                    }, 200);
+                </script>
             `;
         }
         else if (type === 'smart_subscribe') {
