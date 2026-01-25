@@ -902,7 +902,7 @@ async def execute_node_passive_activity(client, account_id, config):
                     last_network_activity = now
                     
                     # Log (debug level to avoid spam, or info if requested)
-                    # logger.info(f"[{account_id}] 💓 Pulse (after {int(silence_duration)}s)") 
+                    logger.info(f"[{account_id}] 💓 Pulse (active for {int(elapsed)}s)") 
                     
                     # Reset Jitter
                     next_ping_delay = random.randint(15, 40)
