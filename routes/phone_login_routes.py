@@ -11,6 +11,8 @@ from telethon.sessions import StringSession
 from telethon.errors import SessionPasswordNeededError
 import asyncio
 import os
+import python_socks
+from utils.proxy_manager import assign_dynamic_port, release_dynamic_port
 
 phone_login_bp = Blueprint('phone_login', __name__, 
                          template_folder='templates',

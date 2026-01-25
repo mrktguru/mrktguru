@@ -7,9 +7,12 @@ from models.account import Account
 from models.tdata_metadata import TDataMetadata
 from models.api_credential import ApiCredential
 from models.proxy import Proxy
+from models.proxy_network import ProxyNetwork
 from database import db
 from utils.tdata_parser import TDataParser
 from utils.encryption import encrypt_auth_key, encrypt_api_hash, decrypt_api_hash, decrypt_auth_key
+from utils.validators import validate_proxy
+from utils.proxy_manager import assign_dynamic_port, release_dynamic_port
 from werkzeug.utils import secure_filename
 from config import Config
 import os
@@ -229,8 +232,6 @@ def configure_tdata(account_id):
                 elif selection.startswith("network_"):
                     n_id = int(selection.replace("network_", ""))
                     account.proxy_id = None
-                    # Assign dynamic port (atomic, no commit yet)
-                    from utils.proxy_manager import assign_dynamic_port
                     assign_dynamic_port(account, n_id, commit=False)
             else:
                 account.proxy_id = None
@@ -261,19 +262,22 @@ def configure_tdata(account_id):
                 # Check for Network or Static proxy
                 if account.proxy_network_id and account.assigned_port:
                     # DYNAMIC PROXY
-                    from utils.validators import validate_proxy
-                    is_valid, res = validate_proxy(f"{account.proxy_network.base_url}:{account.assigned_port}")
-                    if is_valid:
-                        proxy_type_str = 'socks5' if res['type'] == 'socks5' else 'http'
-                        proxy_tuple = (
-                            proxy_type_str,
-                            res['host'],
-                            res['port'],
-                            True, # rdns
-                            res.get('username'),
-                            res.get('password')
-                        )
-                        logger.info(f"🔒 TData conversion will use DYNAMIC proxy: {res['host']}:{res['port']}")
+                    network = ProxyNetwork.query.get(account.proxy_network_id)
+                    if network:
+                        is_valid, res = validate_proxy(f"{network.base_url}:{account.assigned_port}")
+                        if is_valid:
+                            proxy_type_str = 'socks5' if res['type'] == 'socks5' else 'http'
+                            proxy_tuple = (
+                                proxy_type_str,
+                                res['host'],
+                                res['port'],
+                                True, # rdns
+                                res.get('username'),
+                                res.get('password')
+                            )
+                            logger.info(f"🔒 TData conversion will use DYNAMIC proxy: {res['host']}:{res['port']}")
+                    else:
+                        logger.error(f"❌ Proxy Network {account.proxy_network_id} not found for account {account_id}")
                 
                 elif account.proxy:
                     # STATIC PROXY
