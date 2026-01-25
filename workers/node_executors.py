@@ -859,7 +859,7 @@ async def execute_node_passive_activity(client, account_id, config):
             scroll_events.sort(key=lambda x: x['start_at'])
 
     logger.info(f"[{account_id}] 🧘 Starting Passive Activity for {duration_mins}m. "
-                f"Scrolls scheduled: {len(scroll_events)}")
+                f"Scrolls scheduled: {len(scroll_events)}. Ping: every 20s (UpdateStatus).")
     
     # Log to DB
     WarmupLog.log(account_id, 'info', f"Starting Passive Activity ({duration_mins}m)", action='passive_start')
@@ -889,16 +889,18 @@ async def execute_node_passive_activity(client, account_id, config):
                     current_scroll = event
                     break
             
-            # 3. Keep-Alive Ping (every 60s of silence)
+            # 3. 🔥 ULTRA KEEP-ALIVE (20 SEC) ---
+            # Beat faster than proxy timeout (usually 60s)
             silence_duration = (now - last_network_activity).total_seconds()
-            if silence_duration > 60:
+            if silence_duration > 20: 
                 try:
-                    # Lightweight ping to keep proxy connection alive
-                    await client(GetStateRequest())
+                    # UpdateStatus is a "Write" operation, keeps channel alive better
+                    await client(UpdateStatusRequest(offline=False))
                     last_network_activity = now
-                    logger.info(f"[{account_id}] 💓 Keep-Alive Ping (GetState) sent to maintain session") 
+                    logger.info(f"[{account_id}] 💓 Pulse (20s check)") 
                 except Exception as e:
-                    logger.debug(f"Keep-Alive ping failed: {e}")
+                    # Ignore ping errors, Telethon reconnects automatically
+                    pass
 
             # === ACTIVE PHASE (SCROLLING) ===
             if current_scroll:

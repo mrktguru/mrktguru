@@ -827,12 +827,13 @@
         try {
             // 1. Delete removed
             const deleted = window._deletedNodeIds || [];
-            for (const id of deleted) {
-                await fetch(`/scheduler/nodes/${id}`, { method: 'DELETE' });
+            if (deleted.length > 0) {
+                for (const id of deleted) {
+                    await fetch(`/scheduler/nodes/${id}`, { method: 'DELETE' });
+                }
+                window._deletedNodeIds = [];
             }
-            window._deletedNodeIds = [];
 
-            // 2. Create Schedule if needed
             // 2. Create Schedule if needed
             if (!scheduleData.schedule || !scheduleData.schedule.id) {
                 const res = await fetch(`/scheduler/accounts/${schedulerAccountId}/schedule`, {
@@ -855,20 +856,17 @@
                 } else if (d.error && d.error.includes('exists')) {
                     // It exists but we missing state. Fetch it WITHOUT overwriting nodes
                     const getRes = await fetch(`/scheduler/accounts/${schedulerAccountId}/status`);
-                    let getData;
                     try {
                         const t = await getRes.text();
-                        getData = JSON.parse(t);
+                        const getData = JSON.parse(t);
+                        if (getData.schedule) {
+                            scheduleData.schedule = getData.schedule;
+                            scheduleData.schedule_id = getData.schedule.id;
+                        } else {
+                            throw new Error('Could not recover existing schedule ID');
+                        }
                     } catch (e) {
                         throw new Error('Could not recover existing schedule (invalid json)');
-                    }
-
-                    if (getData.schedule) {
-                        scheduleData.schedule = getData.schedule;
-                        scheduleData.schedule_id = getData.schedule.id;
-                        // DO NOT overwrite scheduleData.nodes here
-                    } else {
-                        throw new Error('Could not recover existing schedule ID');
                     }
                 } else {
                     throw new Error(d.error || 'Failed to create schedule');
@@ -883,6 +881,7 @@
                 const method = node.id ? 'PUT' : 'POST';
                 const url = node.id ? `/scheduler/nodes/${node.id}` : `/scheduler/schedules/${scheduleId}/nodes`;
 
+                // If node has temporary props, clean them? No, backend ignores unknown fields.
                 const res = await fetch(url, {
                     method: method,
                     headers: { 'Content-Type': 'application/json' },
@@ -896,13 +895,17 @@
                     if (d.node) node.id = d.node.id;
                 } catch (e) {
                     console.error('JSON Parse Error:', text);
-                    throw new Error(`Server Error (${res.status}): ${text.substring(0, 100)}`);
+                    if (!silent) showToast('❌ Error', `Failed to save node: ${text.substring(0, 100)}`, 'danger');
+                    return false; // Partial failure
                 }
             }
             if (!silent) showToast('✅ Saved', 'Schedule saved successfully!', 'success');
+            return true; // Success
+
         } catch (e) {
             console.error(e);
             if (!silent) showToast('❌ Error', 'Save failed: ' + e.message, 'danger');
+            return false; // Failure
         }
     }
 
@@ -972,7 +975,10 @@
         if (tempConfig.duration_minutes) currentNode._ui_duration = parseInt(tempConfig.duration_minutes);
 
         // 2. SAVE to server (persist node ID)
-        await saveSchedule(true); // Silent save
+        const saved = await saveSchedule(true); // Silent save
+        if (!saved) {
+            showToast('⚠️ Warning', 'Could not save node state before running. Execution might proceed but node may not be saved.', 'warning');
+        }
 
         const payload = {
             node_type: currentNode.node_type,
@@ -981,16 +987,18 @@
 
         // CLOSE MODAL IMMEDIATELY
         configModal.hide();
-        renderNodes(); // Re-render to show updates if any
+        renderNodes(); // Re-render first
 
         // Show running status on node element in calendar
         if (currentNode.el) {
             currentNode.el.classList.add('executing');
+            currentNode.el.style.border = '2px solid #ffc107'; // Ensure visibility
 
             // Visual feedback
             const badge = document.createElement('span');
             badge.className = 'badge bg-warning text-dark position-absolute top-0 end-0 m-1';
             badge.innerText = 'Running...';
+            badge.id = 'running-badge-' + (currentNode.id || 'temp');
             currentNode.el.appendChild(badge);
 
             try {
@@ -1004,8 +1012,6 @@
 
                 if (resp.ok) {
                     // Success
-                    currentNode.el.classList.remove('executing');
-                    currentNode.el.classList.add('node-success');
                     showToast('✅ Success', `Node executed successfully! ${data.result || data.message || ''}`, 'success');
                 } else {
                     // Error
@@ -1018,10 +1024,17 @@
                 currentNode.el.classList.remove('executing');
                 currentNode.el.classList.add('node-error');
                 showToast('❌ Error', 'Execution error: ' + err.message, 'danger');
-            } finally {
-                // Restore content or refresh
-                setTimeout(() => renderNodes(), 2000);
             }
+            // Note: We do NOT call renderNodes() in finally here to keep the "Running" visual
+            // The ad-hoc run doesn't change persistent status, so refreshing would wipe the visual.
+            // We just let it stay marked until user refreshes or moves it.
+
+            // Actually, better to remove the badge after a timeout if success
+            setTimeout(() => {
+                const b = document.getElementById('running-badge-' + (currentNode.id || 'temp'));
+                if (b) b.remove();
+                if (currentNode.el) currentNode.el.style.border = '';
+            }, 5000);
         }
     }
 
