@@ -2,6 +2,10 @@
 Scheduler Worker for Warmup Automation
 Celery tasks for checking and executing scheduled warmup nodes
 """
+import sys
+# Increase recursion limit for heavy async operations
+sys.setrecursionlimit(5000)
+
 import logging
 from datetime import datetime, time, timedelta
 import random

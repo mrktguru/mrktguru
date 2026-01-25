@@ -2,17 +2,16 @@
 Celery Application Configuration
 """
 # 🔥 Monkey Patching for Gevent (Must be first)
-# Apply gevent monkey patching for async support if available
-try:
-    from gevent import monkey
-    monkey.patch_all()
-except ImportError:
-    pass
+from gevent import monkey
+monkey.patch_all()
 
+import os
 from celery import Celery
 from celery.schedules import crontab
-import os
 import sys
+
+# Increase recursion limit for Gevent + Telethon
+sys.setrecursionlimit(5000)
 
 # Ensure project root is in python path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
