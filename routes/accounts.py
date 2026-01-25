@@ -431,7 +431,10 @@ def verify(account_id):
                 account_ref.status = 'active'
                 account_ref.last_check_status = 'active'
                 
-                if user.get('photo'):
+                if user.get('photo') and user.get('photo_path'):
+                    account_ref.photo_url = user['photo_path']
+                elif user.get('photo'):
+                    # Fallback if download failed but photo exists
                     account_ref.photo_url = "photo_available"
                 
                 if hasattr(Account, 'verified'):

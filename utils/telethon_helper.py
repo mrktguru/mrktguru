@@ -626,7 +626,28 @@ async def verify_session(account_id, force_full=False, disable_anchor=False, cli
             }
             
             if hasattr(me, "photo") and me.photo:
-                user_data["photo"] = True
+                try:
+                    # Download profile photo
+                    from config import Config
+                    upload_folder = os.path.join(os.getcwd(), 'uploads', 'photos')
+                    os.makedirs(upload_folder, exist_ok=True)
+                    
+                    filename = f"{me.id}_{int(datetime.utcnow().timestamp())}.jpg"
+                    filepath = os.path.join(upload_folder, filename)
+                    
+                    logger.info(f"📸 Downloading profile photo to {filepath}...")
+                    await client.download_profile_photo(me, file=filepath)
+                    
+                    if os.path.exists(filepath):
+                        user_data["photo_path"] = f"uploads/photos/{filename}"
+                        user_data["photo"] = True
+                        logger.info(f"✅ Photo downloaded: {user_data['photo_path']}")
+                    else:
+                        logger.warning("⚠️ Photo download appeared successful but file is missing")
+                        user_data["photo"] = False
+                except Exception as e:
+                    logger.error(f"❌ Failed to download photo: {e}")
+                    user_data["photo"] = False
             
             # Mark as first verified
             if not account.first_verified_at:
