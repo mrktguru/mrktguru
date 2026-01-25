@@ -15,8 +15,6 @@ class Account(db.Model):
     health_score = db.Column(db.Integer, default=100)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_activity = db.Column(db.DateTime)
-    warm_up_days_completed = db.Column(db.Integer, default=0)
-    warmup_enabled = db.Column(db.Boolean, default=False)  # Manual control for warmup activation
     messages_sent_today = db.Column(db.Integer, default=0)
     invites_sent_today = db.Column(db.Integer, default=0)
     cooldown_until = db.Column(db.DateTime)
@@ -76,13 +74,6 @@ class Account(db.Model):
         
         delta = datetime.utcnow() - self.created_at
         return max(1, delta.days + 1)  # Day 1 is the day of creation
-
-    @property
-    def active_schedule(self):
-        """Get currently active warmup schedule"""
-        from models.warmup_schedule import WarmupSchedule
-        # Try to find 'active' first, then latest created
-        return self.warmup_schedules.filter_by(status='active').first()
 
 class DeviceProfile(db.Model):
     """Device emulation profiles"""

@@ -4,7 +4,7 @@ from models.account import Account, DeviceProfile, AccountSubscription
 from models.tdata_metadata import TDataMetadata
 from models.proxy import Proxy
 from database import db
-from utils.device_emulator import generate_device_profile, get_random_warmup_channels
+from utils.device_emulator import generate_device_profile
 from utils.telethon_helper import verify_session
 import os
 from werkzeug.utils import secure_filename
