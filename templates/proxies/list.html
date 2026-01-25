@@ -5,9 +5,14 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h1>Proxies</h1>
-    <a href="{{ url_for('proxies.add') }}" class="btn btn-primary">
-        <i class="bi bi-plus-circle"></i> Add Proxy
-    </a>
+    <div>
+        <button class="btn btn-outline-success me-2" data-bs-toggle="modal" data-bs-target="#addNetworkModal">
+            <i class="bi bi-diagram-3"></i> Add Network
+        </button>
+        <a href="{{ url_for('proxies.add') }}" class="btn btn-primary">
+            <i class="bi bi-plus-circle"></i> Add Individual Proxy
+        </a>
+    </div>
 </div>
 
 <div class="row mb-3">
