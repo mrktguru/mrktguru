@@ -386,7 +386,11 @@ def get_schedule_status(schedule_id, account_id=None):
             'total_nodes': total_nodes,
             'status_counts': status_counts,
             'progress_percent': round(progress_percent, 1),
-            'nodes': node_dicts
+            'nodes': node_dicts,
+            'account_info': {
+                'username': schedule.account.username,
+                'bio': schedule.account.bio
+            }
         }), 200
         
     except Exception as e:

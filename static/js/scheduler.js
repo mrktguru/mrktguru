@@ -26,8 +26,12 @@
     let schedulerAccountId = null;
     let currentNode = null; // Node being configured
 
+    // Account details for pre-filling
+    let accountData = { username: '', bio: '' };
+
     // Cache UI Elements
     let elements = {};
+
 
     let configModal = null;
 
@@ -656,7 +660,7 @@
             html += `<div class="mb-3"><label>Photo</label><input type="file" id="photoInput" class="form-control"><input type="hidden" name="photo_path" value="${config.photo_path || ''}"></div>`;
         }
         else if (type === 'bio') {
-            const defaultBio = config.bio_text || accountData.bio;
+            const defaultBio = config.bio_text || (accountData ? accountData.bio : '') || '';
             html += `
                 <div class="mb-3">
                     <label class="form-label">Bio Text</label>
@@ -694,7 +698,7 @@
             `;
         }
         else if (type === 'username') {
-            const defaultUser = config.username || accountData.username;
+            const defaultUser = config.username || (accountData ? accountData.username : '') || '';
             html += `
                 <div class="mb-3">
                     <label class="form-label">Set Username</label>
@@ -878,6 +882,10 @@
             if (data.schedule) {
                 scheduleData = data; // includes status_counts
                 if (!scheduleData.nodes) scheduleData.nodes = [];
+
+                if (data.account_info) {
+                    accountData = data.account_info;
+                }
 
                 // Init ui_duration
                 scheduleData.nodes.forEach(n => {
