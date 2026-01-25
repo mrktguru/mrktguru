@@ -176,10 +176,19 @@ async def execute_node_photo(client, account_id, config):
             # We want 'uploads/media/file.jpg' not just 'media/file.jpg'
             # because the route is /uploads/<filename> and the template uses src="/{{ photo_url }}"
             relative_path = 'uploads/' + photo_path.split('uploads/')[-1]
-            account.photo_url = relative_path
+            try:
+                # Ensure we are using the current session context
+                current_account = Account.query.get(account_id)
+                if current_account:
+                    current_account.photo_url = relative_path
+                    db.session.commit()
+                    WarmupLog.log(account_id, 'info', f"DB updated with photo: {relative_path}", action='db_photo_update')
+            except Exception as db_e:
+                logger.error(f"Failed to update DB photo_url: {db_e}")
+                db.session.rollback()
         
         await asyncio.sleep(random.uniform(2, 5))
-        db.session.commit()
+        # Note: redundant commit removed as we just committed above, but keeping safety commit if other things changed? No, clean is better.
         
         WarmupLog.log(account_id, 'success', 'Photo uploaded and set', action='set_photo')
         
