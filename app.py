@@ -1,6 +1,14 @@
+# 🔥 Monkey Patching for Gevent (Must be first)
+# This fixes "maximum recursion depth exceeded" in requests when running with gevent/telethon
+try:
+    from gevent import monkey
+    monkey.patch_all()
+except ImportError:
+    pass
+
 import sys
 # Increase recursion limit for Gevent + Telethon operations in Flask
-sys.setrecursionlimit(5000)
+sys.setrecursionlimit(10000)
 
 from flask import Flask, render_template, redirect, url_for, send_from_directory
 from database import db, login_manager
