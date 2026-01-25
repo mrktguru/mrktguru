@@ -1,0 +1,13 @@
+[Unit]
+Description=MrktGuru Celery Worker (Gevent)
+After=network.target
+
+[Service]
+User=root
+Group=root
+WorkingDirectory=/root/mrktguru
+ExecStart=/root/mrktguru/venv/bin/celery -A celery_app.celery worker --loglevel=info -P gevent -c 100
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

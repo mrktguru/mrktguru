@@ -1,6 +1,10 @@
 """
 Celery Application Configuration
 """
+# 🔥 Monkey Patching for Gevent (Must be first)
+from gevent import monkey
+monkey.patch_all()
+
 from celery import Celery
 from celery.schedules import crontab
 import os

@@ -12,6 +12,8 @@ SQLAlchemy==2.0.23
 # Task Queue
 celery==5.3.4
 redis==5.0.1
+gevent==23.9.1
+psycogreen==1.0.2
 
 # Telegram
 Telethon==1.33.1
