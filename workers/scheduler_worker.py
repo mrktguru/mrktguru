@@ -196,41 +196,39 @@ def should_execute_now(node, current_time):
         return False
     
     else:
-        # Fixed time format: "14:00"
+        # Fixed time format: "14:00" or "14:00:00"
         try:
-            target_hour, target_min = map(int, node.execution_time.split(':'))
+            parts = node.execution_time.split(':')
+            if len(parts) < 2:
+                 raise ValueError("Invalid format")
+            
+            target_hour = int(parts[0])
+            target_min = int(parts[1])
             
             # Convert to minutes for easier comparison
             target_total = target_hour * 60 + target_min
             current_total = current_hour * 60 + current_minute
             
-            # Handle day rollover comparison conceptually (though usually we filter by day_number)
-            # If target is 23:59 and current is 00:05 (next day), logic might differ, 
-            # but here we rely on the main loop selecting `nodes` for `day_number`.
-            # Assuming 'now' matches 'day_number' approximately.
-            
-            # LOGGING DEBUG
-            # logger.info(f"Checking node {node.id}: Target={target_hour}:{target_min} vs Current={current_hour}:{current_minute}")
-            
-            # Allow execution if we are ON TIME or LATE (Catch-up)
-            # But not if we are TOO LATE (expired handled by is_node_expired, usually > 15m)
-            # And not if we are too early (wait)
+            # Execute if:
+            # 1. We are exactly on time or slightly early (diff >= -1)
+            # 2. We are late but within catch-up window (diff <= 15) or even 30 to be safe
             
             diff = current_total - target_total
             
-            # Execute if:
-            # 1. We are exactly on time or slightly early (diff >= -1)
-            # 2. We are late but within catch-up window (diff <= 15)
-            # Note: is_node_expired checks > 15. So here we handle <= 15.
+            # Log specific check details for debugging
+            logger.info(f"Node {node.id} Check: Target={target_hour:02d}:{target_min:02d} ({target_total}m), Now={current_hour:02d}:{current_minute:02d} ({current_total}m), Diff={diff}")
             
-            if -1 <= diff <= 15:
+            if -1 <= diff <= 30: # Widened window to 30 mins to be safe
                  return True
                  
             return False
         
-        except:
-            logger.error(f"Invalid execution_time format for node {node.id}: {node.execution_time}")
-            return True
+        except Exception as e:
+            logger.error(f"Error checking time for node {node.id} ('{node.execution_time}'): {e}")
+            # If time is invalid, maybe we SHOULD execute it to process it? 
+            # Or better, return False so we don't spam.
+            # But previous logic returned True. Let's return False to be safe and avoid loops.
+            return False
 
 
 def is_node_expired(node, current_time, threshold_minutes=15):
