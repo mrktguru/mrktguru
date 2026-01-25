@@ -5,7 +5,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-def assign_dynamic_port(account, network_id):
+def assign_dynamic_port(account, network_id, commit=True):
     """
     Finds the first available port in the network range and assigns it to the account.
     """
@@ -56,22 +56,22 @@ def assign_dynamic_port(account, network_id):
         account.proxy_network_id = network.id
         account.assigned_port = target_port
         
-        db.session.commit()
-        
-        logger.info(f"[{account.id}] Assigned dynamic port {target_port} from network '{network.name}'")
+        if commit:
+            db.session.commit()
+            logger.info(f"[{account.id}] Assigned dynamic port {target_port} from network '{network.name}'")
+            
         return target_port
 
-def release_dynamic_port(account):
+def release_dynamic_port(account, commit=True):
     """
     Releases the port assigned to an account.
     """
     if account.assigned_port:
         port = account.assigned_port
         account.assigned_port = None
-        # account.proxy_network_id = None # Optional: Keep network association or clear it? 
-        # Plan says: "acc.proxy_network_id оставляем или тоже None, по желанию". Keeping it might be useful for re-enabling.
         
-        db.session.commit()
-        logger.info(f"[{account.id}] Released dynamic port {port}")
+        if commit:
+            db.session.commit()
+            logger.info(f"[{account.id}] Released dynamic port {port}")
         return True
     return False

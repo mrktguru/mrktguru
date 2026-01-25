@@ -643,18 +643,17 @@ def assign_proxy(account_id):
     # Form value format: "proxy_{id}" or "network_{id}" or ""
     selection = request.form.get("proxy_selection")
     
-    # 1. Clear existing assignment first
+    # 1. Clear existing assignment (WITHOUT commit)
     if account.proxy_id:
         account.proxy_id = None
     
     if account.proxy_network_id:
-        release_dynamic_port(account)
+        release_dynamic_port(account, commit=False)
         account.proxy_network_id = None
         account.assigned_port = None
 
-    db.session.commit() # Commit clearing
-    
     if not selection:
+        db.session.commit()
         flash("Proxy removed", "info")
         logger.log(action_type='remove_proxy', status='success', description='Proxy removed', category='system')
         return redirect(url_for("accounts.detail", account_id=account_id))
@@ -675,7 +674,9 @@ def assign_proxy(account_id):
             n_id = int(selection.replace("network_", ""))
             network = ProxyNetwork.query.get(n_id)
             if network:
-                port = assign_dynamic_port(account, n_id)
+                # Assign with commit=False, then commit once here
+                port = assign_dynamic_port(account, n_id, commit=False)
+                db.session.commit()
                 flash(f"Assigned Network: {network.name} (Port {port})", "success")
                 logger.log(action_type='assign_proxy', status='success', description=f"Network: {network.name} Port {port}", category='system')
             else:

@@ -14,7 +14,7 @@ class ProxyNetwork(db.Model):
     end_port = db.Column(db.Integer, nullable=False)   # e.g. 10050
     
     # Relationship with Accounts
-    accounts = db.relationship('Account', backref='proxy_network', lazy=True)
+    accounts = db.relationship('Account', backref='proxy_network', lazy='dynamic')
 
     @property
     def total_ports(self):

@@ -13,8 +13,8 @@ class Account(db.Model):
     proxy_id = db.Column(db.Integer, db.ForeignKey('proxies.id'), nullable=True)
     
     # Dynamic Proxy Network support
-    proxy_network_id = db.Column(db.Integer, db.ForeignKey('proxy_networks.id'), nullable=True)
-    assigned_port = db.Column(db.Integer, nullable=True)
+    proxy_network_id = db.Column(db.Integer, db.ForeignKey('proxy_networks.id'), nullable=True, index=True)
+    assigned_port = db.Column(db.Integer, nullable=True, index=True)
 
     status = db.Column(db.String(20), default='active', index=True)  # active/warming_up/cooldown/banned
     health_score = db.Column(db.Integer, default=100)
