@@ -51,6 +51,9 @@ def check_warmup_schedules():
                     days_elapsed = (now.date() - schedule.start_date).days
                     day_number = days_elapsed + 1
                     
+                    # DIAGNOSTIC LOG
+                    logger.info(f"Schedule {schedule.id}: Start={schedule.start_date}, Now={now.date()}, Day={day_number}")
+
                     # Check if schedule is completed
                     if day_number > 14:
                         logger.info(f"Schedule {schedule.id} completed (day {day_number})")
@@ -67,7 +70,12 @@ def check_warmup_schedules():
                     ).all()
                     
                     if not nodes:
-                        logger.debug(f"No pending nodes for schedule {schedule.id} day {day_number}")
+                        # Fetch ALL pending nodes to see where they are
+                        all_pending = WarmupScheduleNode.query.filter_by(
+                            schedule_id=schedule.id,
+                            status='pending'
+                        ).count()
+                        logger.info(f"No pending nodes for schedule {schedule.id} day {day_number}. (Total pending in schedule: {all_pending})")
                         continue
                     
                     # Check if there are any currently running nodes for this schedule
@@ -78,7 +86,7 @@ def check_warmup_schedules():
                     ).count()
                     
                     if running_nodes_count > 0:
-                        logger.debug(f"Schedule {schedule.id} has {running_nodes_count} running nodes. Skipping new checks to prevent parallel execution.")
+                        logger.info(f"Schedule {schedule.id} has {running_nodes_count} running nodes. Skipping new checks.")
                         continue
 
                     logger.info(f"Schedule {schedule.id}: Found {len(nodes)} pending node(s) for day {day_number}")
