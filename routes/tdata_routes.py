@@ -205,7 +205,7 @@ def configure_tdata(account_id):
         try:
             # Get form data
             api_credential_id = request.form.get('api_credential_id')
-            proxy_id = request.form.get('proxy_id')
+            selection = request.form.get('proxy_selection')
             device_source = request.form.get('device_source', 'tdata')  # 'tdata' or 'json'
             
             # Validate API credential selection
@@ -217,10 +217,25 @@ def configure_tdata(account_id):
             if device_source not in ['tdata', 'json']:
                 device_source = 'tdata'
             
-            # Update account
+            # Update account API
             account.api_credential_id = int(api_credential_id)
-            if proxy_id:
-                account.proxy_id = int(proxy_id)
+            
+            # Update Proxy Selection
+            if selection:
+                if selection.startswith("proxy_"):
+                    account.proxy_id = int(selection.replace("proxy_", ""))
+                    account.proxy_network_id = None
+                    account.assigned_port = None
+                elif selection.startswith("network_"):
+                    n_id = int(selection.replace("network_", ""))
+                    account.proxy_id = None
+                    # Assign dynamic port (atomic, no commit yet)
+                    from utils.proxy_manager import assign_dynamic_port
+                    assign_dynamic_port(account, n_id, commit=False)
+            else:
+                account.proxy_id = None
+                account.proxy_network_id = None
+                account.assigned_port = None
             
             # Apply device source selection
             tdata = account.tdata_metadata
@@ -242,7 +257,26 @@ def configure_tdata(account_id):
                 
                 # 2. Build proxy tuple if proxy is assigned
                 proxy_tuple = None
-                if account.proxy:
+                
+                # Check for Network or Static proxy
+                if account.proxy_network_id and account.assigned_port:
+                    # DYNAMIC PROXY
+                    from utils.validators import validate_proxy
+                    is_valid, res = validate_proxy(f"{account.proxy_network.base_url}:{account.assigned_port}")
+                    if is_valid:
+                        proxy_type_str = 'socks5' if res['type'] == 'socks5' else 'http'
+                        proxy_tuple = (
+                            proxy_type_str,
+                            res['host'],
+                            res['port'],
+                            True, # rdns
+                            res.get('username'),
+                            res.get('password')
+                        )
+                        logger.info(f"🔒 TData conversion will use DYNAMIC proxy: {res['host']}:{res['port']}")
+                
+                elif account.proxy:
+                    # STATIC PROXY
                     # Format: ('socks5', 'host', port, True, 'username', 'password')
                     proxy_type_str = 'socks5' if account.proxy.type == 'socks5' else 'http'
                     proxy_tuple = (
@@ -253,7 +287,7 @@ def configure_tdata(account_id):
                         account.proxy.username,
                         account.proxy.password
                     )
-                    logger.info(f"🔒 TData conversion will use proxy: {account.proxy.host}:{account.proxy.port}")
+                    logger.info(f"🔒 TData conversion will use STATIC proxy: {account.proxy.host}:{account.proxy.port}")
                 else:
                     logger.warning("⚠️ TData conversion WITHOUT PROXY - SERVER IP WILL BE EXPOSED!")
                 
@@ -320,6 +354,7 @@ def configure_tdata(account_id):
         ApiCredential.is_official.desc()
     ).all()
     proxies = Proxy.query.filter_by(status='active').all()
+    proxy_networks = ProxyNetwork.query.all()
     
     # Add account count to each proxy
     for proxy in proxies:
@@ -364,6 +399,7 @@ def configure_tdata(account_id):
         tdata=tdata,
         api_credentials=api_credentials,
         proxies=proxies,
+        proxy_networks=proxy_networks,
         recommended_api_id=recommended_api_id,
         has_json=has_json,
         comparison=comparison

@@ -24,15 +24,28 @@
                     </div>
 
                     <div class="mb-3">
-                        <label for="proxy_id" class="form-label">Proxy (Optional)</label>
-                        <select class="form-select" id="proxy_id" name="proxy_id">
+                        <label for="proxy_selection" class="form-label">Proxy (Optional)</label>
+                        <select class="form-select" id="proxy_selection" name="proxy_selection">
                             <option value="">-- No Proxy --</option>
-                            {% for proxy in proxies %}
-                            <option value="{{ proxy.id }}">
-                                {{ proxy.flag }} {{ proxy.type }}://{{ proxy.host }}:{{ proxy.port }}
-                                ({{ proxy.accounts.count() }} accounts)
-                            </option>
-                            {% endfor %}
+
+                            {% if proxy_networks %}
+                            <optgroup label="📡 Proxy Networks (Dynamic)">
+                                {% for net in proxy_networks %}
+                                <option value="network_{{ net.id }}">
+                                    {{ net.name }} (Ports {{ net.start_port }}-{{ net.end_port }})
+                                </option>
+                                {% endfor %}
+                            </optgroup>
+                            {% endif %}
+
+                            <optgroup label="🔒 Individual Proxies (Static)">
+                                {% for proxy in proxies %}
+                                <option value="proxy_{{ proxy.id }}">
+                                    {{ proxy.flag }} {{ proxy.type }}://{{ proxy.host }}:{{ proxy.port }}
+                                    ({{ proxy.accounts.count() }} accounts)
+                                </option>
+                                {% endfor %}
+                            </optgroup>
                         </select>
                     </div>
 

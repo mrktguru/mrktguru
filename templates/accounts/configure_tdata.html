@@ -192,17 +192,31 @@
                     <div class="card-body">
                         <div class="mb-3">
                             <label class="form-label">Proxy (Optional)</label>
-                            <select class="form-select" name="proxy_id">
+                            <select class="form-select" name="proxy_selection">
                                 <option value="">No Proxy</option>
-                                {% for proxy in proxies %}
-                                <option value="{{ proxy.id }}">
-                                    {{ proxy.flag }} {{ proxy.host }}:{{ proxy.port }} ({{ proxy.type }})
-                                    {% if proxy.is_mobile %}[Mobile]{% endif %}
-                                    {% if proxy.account_count > 0 %}
-                                    - {{ proxy.account_count }} account{{ 's' if proxy.account_count != 1 else '' }}
-                                    {% endif %}
-                                </option>
-                                {% endfor %}
+
+                                {% if proxy_networks %}
+                                <optgroup label="📡 Proxy Networks (Dynamic)">
+                                    {% for net in proxy_networks %}
+                                    <option value="network_{{ net.id }}" {% if account.proxy_network_id==net.id
+                                        %}selected{% endif %}>
+                                        {{ net.name }} (Ports {{ net.start_port }}-{{ net.end_port }})
+                                    </option>
+                                    {% endfor %}
+                                </optgroup>
+                                {% endif %}
+
+                                <optgroup label="🔒 Individual Proxies (Static)">
+                                    {% for proxy in proxies %}
+                                    <option value="proxy_{{ proxy.id }}" {% if account.proxy_id==proxy.id %}selected{%
+                                        endif %}>
+                                        {{ proxy.flag }} {{ proxy.host }}:{{ proxy.port }} ({{ proxy.type }})
+                                        {% if proxy.account_count > 0 %}
+                                        - {{ proxy.account_count }} account{{ 's' if proxy.account_count != 1 else '' }}
+                                        {% endif %}
+                                    </option>
+                                    {% endfor %}
+                                </optgroup>
                             </select>
                         </div>
                     </div>

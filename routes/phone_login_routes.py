@@ -4,6 +4,7 @@ from flask_login import current_user
 from database import db
 from models.account import Account, DeviceProfile
 from models.proxy import Proxy
+from models.proxy_network import ProxyNetwork
 from models.api_credential import ApiCredential
 from telethon import TelegramClient
 from telethon.sessions import StringSession
@@ -83,8 +84,9 @@ def get_device_params(api_credential=None):
 def add_phone():
     """Step 1: Form to enter phone number"""
     proxies = Proxy.query.filter_by(status='active').all()
+    proxy_networks = ProxyNetwork.query.all()
     credentials = ApiCredential.query.all()
-    return render_template('accounts/add_phone.html', proxies=proxies, credentials=credentials)
+    return render_template('accounts/add_phone.html', proxies=proxies, proxy_networks=proxy_networks, credentials=credentials)
 
 @phone_login_bp.route('/request-code', methods=['POST'])
 @login_required
@@ -131,21 +133,48 @@ def request_code():
         db.session.add(account)
     
     proxy_config = None
-    if proxy_id:
-        account.proxy_id = proxy_id
-        proxy_obj = Proxy.query.get(proxy_id)
-        if proxy_obj:
-            import python_socks
-            proxy_type = python_socks.ProxyType.SOCKS5 if 'socks5' in proxy_obj.type.lower() else python_socks.ProxyType.HTTP
-            proxy_config = {
-                'proxy_type': proxy_type,
-                'addr': proxy_obj.host,
-                'port': proxy_obj.port,
-                'rdns': True
-            }
-            if proxy_obj.username and proxy_obj.password:
-                proxy_config['username'] = proxy_obj.username
-                proxy_config['password'] = proxy_obj.password
+    selection = request.form.get("proxy_selection")
+    
+    if selection:
+        import python_socks
+        if selection.startswith("proxy_"):
+            p_id = int(selection.replace("proxy_", ""))
+            account.proxy_id = p_id
+            proxy_obj = Proxy.query.get(p_id)
+            if proxy_obj:
+                proxy_type = python_socks.ProxyType.SOCKS5 if 'socks5' in proxy_obj.type.lower() else python_socks.ProxyType.HTTP
+                proxy_config = {
+                    'proxy_type': proxy_type,
+                    'addr': proxy_obj.host,
+                    'port': proxy_obj.port,
+                    'rdns': True
+                }
+                if proxy_obj.username and proxy_obj.password:
+                    proxy_config['username'] = proxy_obj.username
+                    proxy_config['password'] = proxy_obj.password
+                    
+        elif selection.startswith("network_"):
+            n_id = int(selection.replace("network_", ""))
+            # Dynamic port assignment (Atomic assignment is better here)
+            # We assign now to know which port to use for connection
+            port = assign_dynamic_port(account, n_id, commit=False)
+            network = ProxyNetwork.query.get(n_id)
+            if network:
+                # Build config from base_url and assigned port
+                # Expected base_url: socks5://user:pass@host
+                from utils.validators import validate_proxy
+                is_valid, res = validate_proxy(f"{network.base_url}:{port}")
+                if is_valid:
+                    proxy_type = python_socks.ProxyType.SOCKS5 if 'socks5' in res['type'].lower() else python_socks.ProxyType.HTTP
+                    proxy_config = {
+                        'proxy_type': proxy_type,
+                        'addr': res['host'],
+                        'port': res['port'],
+                        'rdns': True
+                    }
+                    if res.get('username'):
+                        proxy_config['username'] = res['username']
+                        proxy_config['password'] = res['password']
     
     if api_credential:
         account.api_credential_id = api_credential.id
