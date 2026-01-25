@@ -83,17 +83,25 @@ def test(proxy_id):
     """Test proxy connection"""
     proxy = Proxy.query.get_or_404(proxy_id)
     
-    result = test_proxy_connection(proxy)
-    
-    if result['success']:
-        proxy.current_ip = result['ip']
-        proxy.status = 'active'
-        db.session.commit()
-        return jsonify({'success': True, 'ip': result['ip']})
-    else:
-        proxy.status = 'error'
-        db.session.commit()
-        return jsonify({'success': False, 'error': result['error']}), 400
+    try:
+        result = test_proxy_connection(proxy)
+        
+        if result['success']:
+            proxy.current_ip = result['ip']
+            proxy.status = 'active'
+            db.session.commit()
+            return jsonify({'success': True, 'ip': result['ip']})
+        else:
+            proxy.status = 'error'
+            db.session.commit()
+            return jsonify({'success': False, 'error': result['error']}), 400
+            
+    except RecursionError:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': 'Maximum recursion depth exceeded (Server Config Error)'}), 500
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @proxies_bp.route('/<int:proxy_id>/rotate', methods=['POST'])

@@ -1,3 +1,7 @@
+import sys
+# Increase recursion limit for Gevent + Telethon operations in Flask
+sys.setrecursionlimit(5000)
+
 from flask import Flask, render_template, redirect, url_for, send_from_directory
 from database import db, login_manager
 import logging
