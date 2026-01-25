@@ -858,14 +858,16 @@ async def execute_node_passive_activity(client, account_id, config):
             # Sort by time
             scroll_events.sort(key=lambda x: x['start_at'])
 
-    logger.info(f"[{account_id}] 🧘 Starting Passive Activity for {duration_mins}m. "
-                f"Scrolls scheduled: {len(scroll_events)}. Ping: every 20s (UpdateStatus).")
+    logger.info(f"[{account_id}] 🧘 Started Passive Activity ({duration_mins}m). Ping strategy: Random Jitter (15-40s).")
     
     # Log to DB
     WarmupLog.log(account_id, 'info', f"Starting Passive Activity ({duration_mins}m)", action='passive_start')
 
     start_time = datetime.now()
     last_network_activity = datetime.now() # Timer for Keep-Alive
+    
+    # 🔥 Random Jitter Init
+    next_ping_delay = random.randint(15, 40)
 
     try:
         # Initial Status Online
@@ -889,15 +891,22 @@ async def execute_node_passive_activity(client, account_id, config):
                     current_scroll = event
                     break
             
-            # 3. 🔥 ULTRA KEEP-ALIVE (20 SEC) ---
-            # Beat faster than proxy timeout (usually 60s)
+            # 3. 🔥 RANDOM JITTER KEEP-ALIVE ---
+            # Beat faster than proxy timeout (usually 60s) but random
             silence_duration = (now - last_network_activity).total_seconds()
-            if silence_duration > 20: 
+            
+            if silence_duration > next_ping_delay: 
                 try:
                     # UpdateStatus is a "Write" operation, keeps channel alive better
                     await client(UpdateStatusRequest(offline=False))
                     last_network_activity = now
-                    logger.info(f"[{account_id}] 💓 Pulse (20s check)") 
+                    
+                    # Log (debug level to avoid spam, or info if requested)
+                    # logger.info(f"[{account_id}] 💓 Pulse (after {int(silence_duration)}s)") 
+                    
+                    # Reset Jitter
+                    next_ping_delay = random.randint(15, 40)
+                    
                 except Exception as e:
                     # Ignore ping errors, Telethon reconnects automatically
                     pass
@@ -933,8 +942,11 @@ async def execute_node_passive_activity(client, account_id, config):
                 current_scroll['done'] = True
                 logger.info(f"[{account_id}] 💤 Scroll finished. Going back to IDLE wait.")
                 WarmupLog.log(account_id, 'info', "💤 Scroll finished. Going back to IDLE.", action='scroll_end')
-                # We do NOT set offline=True manually.
-                # Use natural timeout or Orchestrator IDLE logic.
+                
+                # Reset timers after active phase
+                last_network_activity = datetime.now()
+                next_ping_delay = random.randint(15, 40)
+
 
             # === PASSIVE PHASE (IDLE WAIT) ===
             else:
