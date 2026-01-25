@@ -1141,6 +1141,74 @@ async def node_sync_profile(client, account_id, config):
         return {'success': False, 'error': str(e)}
 
 
+async def execute_node_set_2fa(client, account_id, config):
+    """
+    NODE: Set 2FA (Cloud Password)
+    Sets or updates the 2-step verification password.
+    """
+    from telethon.errors import PasswordHashInvalidError
+    from models.account import Account
+    from app import app, db
+
+    logger.info(f"[{account_id}] 🛡️ Starting Set 2FA Node...")
+    
+    password = config.get('password')
+    hint = config.get('hint', '')
+    
+    if not password:
+        return {'success': False, 'error': 'Password is required'}
+
+    try:
+        # 1. Update/Set Password in Telegram
+        # Telethon edit_2fa handles setting new or changing old if we have access (which we do as we are logged in)
+        # Note: If current password exists, Telethon usually needs 'current_password'. 
+        # But if we are authorized, edit_2fa might require valid current password if one is set?
+        # Telethon docs: client.edit_2fa(current_password=..., new_password=...)
+        # If we don't know the current password, we might fail here.
+        # However, usually we store it. Let's try fetching from DB first.
+        
+        current_db_pass = None
+        with app.app_context():
+            acc = Account.query.get(account_id)
+            if acc:
+                current_db_pass = acc.two_fa_password
+        
+        logger.info(f"[{account_id}] Setting 2FA. Current known: {'Yes' if current_db_pass else 'No'}")
+        
+        try:
+            await client.edit_2fa(
+                current_password=current_db_pass,
+                new_password=password,
+                hint=hint
+            )
+        except PasswordHashInvalidError:
+            # If DB password was wrong/outdated, or not set but TG has one?
+             return {'success': False, 'error': 'Invalid current password. Cannot change 2FA.'}
+        except Exception as e:
+             # Maybe no password was set, tried sending None? 
+             # Telethon usually handles None for current_password if not set.
+             logger.error(f"[{account_id}] 2FA Set Error: {e}")
+             return {'success': False, 'error': str(e)}
+
+        # 2. Update Local DB
+        with app.app_context():
+            try:
+                account = Account.query.get(account_id)
+                account.two_fa_password = password
+                db.session.commit()
+                WarmupLog.log(account_id, 'info', f"2FA Password updated", action='set_2fa_success')
+            except Exception as e:
+                db.session.rollback()
+                logger.error(f"[{account_id}] DB Update Error: {e}")
+                return {'success': True, 'message': '2FA set on TG, but DB update failed', 'error': str(e)}
+
+        return {'success': True, 'message': '2FA Password set successfully'}
+
+    except Exception as e:
+        logger.error(f"[{account_id}] Set 2FA Failed: {e}")
+        return {'success': False, 'error': str(e)}
+
+
 # Node executor registry
 NODE_EXECUTORS = {
     'bio': execute_node_bio,
@@ -1154,6 +1222,7 @@ NODE_EXECUTORS = {
     'smart_subscribe': execute_node_smart_subscribe,
     'passive_activity': execute_node_passive_activity, # 🔥 United Passive Node
     'sync_profile': node_sync_profile, # Added profile sync node
+    'set_2fa': execute_node_set_2fa, # 🛡️ New 2FA node
 }
 
 
