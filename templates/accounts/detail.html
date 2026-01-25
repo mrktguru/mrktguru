@@ -559,38 +559,7 @@
 </div>
 
 <!-- Add Pair Modal -->
-<div class="modal fade" id="addPairModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Add Conversation Pair</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <form method="POST" action="{{ url_for('accounts.add_conversation_pair', account_id=account.id) }}">
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <label for="partner_id" class="form-label">Select Partner Account</label>
-                        <select class="form-select" id="partner_id" name="partner_id" required>
-                            <option value="">Choose an account...</option>
-                            {% for other in other_accounts %}
-                            <option value="{{ other.id }}">
-                                {{ other.phone }}
-                                {% if other.username %}(@{{ other.username }}){% endif %}
-                                [{{ other.status }}]
-                            </option>
-                            {% endfor %}
-                        </select>
-                        <div class="form-text">Both accounts must be in 'warming_up' or 'active' status.</div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Create Pair</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
+<!-- Add Pair Modal Removed -->
 
 
 <script>
