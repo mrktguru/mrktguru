@@ -262,49 +262,11 @@ def upload():
 @accounts_bp.route("/<int:account_id>")
 @login_required
 def detail(account_id):
-    """Account details with warmup info"""
-    from models.warmup import ConversationPair, WarmupActivity
-    from models.channel_candidate import ChannelCandidate
+    """Account details"""
+    # Fix: Removed imports of deleted models (Warmup, ConversationPair)
     
     account = Account.query.get_or_404(account_id)
     proxies = Proxy.query.filter_by(status="active").all()
-    
-    # Get conversation pairs for this account
-    pairs = ConversationPair.query.filter(
-        db.or_(
-            ConversationPair.account_a_id == account_id,
-            ConversationPair.account_b_id == account_id
-        )
-    ).all()
-    
-    # Get partner accounts for each pair
-    conversation_partners = []
-    for pair in pairs:
-        partner_id = pair.account_b_id if pair.account_a_id == account_id else pair.account_a_id
-        partner = Account.query.get(partner_id)
-        if partner:
-            conversation_partners.append({
-                "pair_id": pair.id,
-                "partner": partner,
-                "last_conversation": pair.last_conversation_at,
-                "conversation_count": pair.conversation_count
-            })
-    
-    # Get other accounts for pairing
-    other_accounts = Account.query.filter(
-        Account.id != account_id,
-        Account.status.in_(['warming_up', 'active', 'paused'])
-    ).all()
-    
-    # Get recent warmup activities
-    recent_activities = WarmupActivity.query.filter_by(
-        account_id=account_id
-    ).order_by(WarmupActivity.timestamp.desc()).limit(10).all()
-    
-    # Get discovered channel candidates
-    channel_candidates = ChannelCandidate.query.filter_by(
-        account_id=account_id
-    ).order_by(ChannelCandidate.created_at.desc()).limit(20).all()
     
     # Get JSON device parameters if available
     json_device_params = None
@@ -321,11 +283,7 @@ def detail(account_id):
         "accounts/detail.html",
         account=account,
         proxies=proxies,
-        conversation_partners=conversation_partners,
-        other_accounts=other_accounts,
-        recent_activities=recent_activities,
-        channel_candidates=channel_candidates,
-        json_device_params=json_device_params  # Add JSON params
+        json_device_params=json_device_params
     )
 
 
