@@ -458,14 +458,29 @@
             <form method="POST" action="{{ url_for('accounts.assign_proxy', account_id=account.id) }}">
                 <div class="row">
                     <div class="col-md-9">
-                        <select class="form-select" name="proxy_id">
+                        <select class="form-select" name="proxy_selection">
                             <option value="">No proxy</option>
-                            {% for proxy in proxies %}
-                            <option value="{{ proxy.id }}" {% if account.proxy_id==proxy.id %}selected{% endif %}>
-                                {{ proxy.flag }} {{ proxy.type }}://{{ proxy.host }}:{{ proxy.port }}
-                                {% if proxy.current_ip %}({{ proxy.current_ip }}){% endif %}
-                            </option>
-                            {% endfor %}
+
+                            {% if proxy_networks %}
+                            <optgroup label="📡 Proxy Networks (Dynamic)">
+                                {% for net in proxy_networks %}
+                                <option value="network_{{ net.id }}" {% if account.proxy_network_id==net.id %}selected{%
+                                    endif %}>
+                                    {{ net.name }} (Ports {{ net.start_port }}-{{ net.end_port }})
+                                </option>
+                                {% endfor %}
+                            </optgroup>
+                            {% endif %}
+
+                            <optgroup label="🔒 Individual Proxies (Static)">
+                                {% for proxy in proxies %}
+                                <option value="proxy_{{ proxy.id }}" {% if account.proxy_id==proxy.id %}selected{% endif
+                                    %}>
+                                    {{ proxy.flag }} {{ proxy.type }}://{{ proxy.host }}:{{ proxy.port }}
+                                    {% if proxy.current_ip %}({{ proxy.current_ip }}){% endif %}
+                                </option>
+                                {% endfor %}
+                            </optgroup>
                         </select>
                     </div>
                     <div class="col-md-3">
@@ -474,7 +489,19 @@
                 </div>
             </form>
 
-            {% if account.proxy %}
+            {% if account.proxy_network %}
+            <div class="mt-3 p-3 bg-light rounded border border-primary">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <strong class="text-primary">📡 Dynamics Proxy Network</strong><br>
+                        Network: <strong>{{ account.proxy_network.name }}</strong><br>
+                        Assigned Port: <code>{{ account.assigned_port }}</code><br>
+                        Connection: <code
+                            title="{{ account.proxy_connection_string }}">{{ account.proxy_connection_string }}</code>
+                    </div>
+                </div>
+            </div>
+            {% elif account.proxy %}
             <div class="mt-3 p-3 bg-light rounded">
                 <div class="d-flex justify-content-between align-items-start">
                     <div>

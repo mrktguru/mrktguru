@@ -39,147 +39,249 @@
 
 <div class="card">
     <div class="card-header">
-        <h5 class="mb-0">All Proxies</h5>
+        <ul class="nav nav-tabs card-header-tabs" role="tablist">
+            <li class="nav-item">
+                <a class="nav-link active" data-bs-toggle="tab" href="#proxies">Individual Proxies</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" data-bs-toggle="tab" href="#networks">Proxy Networks</a>
+            </li>
+        </ul>
     </div>
     <div class="card-body p-0">
-        <div class="table-responsive">
-            <table class="table table-hover mb-0">
-                <thead>
-                    <tr>
-                        <th>Type</th>
-                        <th>Host:Port</th>
-                        <th>Current IP</th>
-                        <th>Mobile</th>
-                        <th>Last Rotation</th>
-                        <th>Status</th>
-                        <th>Assigned</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for proxy in proxies %}
-                    <tr>
-                        <td>
-                            <span class="badge bg-secondary">{{ proxy.type }}</span>
-                            {% if proxy.country and get_country_flag %}
-                            <span class="ms-1" title="{{ proxy.country }}" style="font-size: 1.2em;">
-                                {{ get_country_flag(proxy.country) }}
-                            </span>
-                            {% endif %}
-                        </td>
-                        <td>
-                            <code>{{ proxy.host }}:{{ proxy.port }}</code>
-                            {% if proxy.username %}
-                            <i class="bi bi-lock text-muted" title="Authenticated"></i>
-                            {% endif %}
-                        </td>
-                        <td>
-                            {% if proxy.current_ip %}
-                            <span class="badge bg-info">{{ proxy.current_ip }}</span>
-                            {% else %}
-                            <span class="text-muted">Unknown</span>
-                            {% endif %}
-                        </td>
-                        <td>
-                            {% if proxy.is_mobile %}
-                            <span class="badge bg-success">
-                                <i class="bi bi-phone"></i> Yes
-                            </span>
-                            {% else %}
-                            <span class="text-muted">No</span>
-                            {% endif %}
-                        </td>
-                        <td>
-                            {% if proxy.last_rotation %}
-                            <small>{{ proxy.last_rotation.strftime('%Y-%m-%d %H:%M') }}</small>
-                            {% else %}
-                            <span class="text-muted">Never</span>
-                            {% endif %}
-                        </td>
-                        <td>
-                            {% if proxy.status == 'active' %}
-                            <span class="badge bg-success">{{ proxy.status }}</span>
-                            {% elif proxy.status == 'error' %}
-                            <span class="badge bg-danger">{{ proxy.status }}</span>
-                            {% else %}
-                            <span class="badge bg-secondary">{{ proxy.status }}</span>
-                            {% endif %}
-                        </td>
-                        <td>
-                            <span class="badge bg-primary">{{ proxy.accounts.count() }} accounts</span>
-                        </td>
-                        <td>
-                            <div class="btn-group btn-group-sm">
-                                <button class="btn btn-outline-success test-proxy-btn" data-proxy-id="{{ proxy.id }}"
-                                    title="Test">
-                                    <i class="bi bi-lightning"></i>
-                                </button>
-                                {% if proxy.is_mobile %}
-                                <button class="btn btn-outline-info rotate-proxy-btn" data-proxy-id="{{ proxy.id }}"
-                                    title="Rotate IP">
-                                    <i class="bi bi-arrow-repeat"></i>
-                                </button>
-                                {% endif %}
-                                <button class="btn btn-outline-primary" data-bs-toggle="modal"
-                                    data-bs-target="#editProxyModal{{ proxy.id }}" title="Edit">
-                                    <i class="bi bi-pencil"></i>
-                                </button>
-                                <form method="POST" action="{{ url_for('proxies.delete', proxy_id=proxy.id) }}"
-                                    style="display: inline;">
-                                    <button type="submit" class="btn btn-outline-danger"
-                                        onclick="return confirm('Delete this proxy?')" title="Delete">
-                                        <i class="bi bi-trash"></i>
-                                    </button>
-                                </form>
-                            </div>
-                        </td>
-                    </tr>
-
-                    <!-- Edit Modal -->
-                    <div class="modal fade" id="editProxyModal{{ proxy.id }}" tabindex="-1">
-                        <div class="modal-dialog">
-                            <div class="modal-content">
-                                <div class="modal-header">
-                                    <h5 class="modal-title">Edit Proxy</h5>
-                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                                </div>
-                                <form method="POST" action="{{ url_for('proxies.update', proxy_id=proxy.id) }}">
-                                    <div class="modal-body">
-                                        <div class="mb-3">
-                                            <label class="form-label">Proxy String</label>
-                                            <input type="text" class="form-control" name="proxy_string"
-                                                value="{{ proxy.type }}://{% if proxy.username %}{{ proxy.username }}:{{ proxy.password }}@{% endif %}{{ proxy.host }}:{{ proxy.port }}">
-                                        </div>
+        <div class="tab-content">
+            <!-- INDIVIDUAL PROXIES TAB -->
+            <div class="tab-pane fade show active" id="proxies">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>Type</th>
+                                <th>Host:Port</th>
+                                <th>Current IP</th>
+                                <th>Mobile</th>
+                                <th>Last Rotation</th>
+                                <th>Status</th>
+                                <th>Assigned</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for proxy in proxies %}
+                            <tr>
+                                <td>
+                                    <span class="badge bg-secondary">{{ proxy.type }}</span>
+                                    {% if proxy.country and get_country_flag %}
+                                    <span class="ms-1" title="{{ proxy.country }}" style="font-size: 1.2em;">
+                                        {{ get_country_flag(proxy.country) }}
+                                    </span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <code>{{ proxy.host }}:{{ proxy.port }}</code>
+                                    {% if proxy.username %}
+                                    <i class="bi bi-lock text-muted" title="Authenticated"></i>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if proxy.current_ip %}
+                                    <span class="badge bg-info">{{ proxy.current_ip }}</span>
+                                    {% else %}
+                                    <span class="text-muted">Unknown</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if proxy.is_mobile %}
+                                    <span class="badge bg-success">
+                                        <i class="bi bi-phone"></i> Yes
+                                    </span>
+                                    {% else %}
+                                    <span class="text-muted">No</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if proxy.last_rotation %}
+                                    <small>{{ proxy.last_rotation.strftime('%Y-%m-%d %H:%M') }}</small>
+                                    {% else %}
+                                    <span class="text-muted">Never</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if proxy.status == 'active' %}
+                                    <span class="badge bg-success">{{ proxy.status }}</span>
+                                    {% elif proxy.status == 'error' %}
+                                    <span class="badge bg-danger">{{ proxy.status }}</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary">{{ proxy.status }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <span class="badge bg-primary">{{ proxy.accounts.count() }} accounts</span>
+                                </td>
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        <button class="btn btn-outline-success test-proxy-btn"
+                                            data-proxy-id="{{ proxy.id }}" title="Test">
+                                            <i class="bi bi-lightning"></i>
+                                        </button>
                                         {% if proxy.is_mobile %}
-                                        <div class="mb-3">
-                                            <label class="form-label">Rotation URL</label>
-                                            <input type="text" class="form-control" name="rotation_url"
-                                                value="{{ proxy.rotation_url }}">
-                                        </div>
-                                        <div class="mb-3">
-                                            <label class="form-label">Rotation Interval (seconds)</label>
-                                            <input type="number" class="form-control" name="rotation_interval"
-                                                value="{{ proxy.rotation_interval }}" min="300">
-                                        </div>
+                                        <button class="btn btn-outline-info rotate-proxy-btn"
+                                            data-proxy-id="{{ proxy.id }}" title="Rotate IP">
+                                            <i class="bi bi-arrow-repeat"></i>
+                                        </button>
                                         {% endif %}
-                                        <div class="mb-3">
-                                            <label class="form-label">Notes</label>
-                                            <textarea class="form-control" name="notes"
-                                                rows="2">{{ proxy.notes }}</textarea>
+                                        <button class="btn btn-outline-primary" data-bs-toggle="modal"
+                                            data-bs-target="#editProxyModal{{ proxy.id }}" title="Edit">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        <form method="POST" action="{{ url_for('proxies.delete', proxy_id=proxy.id) }}"
+                                            style="display: inline;">
+                                            <button type="submit" class="btn btn-outline-danger"
+                                                onclick="return confirm('Delete this proxy?')" title="Delete">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+
+                            <!-- Edit Modal -->
+                            <div class="modal fade" id="editProxyModal{{ proxy.id }}" tabindex="-1">
+                                <div class="modal-dialog">
+                                    <div class="modal-content">
+                                        <div class="modal-header">
+                                            <h5 class="modal-title">Edit Proxy</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                                         </div>
+                                        <form method="POST" action="{{ url_for('proxies.update', proxy_id=proxy.id) }}">
+                                            <div class="modal-body">
+                                                <div class="mb-3">
+                                                    <label class="form-label">Proxy String</label>
+                                                    <input type="text" class="form-control" name="proxy_string"
+                                                        value="{{ proxy.type }}://{% if proxy.username %}{{ proxy.username }}:{{ proxy.password }}@{% endif %}{{ proxy.host }}:{{ proxy.port }}">
+                                                </div>
+                                                {% if proxy.is_mobile %}
+                                                <div class="mb-3">
+                                                    <label class="form-label">Rotation URL</label>
+                                                    <input type="text" class="form-control" name="rotation_url"
+                                                        value="{{ proxy.rotation_url }}">
+                                                </div>
+                                                <div class="mb-3">
+                                                    <label class="form-label">Rotation Interval (seconds)</label>
+                                                    <input type="number" class="form-control" name="rotation_interval"
+                                                        value="{{ proxy.rotation_interval }}" min="300">
+                                                </div>
+                                                {% endif %}
+                                                <div class="mb-3">
+                                                    <label class="form-label">Notes</label>
+                                                    <textarea class="form-control" name="notes"
+                                                        rows="2">{{ proxy.notes }}</textarea>
+                                                </div>
+                                            </div>
+                                            <div class="modal-footer">
+                                                <button type="button" class="btn btn-secondary"
+                                                    data-bs-dismiss="modal">Cancel</button>
+                                                <button type="submit" class="btn btn-primary">Save Changes</button>
+                                            </div>
+                                        </form>
                                     </div>
-                                    <div class="modal-footer">
-                                        <button type="button" class="btn btn-secondary"
-                                            data-bs-dismiss="modal">Cancel</button>
-                                        <button type="submit" class="btn btn-primary">Save Changes</button>
-                                    </div>
-                                </form>
+                                </div>
                             </div>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- NETWORKS TAB -->
+            <div class="tab-pane fade" id="networks">
+                <div class="p-3">
+                    <button class="btn btn-sm btn-success mb-3" data-bs-toggle="modal"
+                        data-bs-target="#addNetworkModal">
+                        <i class="bi bi-plus"></i> Add Network
+                    </button>
+
+                    <div class="table-responsive">
+                        <table class="table table-bordered">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Name</th>
+                                    <th>Base URL</th>
+                                    <th>Ports</th>
+                                    <th>Capacity</th>
+                                    <th>Usage</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for net in networks %}
+                                <tr>
+                                    <td>{{ net.id }}</td>
+                                    <td><strong>{{ net.name }}</strong></td>
+                                    <td><small>{{ net.base_url }}</small></td>
+                                    <td>{{ net.start_port }} - {{ net.end_port }}</td>
+                                    <td>{{ net.total_ports }}</td>
+                                    <td>
+                                        <span class="badge bg-info">{{ net.accounts|length }} used</span>
+                                    </td>
+                                    <td>
+                                        <form method="POST" action="{{ url_for('proxies.delete_network', id=net.id) }}"
+                                            style="display: inline;">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger"
+                                                onclick="return confirm('Delete this network?')" title="Delete">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </form>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Network Modal -->
+<div class="modal fade" id="addNetworkModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Add Proxy Network</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('proxies.add_network') }}">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Network Name</label>
+                        <input type="text" class="form-control" name="name" placeholder="e.g. DataImpulse California"
+                            required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Base URL (without port)</label>
+                        <input type="text" class="form-control" name="base_url" placeholder="socks5://user:pass@host"
+                            required>
+                        <small class="text-muted">Do NOT include :port at the end</small>
+                    </div>
+                    <div class="row">
+                        <div class="col-6">
+                            <label class="form-label">Start Port</label>
+                            <input type="number" class="form-control" name="start_port" value="10000" required>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">End Port</label>
+                            <input type="number" class="form-control" name="end_port" value="10050" required>
                         </div>
                     </div>
-                    {% endfor %}
-                </tbody>
-            </table>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Add Network</button>
+                </div>
+            </form>
         </div>
     </div>
 </div>

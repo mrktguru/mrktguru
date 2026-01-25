@@ -16,6 +16,7 @@ from models.warmup_log import WarmupLog
 from workers.node_executors import execute_node
 from utils.telethon_helper import get_telethon_client
 from database import db
+from utils.proxy_manager import release_dynamic_port # Added
 
 logger = logging.getLogger(__name__)
 
@@ -387,6 +388,21 @@ def execute_scheduled_node(node_id):
                         logger.critical(f"FLOOD_WAIT triggered for account {account_id}")
                         WarmupLog.log(account_id, 'critical', f"FLOOD_WAIT until {account.flood_wait_until}", action='flood_wait_critical')
                 
+                # Check for BAN
+                err_msg = (result.get('error') or '').lower()
+                if 'banned' in err_msg or 'userdeactivated' in err_msg:
+                    account = node.schedule.account
+                    logger.critical(f"[{account_id}] ❌ ACCOUNT BANNED! Marking as banned and releasing port.")
+                    account.status = 'banned'
+                    
+                    # AUTO-RELEASE PORT
+                    if account.assigned_port:
+                         if release_dynamic_port(account):
+                             logger.info(f"[{account_id}] Port released.")
+                    
+                    WarmupLog.log(account_id, 'critical', "Account Banned", action='account_banned')
+                    db.session.commit()
+
                 node.status = 'failed'
                 node.error_message = result.get('error', 'Unknown error') if result else 'Unknown'
                 node.executed_at = datetime.now()

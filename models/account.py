@@ -10,7 +10,12 @@ class Account(db.Model):
     phone = db.Column(db.String(20), unique=True, nullable=False, index=True)
     session_file_path = db.Column(db.String(500), nullable=False)
     session_string = db.Column(db.Text)  # Telethon StringSession for PostgreSQL
-    proxy_id = db.Column(db.Integer, db.ForeignKey('proxies.id'))
+    proxy_id = db.Column(db.Integer, db.ForeignKey('proxies.id'), nullable=True)
+    
+    # Dynamic Proxy Network support
+    proxy_network_id = db.Column(db.Integer, db.ForeignKey('proxy_networks.id'), nullable=True)
+    assigned_port = db.Column(db.Integer, nullable=True)
+
     status = db.Column(db.String(20), default='active', index=True)  # active/warming_up/cooldown/banned
     health_score = db.Column(db.Integer, default=100)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -81,6 +86,18 @@ class Account(db.Model):
         from models.warmup_schedule import WarmupSchedule
         # Try to find 'active' first, then latest created
         return self.warmup_schedules.filter_by(status='active').first()
+
+    @property
+    def proxy_connection_string(self):
+        """Generates full proxy URL on the fly: socks5://user:pass@host:PORT"""
+        if self.proxy_network and self.assigned_port:
+            return f"{self.proxy_network.base_url}:{self.assigned_port}"
+        # Fallback to old system if no network assigned
+        if self.proxy:
+            auth = f"{self.proxy.username}:{self.proxy.password}@" if self.proxy.username else ""
+            return f"{self.proxy.type}://{auth}{self.proxy.host}:{self.proxy.port}"
+        return None
+
 
 class DeviceProfile(db.Model):
     """Device emulation profiles"""

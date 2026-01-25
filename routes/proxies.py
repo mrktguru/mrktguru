@@ -1,6 +1,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 from utils.decorators import login_required
 from models.proxy import Proxy
+from models.proxy_network import ProxyNetwork
 from database import db
 from utils.validators import validate_proxy
 from utils.proxy_helper import test_proxy_connection, rotate_mobile_proxy, extract_country_from_username
@@ -13,8 +14,9 @@ proxies_bp = Blueprint('proxies', __name__)
 def list_proxies():
     """List all proxies"""
     proxies = Proxy.query.order_by(Proxy.created_at.desc()).all()
+    networks = ProxyNetwork.query.order_by(ProxyNetwork.id.desc()).all()
     from utils.proxy_helper import get_country_flag
-    return render_template('proxies/list.html', proxies=proxies, get_country_flag=get_country_flag)
+    return render_template('proxies/list.html', proxies=proxies, networks=networks, get_country_flag=get_country_flag)
 
 
 @proxies_bp.route('/add', methods=['GET', 'POST'])
@@ -261,3 +263,47 @@ def bulk_import():
     
     flash(f'Imported {success_count} proxies. {error_count} errors.', 'success' if success_count > 0 else 'warning')
     return redirect(url_for('proxies.list_proxies'))
+
+
+@proxies_bp.route('/networks/add', methods=['POST'])
+@login_required
+def add_network():
+    """Add new proxy network"""
+    name = request.form.get('name')
+    base_url = request.form.get('base_url')
+    start_port = int(request.form.get('start_port'))
+    end_port = int(request.form.get('end_port'))
+    
+    if not name or not base_url or not start_port or not end_port:
+        flash('All fields required', 'error')
+        return redirect(url_for('proxies.list_proxies'))
+        
+    network = ProxyNetwork(
+        name=name,
+        base_url=base_url,
+        start_port=start_port,
+        end_port=end_port
+    )
+    
+    db.session.add(network)
+    db.session.commit()
+    flash('Proxy Network added', 'success')
+    return redirect(url_for('proxies.list_proxies'))
+
+
+@proxies_bp.route('/networks/<int:id>/delete', methods=['POST'])
+@login_required
+def delete_network(id):
+    """Delete proxy network"""
+    network = ProxyNetwork.query.get_or_404(id)
+    
+    # Check usage
+    if network.accounts and len(network.accounts) > 0:
+        flash(f'Cannot delete network: assigned to {len(network.accounts)} accounts', 'error')
+        return redirect(url_for('proxies.list_proxies'))
+        
+    db.session.delete(network)
+    db.session.commit()
+    flash('Proxy Network deleted', 'success')
+    return redirect(url_for('proxies.list_proxies'))
+

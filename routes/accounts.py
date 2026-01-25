@@ -3,9 +3,11 @@ from utils.decorators import login_required
 from models.account import Account, DeviceProfile, AccountSubscription
 from models.tdata_metadata import TDataMetadata
 from models.proxy import Proxy
+from models.proxy_network import ProxyNetwork
 from database import db
 from utils.device_emulator import generate_device_profile
 from utils.telethon_helper import verify_session
+from utils.proxy_manager import assign_dynamic_port, release_dynamic_port
 import os
 from werkzeug.utils import secure_filename
 import asyncio
@@ -267,6 +269,7 @@ def detail(account_id):
     
     account = Account.query.get_or_404(account_id)
     proxies = Proxy.query.filter_by(status="active").all()
+    proxy_networks = ProxyNetwork.query.all()
     
     # Get recent system/activity logs (replacement for warmup logs)
     from models.activity_log import AccountActivityLog
@@ -289,6 +292,7 @@ def detail(account_id):
         "accounts/detail.html",
         account=account,
         proxies=proxies,
+        proxy_networks=proxy_networks,
         json_device_params=json_device_params,
         recent_logs=recent_logs
     )
@@ -627,45 +631,62 @@ def delete(account_id):
 @accounts_bp.route("/<int:account_id>/assign-proxy", methods=["POST"])
 @login_required
 def assign_proxy(account_id):
-    """Assign proxy to account"""
+    """Assign proxy (individual or network) to account"""
     from utils.activity_logger import ActivityLogger
     from models.proxy import Proxy
+    from models.proxy_network import ProxyNetwork
+    from utils.proxy_manager import assign_dynamic_port, release_dynamic_port
     
     account = Account.query.get_or_404(account_id)
     logger = ActivityLogger(account_id)
-    proxy_id = request.form.get("proxy_id")
     
-    if proxy_id:
-        proxy = Proxy.query.get(int(proxy_id))
-        account.proxy_id = int(proxy_id)
-        db.session.commit()
-        
-        # Log proxy assignment
-        logger.log(
-            action_type='assign_proxy',
-            status='success',
-            description=f"Proxy assigned: {proxy.host}:{proxy.port}",
-            details=f"Type: {proxy.type}, IP: {proxy.current_ip or 'Unknown'}",
-            proxy_used=f"{proxy.host}:{proxy.port}",
-            category='system'
-        )
-        
-        flash("Proxy assigned", "success")
-    else:
-        old_proxy = account.proxy
+    # Form value format: "proxy_{id}" or "network_{id}" or ""
+    selection = request.form.get("proxy_selection")
+    
+    # 1. Clear existing assignment first
+    if account.proxy_id:
         account.proxy_id = None
-        db.session.commit()
-        
-        # Log proxy removal
-        logger.log(
-            action_type='remove_proxy',
-            status='success',
-            description='Proxy removed from account',
-            details=f"Previous proxy: {old_proxy.host}:{old_proxy.port}" if old_proxy else None,
-            category='system'
-        )
-        
+    
+    if account.proxy_network_id:
+        release_dynamic_port(account)
+        account.proxy_network_id = None
+        account.assigned_port = None
+
+    db.session.commit() # Commit clearing
+    
+    if not selection:
         flash("Proxy removed", "info")
+        logger.log(action_type='remove_proxy', status='success', description='Proxy removed', category='system')
+        return redirect(url_for("accounts.detail", account_id=account_id))
+        
+    try:
+        if selection.startswith("proxy_"):
+            p_id = int(selection.replace("proxy_", ""))
+            proxy = Proxy.query.get(p_id)
+            if proxy:
+                account.proxy_id = proxy.id
+                db.session.commit()
+                flash(f"Assigned Individual Proxy: {proxy.host}:{proxy.port}", "success")
+                logger.log(action_type='assign_proxy', status='success', description=f"Assigned: {proxy.host}", category='system')
+            else:
+                flash("Proxy not found", "error")
+
+        elif selection.startswith("network_"):
+            n_id = int(selection.replace("network_", ""))
+            network = ProxyNetwork.query.get(n_id)
+            if network:
+                port = assign_dynamic_port(account, n_id)
+                flash(f"Assigned Network: {network.name} (Port {port})", "success")
+                logger.log(action_type='assign_proxy', status='success', description=f"Network: {network.name} Port {port}", category='system')
+            else:
+                flash("Network not found", "error")
+        else:
+            flash("Invalid selection", "error")
+            
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Error assigning proxy: {str(e)}", "error")
+        logger.log(action_type='assign_proxy', status='failed', description=f"Error: {e}", category='system')
     
     return redirect(url_for("accounts.detail", account_id=account_id))
 
