@@ -268,6 +268,12 @@ def detail(account_id):
     account = Account.query.get_or_404(account_id)
     proxies = Proxy.query.filter_by(status="active").all()
     
+    # Get recent system/activity logs (replacement for warmup logs)
+    from models.activity_log import AccountActivityLog
+    recent_logs = AccountActivityLog.query.filter_by(
+        account_id=account_id
+    ).order_by(AccountActivityLog.timestamp.desc()).limit(20).all()
+    
     # Get JSON device parameters if available
     json_device_params = None
     if account.tdata_metadata and account.tdata_metadata.json_raw_data:
@@ -283,7 +289,8 @@ def detail(account_id):
         "accounts/detail.html",
         account=account,
         proxies=proxies,
-        json_device_params=json_device_params
+        json_device_params=json_device_params,
+        recent_logs=recent_logs
     )
 
 

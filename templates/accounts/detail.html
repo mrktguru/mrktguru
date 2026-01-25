@@ -525,7 +525,64 @@
         END WARMUP DISABLED -->
 
     <!-- NEW WARMUP SYSTEM -->
-    <!-- WARMUP SECTIONS REMOVED -->
+    <!-- RECENT ACTIVITY LOGS -->
+    <div class="card mb-3">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="bi bi-list-check"></i> Recent Activity</h5>
+            <a href="{{ url_for('accounts.activity_logs', account_id=account.id) }}"
+                class="btn btn-sm btn-outline-primary">
+                View All
+            </a>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-striped table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>Time</th>
+                            <th>Action</th>
+                            <th>Status</th>
+                            <th>Description</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% if recent_logs %}
+                        {% for log in recent_logs %}
+                        <tr>
+                            <td class="text-nowrap" title="{{ log.timestamp }}">{{ log.timestamp.strftime('%H:%M:%S
+                                %d.%m') }}</td>
+                            <td>
+                                <span class="badge bg-secondary">{{ log.action_type }}</span>
+                            </td>
+                            <td>
+                                {% if log.status == 'success' %}
+                                <span class="badge bg-success">Success</span>
+                                {% elif log.status == 'failed' or log.status == 'error' %}
+                                <span class="badge bg-danger">Failed</span>
+                                {% elif log.status == 'warning' %}
+                                <span class="badge bg-warning text-dark">Warning</span>
+                                {% else %}
+                                <span class="badge bg-secondary">{{ log.status }}</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-truncate" style="max-width: 300px;" title="{{ log.description or '' }}">
+                                {{ log.description or '-' }}
+                                {% if log.error_message %}
+                                <br><small class="text-danger">{{ log.error_message }}</small>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        {% else %}
+                        <tr>
+                            <td colspan="4" class="text-center text-muted py-3">No recent activity logs found</td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
 </div>
 </div>
 
