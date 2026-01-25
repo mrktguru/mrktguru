@@ -537,85 +537,45 @@ def sync_from_telegram(account_id):
     bot = SessionOrchestrator(account_id)
     
     async def task_sync_profile(client):
-        try:
-            # Get user info
-            me = await client.get_me()
-            
-            # Prepare result dict to pass back
-            result = {
-                'id': me.id,
-                'first_name': getattr(me, "first_name", None),
-                'last_name': getattr(me, "last_name", None),
-                'username': getattr(me, "username", None),
-                'bio': None,
-                'photo_url': None,
-                'photo_available': False
-            }
-            
-            # Get bio (about)
-            try:
-                full_user = await client.get_entity(me)
-                if hasattr(full_user, 'about'):
-                    result['bio'] = full_user.about
-            except:
-                pass
-            
-            # Try to download profile photo
-            try:
-                if hasattr(me, "photo") and me.photo:
-                    photo_path = f"uploads/photos/{account.phone}_profile.jpg"
-                    os.makedirs("uploads/photos", exist_ok=True)
-                    # We need to await the download
-                    await client.download_profile_photo(me, file=photo_path)
-                    result['photo_url'] = photo_path
-            except Exception as photo_err:
-                 pass
-            
-            # Check availability if download failed or succeeded
-            if hasattr(me, "photo") and me.photo:
-                 result['photo_available'] = True
-
-            return result
-            
-        except Exception as e:
-            raise e
+        # reuse the robust verify_session logic which handles bio, photo, etc.
+        from utils.telethon_helper import verify_session
+        return await verify_session(account_id, force_full=True, client=client)
     
     try:
-        user_data = loop.run_until_complete(bot.execute(task_sync_profile))
+        result = loop.run_until_complete(bot.execute(task_sync_profile))
         
         # Re-fetch account
         account_ref = Account.query.get(account_id)
         if not account_ref:
-             # Should not happen
-             pass
-        else:
-            # Check for name changes
-            if account_ref.last_name and not user_data.get('last_name'):
-                 print(f"⚠️ WARNING: Last name for {account_ref.phone} is being removed (Telegram returned None)")
+             return redirect(url_for('accounts.detail', account_id=account_id))
+        
+        if result['success']:
+             # verify_session returns 'user' dict with all details
+             user = result.get('user', {})
+             
+             if user.get('id'): account_ref.telegram_id = user.get('id')
+             if user.get('first_name'): account_ref.first_name = user['first_name']
+             if user.get('last_name'): account_ref.last_name = user['last_name']
+             if user.get('username'): account_ref.username = user['username']
+             
+             # Photo update
+             if user.get('photo_path'):
+                 account_ref.photo_url = user['photo_path']
+             elif user.get('photo'):
+                 account_ref.photo_url = "photo_available"
                  
-            # Update fields
-            account_ref.telegram_id = user_data['id']
-            account_ref.first_name = user_data['first_name'] or account_ref.first_name
-            account_ref.last_name = user_data['last_name'] or account_ref.last_name
-            account_ref.username = user_data['username']
-            
-            if user_data.get('bio'):
-                account_ref.bio = user_data['bio']
-            
-            if user_data.get('photo_url'):
-                account_ref.photo_url = user_data['photo_url']
-            elif user_data.get('photo_available'):
-                account_ref.photo_url = "photo_available"
-            
-            # Update sync timestamp
-            account_ref.last_sync_at = datetime.utcnow()
-            
-            db.session.commit()
-            
-            msg = f"✅ Profile synced from Telegram: {account_ref.first_name}"
-            if not account_ref.last_name:
-                 msg += " (Note: No last name returned from Telegram)"
-            flash(msg, "success")
+             # Update sync timestamp
+             account_ref.last_sync_at = datetime.utcnow()
+             db.session.commit()
+             flash("✅ Profile synced successfully via Orchestrator", "success")
+             
+             if request.is_json:
+                 return jsonify({'success': True})
+        else:
+             error = result.get('error', 'Unknown error')
+             flash(f"❌ Sync failed: {error}", "error")
+             if request.is_json:
+                 return jsonify({'success': False, 'error': error})
             
     except Exception as e:
         flash(f"Error: {str(e)}", "error")
