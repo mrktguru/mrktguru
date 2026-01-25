@@ -425,7 +425,8 @@
             'visit': '#d1e7dd',
             'smart_subscribe': '#d1e7dd',
             'idle': '#f8f9fa',
-            'passive_activity': '#ffe69c' // Gold/Coffee color
+            'passive_activity': '#ffe69c', // Gold/Coffee color
+            'sync_profile': '#e3f2fd'
         };
         return colors[type] || '#f8f9fa';
     }
@@ -698,7 +699,6 @@
             `;
         }
         else if (type === 'username') {
-            const defaultUser = config.username || (accountData ? accountData.username : '') || '';
             html += `
                 <div class="mb-3">
                     <label class="form-label">Set Username</label>
@@ -706,6 +706,16 @@
                         <span class="input-group-text">@</span>
                         <input type="text" class="form-control" name="username" value="${defaultUser}">
                     </div>
+                </div>
+            `;
+        }
+        else if (type === 'sync_profile') {
+            html += `
+                <div class="alert alert-info small">
+                    <strong>🔄 Sync Profile:</strong><br>
+                    This node pulls the latest Name, Username, Bio, and Photo from Telegram and updates the local database.<br>
+                    <br>
+                    <em>No extra configuration needed.</em>
                 </div>
             `;
         }
@@ -1238,7 +1248,8 @@
             'bio': '👤 Bio', 'username': '@Username', 'photo': '📷 Photo',
             'import_contacts': '📞 Import', 'subscribe': '📺 Subscribe',
             'visit': '👁️ Visit', 'idle': '💤 Idle',
-            'passive_activity': '🧘 Passive Activity', 'smart_subscribe': '🔔 Smart'
+            'passive_activity': '🧘 Passive Activity', 'smart_subscribe': '🔔 Smart',
+            'sync_profile': '🔄 Sync Profile'
         };
         return labels[type] || type;
     }
