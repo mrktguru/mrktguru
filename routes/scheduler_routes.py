@@ -39,53 +39,8 @@ def get_schedule(account_id):
         # ---------------------------------------------------------
         # BACKFILL: Fetch historical logs and convert to ghost nodes
         # ---------------------------------------------------------
-        from models.warmup_log import WarmupLog
-        from models.account import Account
-        
-        account = Account.query.get(account_id)
-        if account and account.created_at:
-            logs = WarmupLog.query.filter_by(
-                account_id=account_id, 
-                status='success'
-            ).all()
-            
-            # Map logs to ghost nodes
-            ghost_id_counter = -1
-            for log in logs:
-                # Calculate Day Number
-                delta = log.timestamp - account.created_at
-                day_num = max(1, delta.days + 1)
-                
-                # Format time
-                time_str = log.timestamp.strftime('%H:%M')
-                
-                # Determine Node Type from action/category
-                # Actions: 'complete', 'set_photo', 'send_saved_message', 'read_posts_success', 'visit_success'
-                node_type = 'passive_activity' # default
-                if log.action_type == 'set_photo': node_type = 'photo'
-                elif log.action_type == 'update_bio': node_type = 'bio'
-                elif log.action_type == 'update_username': node_type = 'username'
-                elif 'subscribe' in (log.action_type or ''): node_type = 'subscribe'
-                elif 'visit' in (log.action_type or ''): node_type = 'visit'
-                elif 'message' in (log.action_type or ''): node_type = 'send_message'
-                
-                ghost_node = {
-                    'id': ghost_id_counter,
-                    'is_ghost': True, # Flag for frontend
-                    'schedule_id': schedule.id if schedule else 0,
-                    'node_type': node_type,
-                    'day_number': day_num,
-                    'execution_time': time_str,
-                    'is_random_time': False,
-                    'config': {'description': log.message},
-                    'status': 'completed',
-                    'executed_at': log.timestamp.isoformat(),
-                    'error_message': None,
-                    'created_at': log.timestamp.isoformat(),
-                    'updated_at': log.timestamp.isoformat()
-                }
-                node_dicts.append(ghost_node)
-                ghost_id_counter -= 1
+        ghost_nodes = _get_ghost_nodes(account_id, schedule.id if schedule else 0)
+        node_dicts.extend(ghost_nodes)
 
         return jsonify({
             'schedule': schedule_dict,
@@ -374,7 +329,7 @@ def resume_schedule(schedule_id):
 
 
 @scheduler_bp.route('/schedules/<int:schedule_id>/status', methods=['GET'])
-def get_schedule_status(schedule_id):
+def get_schedule_status(schedule_id, account_id=None):
     """Get detailed status of schedule execution"""
     try:
         schedule = WarmupSchedule.query.get(schedule_id)
@@ -383,6 +338,21 @@ def get_schedule_status(schedule_id):
         
         # Get all nodes grouped by status
         nodes = WarmupScheduleNode.query.filter_by(schedule_id=schedule_id).all()
+        node_dicts = [node.to_dict() for node in nodes]
+        
+        # BACKFILL GHOST NODES (if account_id provided via kwargs or derived)
+        # We need account_id. Schedule has it.
+        ghost_nodes = _get_ghost_nodes(schedule.account_id, schedule_id)
+        
+        # Merge ghost nodes
+        # Note: Ghost nodes are dictionaries, real nodes are models
+        for ghost in ghost_nodes:
+            # Add to list
+            node_dicts.append(ghost)
+            
+            # Add to status counts (only completed ones usually)
+            # Actually status_counts logic below iterates over 'nodes' (models).
+            # We should probably update the iteration or the returned list.
         
         status_counts = {
             'pending': 0,
@@ -391,11 +361,16 @@ def get_schedule_status(schedule_id):
             'failed': 0
         }
         
+        # Count real nodes
         for node in nodes:
             status_counts[node.status] = status_counts.get(node.status, 0) + 1
+            
+        # Count ghost nodes
+        for g in ghost_nodes:
+             status_counts[g['status']] = status_counts.get(g['status'], 0) + 1
         
         # Calculate progress
-        total_nodes = len(nodes)
+        total_nodes = len(nodes) + len(ghost_nodes)
         completed_nodes = status_counts['completed']
         progress_percent = (completed_nodes / total_nodes * 100) if total_nodes > 0 else 0
         
@@ -411,7 +386,7 @@ def get_schedule_status(schedule_id):
             'total_nodes': total_nodes,
             'status_counts': status_counts,
             'progress_percent': round(progress_percent, 1),
-            'nodes': [node.to_dict() for node in nodes]
+            'nodes': node_dicts
         }), 200
         
     except Exception as e:
@@ -427,10 +402,64 @@ def get_account_schedule_status(account_id):
         if not schedule:
             return jsonify({'schedule': None}), 200
         
-        return get_schedule_status(schedule.id)
+        return get_schedule_status(schedule.id, account_id=account_id)
     except Exception as e:
         logger.error(f"Error getting account schedule status: {e}")
         return jsonify({'error': str(e)}), 500
+
+def _get_ghost_nodes(account_id, schedule_id):
+    """Helper to fetch historical logs and convert to ghost nodes"""
+    from models.warmup_log import WarmupLog
+    from models.account import Account
+    
+    nodes = []
+    account = Account.query.get(account_id)
+    if not account or not account.created_at:
+        return []
+        
+    logs = WarmupLog.query.filter_by(
+        account_id=account_id, 
+        status='success'
+    ).all()
+    
+    ghost_id_counter = -1
+    for log in logs:
+        # Calculate Day Number
+        delta = log.timestamp - account.created_at
+        day_num = max(1, delta.days + 1)
+        
+        # Format time
+        time_str = log.timestamp.strftime('%H:%M')
+        
+        # Determine Node Type
+        node_type = 'passive_activity' 
+        if log.action_type == 'set_photo': node_type = 'photo'
+        elif log.action_type == 'update_bio': node_type = 'bio'
+        elif log.action_type == 'update_username': node_type = 'username'
+        elif 'subscribe' in (log.action_type or ''): node_type = 'subscribe'
+        elif 'visit' in (log.action_type or ''): node_type = 'visit'
+        elif 'message' in (log.action_type or ''): node_type = 'send_message'
+        
+        ghost_node = {
+            'id': ghost_id_counter,
+            'is_ghost': True,
+            'schedule_id': schedule_id,
+            'node_type': node_type,
+            'day_number': day_num,
+            'execution_time': time_str,
+            'is_random_time': False,
+            'config': {'description': log.message},
+            'status': 'completed',
+            'executed_at': log.timestamp.isoformat(),
+            'error_message': None,
+            'created_at': log.timestamp.isoformat(),
+            'updated_at': log.timestamp.isoformat()
+        }
+        nodes.append(ghost_node)
+        ghost_id_counter -= 1
+        
+    return nodes
+
 
 @scheduler_bp.route('/upload', methods=['POST'])
 def upload_asset():

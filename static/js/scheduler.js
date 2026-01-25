@@ -79,7 +79,7 @@
         const newOffset = currentWeekOffset + delta;
         if (newOffset < 0) return; // Can't go before week 1
         currentWeekOffset = newOffset;
-        renderHeader();
+        renderGridStructure(); // Re-render grid (colors/checking past/today) and header
         renderNodes();
     }
 
