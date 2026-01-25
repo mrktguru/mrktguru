@@ -974,6 +974,117 @@ async def execute_node_passive_activity(client, account_id, config):
     return {'success': True, 'message': f'Completed {duration_mins}m session with {len(scroll_events)} scrolls'}
 
 
+async def node_sync_profile(client, account_id, config):
+    """
+    NODE: Sync Profile Data
+    Обновляет Имя, Юзернейм, Био и Аватарку из Telegram в локальную БД.
+    """
+    import os
+    from datetime import datetime
+    from app import app, db
+    from models.account import Account
+    from telethon.tl.functions.users import GetFullUserRequest
+
+    logger.info(f"[{account_id}] 🔄 Starting Profile Sync Node...")
+
+    try:
+        # 1. Получаем базовые данные (Me)
+        me = await client.get_me()
+        if not me:
+            return {'success': False, 'error': 'Could not get_me()'}
+
+        # 2. Получаем расширенные данные (Bio)
+        about_text = None
+        try:
+            full_user_data = await client(GetFullUserRequest(me))
+            if hasattr(full_user_data, 'full_user') and hasattr(full_user_data.full_user, 'about'):
+                about_text = full_user_data.full_user.about
+        except Exception as e:
+            logger.warning(f"[{account_id}] Could not fetch Bio: {e}")
+
+        # 3. Скачиваем фото (если есть)
+        photo_db_path = None
+        if getattr(me, 'photo', None):
+            try:
+                upload_folder = os.path.join(os.getcwd(), 'uploads', 'photos')
+                os.makedirs(upload_folder, exist_ok=True)
+                
+                # Стабильное имя файла: phone_id.jpg
+                # Чтобы при повторном запуске просто перезаписывать старое фото
+                filename = f"{account_id}_{me.id}.jpg" 
+                filepath = os.path.join(upload_folder, filename)
+                
+                # Скачиваем (перезапишет существующий файл)
+                await client.download_profile_photo(me, file=filepath)
+                
+                # Путь для записи в БД
+                if os.path.exists(filepath):
+                    photo_db_path = f"uploads/photos/{filename}"
+                    
+            except Exception as e:
+                logger.error(f"[{account_id}] Photo download error: {e}")
+
+        # 4. Обновляем Базу Данных (Синхронная часть)
+        # Обычно executors запускаются внутри контекста, но для надежности:
+        with app.app_context():
+            try:
+                account = Account.query.get(account_id)
+                if not account:
+                    return {'success': False, 'error': 'Account not found in DB'}
+
+                changed = []
+
+                # Обновляем поля, если они изменились
+                if account.telegram_id != me.id:
+                    account.telegram_id = me.id
+                    changed.append('id')
+
+                tg_first = me.first_name or ""
+                tg_last = me.last_name or ""
+                tg_username = me.username or ""
+
+                if account.first_name != tg_first:
+                    account.first_name = tg_first
+                    changed.append('first_name')
+                
+                if account.last_name != tg_last:
+                    account.last_name = tg_last
+                    changed.append('last_name')
+                
+                if account.username != tg_username:
+                    account.username = tg_username
+                    changed.append('username')
+
+                if about_text is not None and account.bio != about_text:
+                    account.bio = about_text
+                    changed.append('bio')
+
+                if photo_db_path and account.photo_url != photo_db_path:
+                    account.photo_url = photo_db_path
+                    changed.append('photo')
+
+                # Всегда обновляем дату синхронизации
+                # Ensure field exists or handle error if user schema is different? 
+                # Assuming user knows best.
+                if hasattr(account, 'last_sync_at'):
+                   account.last_sync_at = datetime.now()
+
+                db.session.commit()
+
+                msg = f"Sync complete. Updated: {', '.join(changed) if changed else 'No changes'}"
+                logger.info(f"[{account_id}] ✅ {msg}")
+                return {'success': True, 'message': msg}
+
+            except Exception as db_err:
+                db.session.rollback()
+                logger.error(f"[{account_id}] DB Error: {db_err}")
+                return {'success': False, 'error': str(db_err)}
+
+    except Exception as e:
+        logger.error(f"[{account_id}] Node execution failed: {e}")
+        return {'success': False, 'error': str(e)}
+
+
 # Node executor registry
 NODE_EXECUTORS = {
     'bio': execute_node_bio,
@@ -986,6 +1097,7 @@ NODE_EXECUTORS = {
     'idle': execute_node_idle,
     'smart_subscribe': execute_node_smart_subscribe,
     'passive_activity': execute_node_passive_activity, # 🔥 United Passive Node
+    'sync_profile': node_sync_profile, # Added profile sync node
 }
 
 
