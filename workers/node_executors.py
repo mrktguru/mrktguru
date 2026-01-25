@@ -173,8 +173,10 @@ async def execute_node_photo(client, account_id, config):
         
         # Update local DB
         if 'uploads/' in photo_path:
-            relative_path = photo_path.split('uploads/')[-1]
-            account.photo = relative_path
+            # We want 'uploads/media/file.jpg' not just 'media/file.jpg'
+            # because the route is /uploads/<filename> and the template uses src="/{{ photo_url }}"
+            relative_path = 'uploads/' + photo_path.split('uploads/')[-1]
+            account.photo_url = relative_path
         
         await asyncio.sleep(random.uniform(2, 5))
         db.session.commit()
