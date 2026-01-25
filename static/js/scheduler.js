@@ -881,11 +881,21 @@
                 const method = node.id ? 'PUT' : 'POST';
                 const url = node.id ? `/scheduler/nodes/${node.id}` : `/scheduler/schedules/${scheduleId}/nodes`;
 
-                // If node has temporary props, clean them? No, backend ignores unknown fields.
+                // Sanitise payload to avoid cyclic object value (node.el is a DOM element)
+                const payload = {
+                    node_type: node.node_type,
+                    day_number: node.day_number,
+                    execution_time: node.execution_time,
+                    is_random_time: node.is_random_time,
+                    config: node.config || {},
+                    status: node.status || 'pending'
+                };
+                if (node.id) payload.id = node.id;
+
                 const res = await fetch(url, {
                     method: method,
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(node)
+                    body: JSON.stringify(payload)
                 });
 
                 const text = await res.text();
