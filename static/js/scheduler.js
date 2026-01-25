@@ -895,17 +895,18 @@
                     if (d.node) node.id = d.node.id;
                 } catch (e) {
                     console.error('JSON Parse Error:', text);
-                    if (!silent) showToast('❌ Error', `Failed to save node: ${text.substring(0, 100)}`, 'danger');
-                    return false; // Partial failure
+                    const errMsg = `Failed to save node: ${text.substring(0, 100)}`;
+                    if (!silent) showToast('❌ Error', errMsg, 'danger');
+                    return { success: false, error: errMsg }; // Partial failure
                 }
             }
             if (!silent) showToast('✅ Saved', 'Schedule saved successfully!', 'success');
-            return true; // Success
+            return { success: true }; // Success
 
         } catch (e) {
             console.error(e);
             if (!silent) showToast('❌ Error', 'Save failed: ' + e.message, 'danger');
-            return false; // Failure
+            return { success: false, error: e.message }; // Failure
         }
     }
 
@@ -953,7 +954,7 @@
     async function runNodeNow() {
         if (!currentNode) return;
 
-        if (!confirm('Execute this node IMMEDIATELY?')) return;
+        if (!confirm('Execute this node IMMEDIATELY? This will move it to the current time.')) return;
 
         // Grab current config from form
         const form = document.getElementById('nodeConfigForm');
@@ -966,42 +967,44 @@
             else tempConfig[key] = value;
         }
 
-        // 1. SAVE node state locally (update object)
-        currentNode.execution_time = form.execution_time.value;
-        currentNode.is_random_time = form.is_random_time.checked;
+        // 1. UPDATE NODE: Move to NOW
+        const now = new Date();
+        const currentHours = now.getHours();
+        const currentMinutes = now.getMinutes();
+        const timeString = `${String(currentHours).padStart(2, '0')}:${String(currentMinutes).padStart(2, '0')}`;
+
+        currentNode.execution_time = timeString;
+        currentNode.is_random_time = false;
         currentNode.config = tempConfig;
 
         // Update duration if changed
         if (tempConfig.duration_minutes) currentNode._ui_duration = parseInt(tempConfig.duration_minutes);
 
-        // 2. SAVE to server (persist node ID)
-        const saved = await saveSchedule(true); // Silent save
-        if (!saved) {
-            showToast('⚠️ Warning', 'Could not save node state before running. Execution might proceed but node may not be saved.', 'warning');
+        // 2. SAVE to server (persist updated time/config)
+        const saveRes = await saveSchedule(true); // Silent save
+        if (!saveRes.success) {
+            showToast('⚠️ Save Failed', `Could not save node params: ${saveRes.error}. Stopping.`, 'danger');
+            return;
         }
 
-        const payload = {
-            node_type: currentNode.node_type,
-            config: tempConfig
-        };
-
-        // CLOSE MODAL IMMEDIATELY
+        // CLOSE MODAL
         configModal.hide();
-        renderNodes(); // Re-render first
+        renderNodes(); // Re-render to show it at new time
 
-        // Show running status on node element in calendar
+        // 3. EXECUTE (Persistent)
         if (currentNode.el) {
             currentNode.el.classList.add('executing');
-            currentNode.el.style.border = '2px solid #ffc107'; // Ensure visibility
-
-            // Visual feedback
-            const badge = document.createElement('span');
-            badge.className = 'badge bg-warning text-dark position-absolute top-0 end-0 m-1';
-            badge.innerText = 'Running...';
-            badge.id = 'running-badge-' + (currentNode.id || 'temp');
-            currentNode.el.appendChild(badge);
+            currentNode.el.style.border = '2px solid #ffc107';
 
             try {
+                // Pass node_id to use persistent execution path
+                const payload = {
+                    node_id: currentNode.id,
+                    account_id: schedulerAccountId,
+                    node_type: currentNode.node_type,
+                    config: tempConfig
+                };
+
                 const resp = await fetch(`/scheduler/accounts/${schedulerAccountId}/run_node`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -1011,10 +1014,10 @@
                 const data = await resp.json();
 
                 if (resp.ok) {
-                    // Success
-                    showToast('✅ Success', `Node executed successfully! ${data.result || data.message || ''}`, 'success');
+                    showToast('🚀 Started', `Node moved to ${timeString} and started!`, 'success');
+                    // Reload to reflect 'running' status from DB
+                    setTimeout(loadSchedule, 1000);
                 } else {
-                    // Error
                     currentNode.el.classList.remove('executing');
                     currentNode.el.classList.add('node-error');
                     showToast('❌ Error', data.error || 'Execution failed', 'danger');
@@ -1025,16 +1028,6 @@
                 currentNode.el.classList.add('node-error');
                 showToast('❌ Error', 'Execution error: ' + err.message, 'danger');
             }
-            // Note: We do NOT call renderNodes() in finally here to keep the "Running" visual
-            // The ad-hoc run doesn't change persistent status, so refreshing would wipe the visual.
-            // We just let it stay marked until user refreshes or moves it.
-
-            // Actually, better to remove the badge after a timeout if success
-            setTimeout(() => {
-                const b = document.getElementById('running-badge-' + (currentNode.id || 'temp'));
-                if (b) b.remove();
-                if (currentNode.el) currentNode.el.style.border = '';
-            }, 5000);
         }
     }
 

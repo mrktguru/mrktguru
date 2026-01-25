@@ -417,23 +417,58 @@ def run_node_immediately(account_id):
             return jsonify({'error': 'Account not found'}), 404
         
         data = request.json or {}
-        node_type = data.get('node_type')
-        config = data.get('config', {})
         
-        if not node_type:
-            return jsonify({'error': 'node_type required'}), 400
+        # Check if we are running an existing persistent node
+        node_id = data.get('node_id')
+        if node_id:
+            # Persistent execution
+            from workers.scheduler_worker import execute_scheduled_node
             
-        # Execute using shared node logic
-        # Execute asynchronously via Celery
-        from workers.scheduler_worker import execute_adhoc_node
-        
-        # Launch task
-        task = execute_adhoc_node.apply_async(args=[account_id, node_type, config])
-        
-        return jsonify({
-            'message': 'Execution started in background', 
-            'task_id': task.id
-        }), 200
+            # Reset status to pending so worker picks it up (or set running immediately?)
+            # Actually worker expects pending, but if we want visual immediate feedback
+            # we can set running here? Or let worker set running.
+            # Worker checks: if node.status != 'pending' -> return.
+            # BUT user wants to force run.
+            # So we should probably force status back to pending if it was failed/completed?
+            # Or better: The JS already sets it to 'running' visually?
+            # Wait, if JS sets visually 'running', but DB is 'pending', worker sets 'running'.
+            # If we set DB 'running' here, worker skips it!
+            
+            # Re-read worker logic:
+            # if node.status != 'pending': skip.
+            
+            # So here we MUST ensure it's pending.
+            node = WarmupScheduleNode.query.get(node_id)
+            if node:
+                node.status = 'pending' 
+                db.session.commit()
+                
+            task = execute_scheduled_node.apply_async(args=[node_id])
+            
+            return jsonify({
+                'message': 'Execution started (persistent)', 
+                'task_id': task.id,
+                'status': 'running' 
+            }), 200
+
+        else:
+            # ADHOC Execution (old logic)
+            node_type = data.get('node_type')
+            config = data.get('config', {})
+            
+            if not node_type:
+                return jsonify({'error': 'node_type required'}), 400
+                
+            # Execute asynchronously via Celery
+            from workers.scheduler_worker import execute_adhoc_node
+            
+            # Launch task
+            task = execute_adhoc_node.apply_async(args=[account_id, node_type, config])
+            
+            return jsonify({
+                'message': 'Execution started in background', 
+                'task_id': task.id
+            }), 200
 
     except Exception as e:
         logger.error(f"Error executing node immediate: {e}")
