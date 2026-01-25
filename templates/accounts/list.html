@@ -69,6 +69,7 @@
         <table class="table table-hover mb-0" id="accountsTable">
             <thead>
                 <tr>
+                    <th style="width: 50px;">Photo</th>
                     <th>Phone</th>
                     <th>Name</th>
                     <th>Username</th>
@@ -84,6 +85,17 @@
             <tbody>
                 {% for account in accounts %}
                 <tr>
+                    <td>
+                        {% if account.photo_url and account.photo_url != "photo_available" %}
+                        <img src="/{{ account.photo_url }}" class="rounded-circle" width="32" height="32"
+                            style="object-fit: cover;">
+                        {% else %}
+                        <div class="bg-secondary rounded-circle d-flex align-items-center justify-content-center"
+                            style="width: 32px; height: 32px;">
+                            <i class="bi bi-person-fill text-white"></i>
+                        </div>
+                        {% endif %}
+                    </td>
                     <td>
                         <a href="{{ url_for('accounts.detail', account_id=account.id) }}">
                             {{ account.phone }}
