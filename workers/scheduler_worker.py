@@ -168,15 +168,35 @@ def should_execute_now(node, current_time):
     
     else:
         # Fixed time format: "14:00"
-        try:
             target_hour, target_min = map(int, node.execution_time.split(':'))
             
-            # Execute if current time matches (within 1 minute window)
-            # LOGGING DEBUG
-            logger.info(f"Checking node {node.id}: Target={target_hour}:{target_min} vs Current={current_hour}:{current_minute}")
+            # Convert to minutes for easier comparison
+            target_total = target_hour * 60 + target_min
+            current_total = current_hour * 60 + current_minute
             
-            if current_hour == target_hour and abs(current_minute - target_min) <= 1:
-                return True
+            # Handle day rollover comparison conceptually (though usually we filter by day_number)
+            # If target is 23:59 and current is 00:05 (next day), logic might differ, 
+            # but here we rely on the main loop selecting `nodes` for `day_number`.
+            # Assuming 'now' matches 'day_number' approximately.
+            
+            # LOGGING DEBUG
+            # logger.info(f"Checking node {node.id}: Target={target_hour}:{target_min} vs Current={current_hour}:{current_minute}")
+            
+            # Allow execution if we are ON TIME or LATE (Catch-up)
+            # But not if we are TOO LATE (expired handled by is_node_expired, usually > 15m)
+            # And not if we are too early (wait)
+            
+            diff = current_total - target_total
+            
+            # Execute if:
+            # 1. We are exactly on time or slightly early (diff >= -1)
+            # 2. We are late but within catch-up window (diff <= 15)
+            # Note: is_node_expired checks > 15. So here we handle <= 15.
+            
+            if -1 <= diff <= 15:
+                 return True
+                 
+            return False
         
         except:
             logger.error(f"Invalid execution_time format for node {node.id}: {node.execution_time}")
@@ -257,15 +277,26 @@ def execute_scheduled_node(node_id):
                              return {'success': False, 'error': 'Client not authorized (checked in wrapper)'}
 
                         return await execute_node(
-                            node.node_type,
                             client,
+                            node.node_type,
                             account_id,
                             node.config or {}
                         )
                     
-                    return await orch.execute(task_wrapper)
+                    logger.info("Calling orch.execute(task_wrapper)...")
+                    res = await orch.execute(task_wrapper)
+                    logger.info("orch.execute finished.")
+                    return res
                 finally:
-                    await orch.stop()
+                    logger.info("Calling orch.stop()...")
+                    try:
+                        await orch.stop()
+                        logger.info("orch.stop() finished.")
+                    except Exception as e:
+                         # Log but don't crash the result if the task actually succeeded
+                         logger.error(f"Error in orch.stop(): {e}")
+                         if "NoneType" in str(e) and "await" in str(e):
+                             logger.critical("Detecting the Async NoneType error in orch.stop()!")
 
             try:
                 result = asyncio.run(run_with_orchestrator())
@@ -353,8 +384,8 @@ def execute_adhoc_node(account_id, node_type, config):
                              await client.connect()
                         
                         return await execute_node(
-                            node_type,
                             client,
+                            node_type,
                             account_id,
                             config
                         )

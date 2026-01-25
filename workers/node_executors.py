@@ -978,13 +978,13 @@ NODE_EXECUTORS = {
 }
 
 
-async def execute_node(node_type, client, account_id, config):
+async def execute_node(client, node_type, account_id, config):
     """
     Execute a warmup node by type
     
     Args:
+        client: Telethon client (FIRST ARGUMENT)
         node_type: Type of node ('bio', 'username', etc.)
-        client: Telethon client
         account_id: Account ID
         config: Node configuration dict
     
@@ -997,6 +997,7 @@ async def execute_node(node_type, client, account_id, config):
         return {'success': False, 'error': f'Unknown node type: {node_type}'}
     
     try:
+        # Check if executor expects client first (they all should)
         result = await executor(client, account_id, config)
         return result
     except Exception as e:

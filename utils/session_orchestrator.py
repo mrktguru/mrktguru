@@ -85,31 +85,53 @@ class SessionOrchestrator:
 
     async def stop(self):
         """Graceful shutdown of the session and monitor."""
+        logger.debug(f"[{self.account_id}] SessionOrchestrator.stop() called")
         self._stop_event.set()
         
         # Cancel monitor
         if self._monitor_task:
+            logger.debug(f"[{self.account_id}] Cancelling monitor task")
             self._monitor_task.cancel()
             try:
                 await self._monitor_task
             except asyncio.CancelledError:
                 pass
         
+        logger.debug(f"[{self.account_id}] Acquiring lock for shutdown...")
         async with self._lock: # 🔒 Ждем завершения текущих задач перед отключением
-            if self.client and self.client.is_connected():
-                logger.info(f"[{self.account_id}] 🚪 Shutting down...")
+            logger.debug(f"[{self.account_id}] Lock acquired. Checking client connection...")
+            if self.client:
+                is_connected = False
                 try:
-                    # Set offline status before disconnecting
-                    await self.client(UpdateStatusRequest(offline=True))
-                    await asyncio.sleep(1)
-                except Exception as e:
-                    logger.debug(f"[{self.account_id}] Offline status set failed: {e}")
+                    is_connected = self.client.is_connected()
+                except:
+                    pass
                 
-                await self.client.disconnect()
+                if is_connected:
+                    logger.info(f"[{self.account_id}] 🚪 Shutting down...")
+                    try:
+                        # Set offline status before disconnecting
+                        logger.debug(f"[{self.account_id}] Setting offline status...")
+                        # Ensure we don't crash here if await fails
+                        await self.client(UpdateStatusRequest(offline=True))
+                        await asyncio.sleep(1)
+                    except Exception as e:
+                        logger.debug(f"[{self.account_id}] Offline status set failed: {e}")
+                    
+                    try:
+                        logger.debug(f"[{self.account_id}] Disconnecting client...")
+                        # CHECKPOINT: This is a prime suspect for "NoneType can't be used in await"
+                        await self.client.disconnect()
+                        logger.debug(f"[{self.account_id}] Client disconnected.")
+                    except TypeError as te:
+                        if "NoneType" in str(te) and "await" in str(te):
+                            logger.error(f"[{self.account_id}] CRITICAL: client.disconnect() returned None? non-async disconnect? Error: {te}")
+                        else:
+                            logger.error(f"[{self.account_id}] Disconnect error: {te}")
+                    except Exception as e:
+                        logger.error(f"[{self.account_id}] Disconnect failed: {e}")
                 
             self.state = "OFFLINE"
-            # Не обнуляем self.client полностью, чтобы переиспользовать настройки, 
-            # но можно и обнулить, если get_telethon_client создает новый инстанс.
             # self.client = None 
 
     # --- INTERNAL LOGIC (PRIVATE) ---
