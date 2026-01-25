@@ -69,6 +69,7 @@
         <table class="table table-hover mb-0" id="accountsTable">
             <thead>
                 <tr>
+                    <th style="width: 40px;">ID</th>
                     <th style="width: 50px;">Photo</th>
                     <th>Phone</th>
                     <th>Name</th>
@@ -85,6 +86,7 @@
             <tbody>
                 {% for account in accounts %}
                 <tr>
+                    <td><small class="text-muted">{{ account.id }}</small></td>
                     <td>
                         {% if account.photo_url and account.photo_url != "photo_available" %}
                         <img src="/{{ account.photo_url }}" class="rounded-circle" width="32" height="32"
