@@ -85,6 +85,7 @@ def check_warmup_schedules():
                     
 
                     
+                    if not nodes:
                         # Fetch info about next pending node
                         next_node = WarmupScheduleNode.query.filter_by(
                             schedule_id=schedule.id,
