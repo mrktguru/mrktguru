@@ -22,7 +22,8 @@ TASK_MODULES = [
     "workers.dm_worker", 
     "workers.parser_worker",
     "workers.maintenance_workers",
-    "workers.campaign_scheduler"
+    "workers.campaign_scheduler",
+    "workers.scheduler_worker"
 ]
 
 # Initialize Celery
@@ -99,6 +100,12 @@ celery.conf.beat_schedule = {
     "cleanup-old-parse-jobs": {
         "task": "workers.parser_worker.cleanup_old_parse_jobs",
         "schedule": crontab(day_of_week=0, hour=3, minute=0),
+    },
+
+    # Check warmup schedules (every minute)
+    "check-warmup-schedules": {
+        "task": "workers.scheduler_worker.check_warmup_schedules",
+        "schedule": crontab(),  # Every minute
     },
 }
 

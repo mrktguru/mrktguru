@@ -102,6 +102,7 @@ def create_app():
     from routes.analytics import analytics_bp
     from routes.automation import automation_bp
     from routes.api_credentials import api_credentials_bp
+    from routes.scheduler_routes import scheduler_bp
     from routes.phone_login_routes import phone_login_bp
     
     app.register_blueprint(auth_bp)
@@ -117,6 +118,7 @@ def create_app():
     app.register_blueprint(analytics_bp, url_prefix="/analytics")
     app.register_blueprint(automation_bp, url_prefix="/automation")
     app.register_blueprint(api_credentials_bp)
+    app.register_blueprint(scheduler_bp)
     
     # Error handlers
     @app.errorhandler(404)

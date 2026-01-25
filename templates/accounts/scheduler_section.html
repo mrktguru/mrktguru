@@ -1,0 +1,302 @@
+<!-- Warmup Scheduler Section -->
+<div class="card mb-3">
+    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">🔥 Warmup Scheduler</h5>
+        <div>
+            <button class="btn btn-sm btn-light" id="save-schedule-btn">
+                <i class="bi bi-save"></i> Save
+            </button>
+            <button class="btn btn-sm btn-success" id="start-schedule-btn">
+                <i class="bi bi-play-fill"></i> Start
+            </button>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <div class="row g-0">
+            <!-- Node Library Sidebar -->
+            <div class="col-md-3 border-end p-3" style="background-color: #f8f9fa;">
+                <h6 class="mb-3">📦 Available Nodes</h6>
+                <p class="text-muted small">Drag nodes to calendar</p>
+
+                <!-- Profile Nodes -->
+                <div class="mb-3">
+                    <strong class="d-block mb-2">👤 Profile</strong>
+                    <div class="node-item draggable mb-2" data-node-type="bio">
+                        <div class="card card-body p-2 small">
+                            <i class="bi bi-person-badge"></i> Bio
+                        </div>
+                    </div>
+                    <div class="node-item draggable mb-2" data-node-type="username">
+                        <div class="card card-body p-2 small">
+                            <i class="bi bi-at"></i> Username
+                        </div>
+                    </div>
+                    <div class="node-item draggable mb-2" data-node-type="photo">
+                        <div class="card card-body p-2 small">
+                            <i class="bi bi-camera"></i> Photo
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Contact Nodes -->
+                <div class="mb-3">
+                    <strong class="d-block mb-2">📞 Contacts</strong>
+                    <div class="node-item draggable mb-2" data-node-type="import_contacts">
+                        <div class="card card-body p-2 small">
+                            <i class="bi bi-person-plus"></i> Import
+                        </div>
+                    </div>
+                    <!-- Search & Filter -->
+                    <div class="node-item draggable mb-2" data-node-type="search_filter">
+                        <div class="card card-body p-2 small">
+                            <i class="bi bi-search"></i> Search & Filter
+                        </div>
+                    </div>
+                    <div class="node-item draggable mb-2" data-node-type="send_message">
+                        <div class="card card-body p-2 small">
+                            <i class="bi bi-chat"></i> Send Message
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Channel Nodes -->
+                <div class="mb-3">
+                    <strong class="d-block mb-2">📺 Channels</strong>
+                    <div class="node-item draggable mb-2" data-node-type="subscribe">
+                        <div class="card card-body p-2 small">
+                            <i class="bi bi-bookmark-plus"></i> Subscribe
+                        </div>
+                    </div>
+                    <div class="node-item draggable mb-2" data-node-type="visit">
+                        <div class="card card-body p-2 small">
+                            <i class="bi bi-eye"></i> Visit
+                        </div>
+                    </div>
+                    <div class="node-item draggable mb-2" data-node-type="smart_subscribe">
+                        <div class="card card-body p-2 small">
+                            <i class="bi bi-bell-fill"></i> Smart Subscribe
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Other Nodes -->
+                <div class="mb-3">
+                    <strong class="d-block mb-2">💤 Other</strong>
+                    <div class="node-item draggable mb-2" data-node-type="idle">
+                        <div class="card card-body p-2 small">
+                            <i class="bi bi-moon"></i> Idle
+                        </div>
+                    </div>
+                    <div class="node-item draggable mb-2" data-node-type="passive_activity">
+                        <div class="card card-body p-2 small">
+                            <i class="bi bi-cup-hot"></i> Passive Activity
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-9 p-3">
+                <!-- Control Bar -->
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div class="d-flex align-items-center gap-3">
+                        <button class="btn btn-outline-secondary btn-sm" id="prev-week-btn">
+                            <i class="bi bi-chevron-left"></i> Prev
+                        </button>
+                        <h6 class="mb-0" id="current-week-label">Week 1 (Days 1-7)</h6>
+                        <button class="btn btn-outline-secondary btn-sm" id="next-week-btn">
+                            Next <i class="bi bi-chevron-right"></i>
+                        </button>
+                    </div>
+                    <div>
+                        <button class="btn btn-sm btn-outline-secondary" id="clear-schedule-btn">
+                            <i class="bi bi-trash"></i> Clear All
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Time-Grid Container -->
+                <div id="scheduler-calendar" class="scheduler-calendar scheduler-container border rounded"
+                    style="position: relative; background: #fff;" data-account-id="{{ account.id }}"
+                    data-start-date="{{ account.active_schedule.start_date.isoformat() if account.active_schedule and account.active_schedule.start_date else (account.created_at.isoformat() if account.created_at else '') }}"
+                    data-bio="{{ account.bio | default('', true) | e }}"
+                    data-username="{{ account.username | default('', true) | e }}"
+                    data-first-name="{{ account.first_name | default('', true) | e }}"
+                    data-photo-url="{{ account.photo_url | default('', true) | e }}">
+
+                    <!-- Sticky Header: Day Labels -->
+                    <div class="d-flex border-bottom bg-light sticky-top" style="z-index: 10;">
+                        <div class="time-column-header border-end" style="width: 60px; flex-shrink: 0;"></div>
+                        <!-- Time label spacer -->
+                        <!-- Dynamic Day Headers injected here -->
+                        <div id="day-header-row" class="d-flex flex-grow-1"></div>
+                    </div>
+
+                    <!-- Scrollable Grid Body -->
+                    <div class="d-flex position-relative">
+                        <!-- Time Labels Column -->
+                        <div id="time-labels-col" class="border-end bg-light" style="width: 60px; flex-shrink: 0;">
+                        </div>
+
+                        <!-- Main Grid (Slots + Nodes) -->
+                        <div id="main-grid-area" class="position-relative flex-grow-1">
+                            <!-- Grid Background (Lines) -->
+                            <div id="grid-background" class="w-100 h-100 position-absolute top-0 start-0"></div>
+
+                            <!-- Events Container (Nodes overlay) -->
+                            <div id="events-container" class="w-100 h-100 position-absolute top-0 start-0"
+                                style="pointer-events: none;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <style>
+                .scheduler-calendar {
+                    min-height: 400px;
+                }
+
+                .day-cell {
+                    border: 2px dashed #dee2e6;
+                    border-radius: 8px;
+                    min-height: 150px;
+                    padding: 8px;
+                    background: white;
+                    transition: all 0.2s;
+                }
+
+                .day-cell.drag-over {
+                    border-color: #0d6efd;
+                    background-color: #e7f1ff;
+                }
+
+                .day-header {
+                    font-weight: bold;
+                    font-size: 0.875rem;
+                    color: #6c757d;
+                    margin-bottom: 8px;
+                    padding-bottom: 4px;
+                    border-bottom: 1px solid #dee2e6;
+                }
+
+                .day-nodes {
+                    min-height: 100px;
+                }
+
+                .node-item.draggable {
+                    cursor: move;
+                    user-select: none;
+                }
+
+                .node-item.draggable:hover {
+                    opacity: 0.8;
+                }
+
+                .scheduled-node {
+                    background: #e7f1ff;
+                    border: 1px solid #0d6efd;
+                    border-radius: 4px;
+                    padding: 6px 8px;
+                    margin-bottom: 6px;
+                    font-size: 0.8rem;
+                    cursor: pointer;
+                    position: relative;
+                }
+
+                .scheduled-node:hover {
+                    background: #cfe2ff;
+                }
+
+                .scheduled-node .remove-node {
+                    position: absolute;
+                    top: 2px;
+                    right: 2px;
+                    cursor: pointer;
+                    color: #dc3545;
+                    font-size: 0.75rem;
+                }
+
+                .scheduled-node .node-time {
+                    font-size: 0.7rem;
+                    color: #6c757d;
+                    display: block;
+                }
+
+                .node-config-modal {
+                    padding: 1rem;
+                    max-height: 80vh;
+                    overflow-y: auto;
+                }
+
+                /* Executing state */
+                .scheduled-node.executing {
+                    background: #fff3cd !important;
+                    border-color: #ffc107 !important;
+                    animation: pulse 1.5s infinite;
+                }
+
+                /* Success state */
+                .scheduled-node.node-success {
+                    background: #d1e7dd !important;
+                    border-color: #198754 !important;
+                }
+
+                /* Error state */
+                .scheduled-node.node-error {
+                    background: #f8d7da !important;
+                    border-color: #dc3545 !important;
+                }
+
+                @keyframes pulse {
+
+                    0%,
+                    100% {
+                        opacity: 1;
+                    }
+
+                    50% {
+                        opacity: 0.7;
+                    }
+                }
+            </style>
+
+            <!-- Node Configuration Modal -->
+            <div class="modal fade" id="nodeConfigModal" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Configure Node</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <form id="nodeConfigForm">
+                                <!-- Common Fields -->
+                                <div class="mb-3">
+                                    <label class="form-label">Execution Time (24h)</label>
+                                    <div class="d-flex gap-2">
+                                        <input type="text" class="form-control" name="execution_time"
+                                            placeholder="23:30" pattern="([01]?[0-9]|2[0-3]):[0-5][0-9]">
+                                        <div class="form-check d-flex align-items-center">
+                                            <input class="form-check-input me-2" type="checkbox" name="is_random_time"
+                                                id="isRandomTime">
+                                            <label class="form-check-label" for="isRandomTime">Random</label>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Dynamic Fields Container -->
+                                <div id="dynamicFields"></div>
+                            </form>
+                        </div>
+                        <div class="modal-footer justify-content-between">
+                            <div>
+                                <button type="button" class="btn btn-warning" id="runNodeNowBtn">
+                                    <i class="bi bi-lightning-fill"></i> Run Now
+                                </button>
+                            </div>
+                            <div>
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                <button type="button" class="btn btn-primary" id="saveNodeConfigBtn">Save
+                                    Configuration</button>
+
+                                <!-- Scheduler JavaScript - loaded from external file -->
+                                <script src="{{ url_for('static', filename='js/scheduler.js') }}?v=fixed_v38"></script>
