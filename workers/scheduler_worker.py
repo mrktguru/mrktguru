@@ -134,6 +134,10 @@ def check_warmup_schedules():
                             continue
 
                     logger.info(f"Schedule {schedule.id}: Found {len(nodes)} pending node(s) for day {day_number}")
+                    # Log details of each candidate
+                    for n in nodes:
+                         d_str = str(n.execution_date) if n.execution_date else "None"
+                         logger.info(f"  -> Candidate Node {n.id}: Type={n.node_type}, Date={d_str}, Time={n.execution_time}")
                     
                     # Check each node if it should execute now
                     for node in nodes:
