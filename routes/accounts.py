@@ -399,7 +399,6 @@ def verify(account_id):
         result = loop.run_until_complete(bot.execute(task_full_verify))
         
         # Re-fetch account
-        from models.account import Account
         account_ref = Account.query.get(account_id)
         if not account_ref:
             return redirect(url_for('accounts.detail', account_id=account_id))
@@ -581,7 +580,6 @@ def sync_from_telegram(account_id):
         user_data = loop.run_until_complete(bot.execute(task_sync_profile))
         
         # Re-fetch account
-        from models.account import Account
         account_ref = Account.query.get(account_id)
         if not account_ref:
              # Should not happen
@@ -1373,7 +1371,6 @@ def verify_safe(account_id):
         if result['success']:
             # ... (success logic remains similar, but we need to re-fetch account)
             try:
-                from models.account import Account
                 account_ref = Account.query.get(account_id)
                 
                 # Check mapping from task result
@@ -1426,7 +1423,6 @@ def verify_safe(account_id):
              
              # Re-fetch for updating status
              try:
-                from models.account import Account
                 account_ref = Account.query.get(account_id)
                 
                 if error_type == 'flood_wait':
@@ -1489,7 +1485,6 @@ def sync_profile_from_telegram(account_id):
         result = loop.run_until_complete(bot.execute(task_sync_profile))
         
         # Re-fetch account
-        from models.account import Account
         account_ref = Account.query.get(account_id)
         if not account_ref:
             return jsonify({"success": False, "error": "Account not found"}), 404
@@ -1586,7 +1581,6 @@ def human_check(account_id):
         
         # Log to DB (Re-fetch account)
         try:
-            from models.account import Account
             account_ref = Account.query.get(account_id)
             
             if status == 'clean':

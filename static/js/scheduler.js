@@ -159,6 +159,7 @@
 
         visibleNodes.forEach(node => {
             const nodeEl = createNodeElement(node, startDay);
+            node.el = nodeEl;
             elements.eventsContainer.appendChild(nodeEl);
         });
     }
