@@ -617,3 +617,40 @@ def fix_dates_route():
     except Exception as e:
         logger.error(f"Error fixing dates: {e}")
         return jsonify({'error': str(e)}), 500
+
+
+@scheduler_bp.route('/debug-account/<int:account_id>', methods=['GET'])
+def debug_account(account_id):
+    """Debug route to check account photo path"""
+    try:
+        from models.account import Account
+        import os
+        from flask import current_app
+        
+        account = Account.query.get(account_id)
+        if not account:
+            return jsonify({'error': 'Account not found'}), 404
+            
+        photo_url = account.photo_url
+        
+        # Check file existence
+        file_path = "N/A"
+        exists = False
+        
+        if photo_url:
+            # Remove leading slash if present (though it likely doesn't have one in DB usually)
+            clean_path = photo_url.lstrip('/')
+            file_path = os.path.join(current_app.root_path, clean_path)
+            exists = os.path.exists(file_path)
+            
+        return jsonify({
+            'account_id': account.id,
+            'photo_url': photo_url,
+            'full_path': file_path,
+            'exists': exists,
+            'cwd': os.getcwd(),
+            'app_root': current_app.root_path
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
