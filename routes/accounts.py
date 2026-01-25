@@ -372,6 +372,12 @@ def verify(account_id):
     # We must import verify_session from helper to use as a task
     from utils.telethon_helper import verify_session
 
+    # Capture settings before closing session to avoid DetachedInstanceError
+    enable_anchor = getattr(account, 'warmup_enabled', False)
+    # Allow form to override
+    if 'enable_anchor' in request.form:
+         enable_anchor = request.form.get('enable_anchor') == 'on'
+
     # Anti-Lock
     db.session.close()
 
@@ -382,12 +388,7 @@ def verify(account_id):
     
     try:
         # Check if anchor is enabled in account settings
-        # This respects the preference saved during TData upload/config
-        enable_anchor = getattr(account, 'warmup_enabled', False)
-        
-        # Allow form to override if present (e.g. if we add a checkbox later)
-        if 'enable_anchor' in request.form:
-             enable_anchor = request.form.get('enable_anchor') == 'on'
+        # (moved up)
         
         # Define wrapper task for Orchestrator
         async def task_full_verify(client):
