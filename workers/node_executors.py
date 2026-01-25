@@ -823,6 +823,7 @@ async def execute_node_passive_activity(client, account_id, config):
     from datetime import datetime, timedelta
     from telethon.tl.functions.messages import GetDialogsRequest
     from telethon.tl.functions.account import UpdateStatusRequest
+    from telethon.tl.functions.updates import GetStateRequest  # <--- Added for Keep-Alive
     from telethon.tl.types import InputPeerEmpty
 
     # --- 1. CONFIG PARSING ---
@@ -864,14 +865,17 @@ async def execute_node_passive_activity(client, account_id, config):
     WarmupLog.log(account_id, 'info', f"Starting Passive Activity ({duration_mins}m)", action='passive_start')
 
     start_time = datetime.now()
+    last_network_activity = datetime.now() # Timer for Keep-Alive
 
     try:
         # Initial Status Online
         await client(UpdateStatusRequest(offline=False))
+        last_network_activity = datetime.now()
         
         # === MAIN LOOP (SECONDLY) ===
         while True:
-            elapsed = (datetime.now() - start_time).total_seconds()
+            now = datetime.now()
+            elapsed = (now - start_time).total_seconds()
             
             # 1. Check total duration
             if elapsed >= total_seconds:
@@ -885,6 +889,17 @@ async def execute_node_passive_activity(client, account_id, config):
                     current_scroll = event
                     break
             
+            # 3. Keep-Alive Ping (every 60s of silence)
+            silence_duration = (now - last_network_activity).total_seconds()
+            if silence_duration > 60:
+                try:
+                    # Lightweight ping to keep proxy connection alive
+                    await client(GetStateRequest())
+                    last_network_activity = now
+                    logger.info(f"[{account_id}] 💓 Keep-Alive Ping (GetState) sent to maintain session") 
+                except Exception as e:
+                    logger.debug(f"Keep-Alive ping failed: {e}")
+
             # === ACTIVE PHASE (SCROLLING) ===
             if current_scroll:
                 logger.info(f"[{account_id}] 👀 Waking up to scroll feed for {current_scroll['duration']}s...")
@@ -908,6 +923,7 @@ async def execute_node_passive_activity(client, account_id, config):
                             offset_date=offset_date, offset_id=offset_id,
                             offset_peer=InputPeerEmpty(), limit=10, hash=0
                         ))
+                        last_network_activity = datetime.now() # Update timer
                     except Exception as e:
                         logger.debug(f"Scroll tick error: {e}")
 
