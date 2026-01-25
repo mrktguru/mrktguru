@@ -342,21 +342,29 @@
             el.style.border = '1px solid rgba(0,0,0,0.1)';
         }
 
-        el.style.cursor = 'move';
-        el.style.pointerEvents = 'auto';
+        if (node.is_ghost) {
+            el.style.cursor = 'default';
+            el.setAttribute('draggable', 'false');
+            el.style.opacity = '0.8';
+        } else {
+            el.style.cursor = 'move';
+            el.style.pointerEvents = 'auto';
+            el.setAttribute('draggable', 'true');
+        }
 
         el._nodeObj = node; // Link data
 
         // Internal Drag Handlers
-        el.setAttribute('draggable', 'true');
-        el.addEventListener('dragstart', (e) => {
-            e.stopPropagation();
-            e.dataTransfer.setData('source', 'internal');
-            // Store node reference globally for this drag session
-            window._draggedNode = node;
-            e.dataTransfer.effectAllowed = 'move';
-            el.style.opacity = '0.5';
-        });
+        if (!node.is_ghost) {
+            el.addEventListener('dragstart', (e) => {
+                e.stopPropagation();
+                e.dataTransfer.setData('source', 'internal');
+                // Store node reference globally for this drag session
+                window._draggedNode = node;
+                e.dataTransfer.effectAllowed = 'move';
+                el.style.opacity = '0.5';
+            });
+        }
 
         el.addEventListener('dragend', () => {
             el.style.opacity = '1';
@@ -999,6 +1007,8 @@
             if (!scheduleId) throw new Error('Schedule ID is missing after creation/recovery.');
 
             for (const node of scheduleData.nodes) {
+                if (node.is_ghost) continue; // Skip ghost nodes (historical logs)
+
                 const method = node.id ? 'PUT' : 'POST';
                 const url = node.id ? `/scheduler/nodes/${node.id}` : `/scheduler/schedules/${scheduleId}/nodes`;
 
@@ -1104,12 +1114,32 @@
         const currentMinutes = now.getMinutes();
         const timeString = `${String(currentHours).padStart(2, '0')}:${String(currentMinutes).padStart(2, '0')}`;
 
-        currentNode.execution_time = timeString;
-        currentNode.is_random_time = false;
-        currentNode.config = tempConfig;
+        // Handle Ghost Nodes (Clone them)
+        if (currentNode.is_ghost) {
+            // Create a clone
+            const clone = JSON.parse(JSON.stringify(currentNode));
+            clone.id = null;
+            clone.is_ghost = false;
+            clone.status = 'pending';
 
-        // Update duration if changed
-        if (tempConfig.duration_minutes) currentNode._ui_duration = parseInt(tempConfig.duration_minutes);
+            // Apply new config
+            clone.execution_time = timeString;
+            clone.is_random_time = false;
+            clone.config = tempConfig;
+            if (tempConfig.duration_minutes) clone._ui_duration = parseInt(tempConfig.duration_minutes);
+
+            // Add to schedule
+            scheduleData.nodes.push(clone);
+
+            // Switch currentNode to clone
+            currentNode = clone;
+        } else {
+            // Normal update
+            currentNode.execution_time = timeString;
+            currentNode.is_random_time = false;
+            currentNode.config = tempConfig;
+            if (tempConfig.duration_minutes) currentNode._ui_duration = parseInt(tempConfig.duration_minutes);
+        }
 
         // 2. SAVE to server (persist updated time/config)
         const saveRes = await saveSchedule(true); // Silent save
