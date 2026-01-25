@@ -1130,6 +1130,12 @@ def verify_safe(account_id):
                 if user.get('last_name'): account_ref.last_name = user.get('last_name')
                 if user.get('username'): account_ref.username = user.get('username')
                 
+                # Update advanced profile info (bio, photo) if available
+                if 'bio' in user: 
+                    account_ref.bio = user.get('bio')
+                if user.get('photo_url'): 
+                    account_ref.photo_url = user.get('photo_url')
+                
                 account_ref.status = 'active'
                 account_ref.verified = True
                 account_ref.last_activity = datetime.utcnow()
