@@ -262,7 +262,13 @@ def start_schedule(schedule_id):
         
         # Set start date to today
         schedule.status = 'active'
-        schedule.start_date = datetime.now().date()
+        
+        # USE CREATION DATE AS START DATE (to align Warmup Day 1 with Account Day 1)
+        if schedule.account and schedule.account.created_at:
+             schedule.start_date = schedule.account.created_at.date()
+        else:
+             schedule.start_date = datetime.now().date()
+             
         schedule.end_date = schedule.start_date + timedelta(days=14)
         schedule.updated_at = datetime.now()
         
@@ -577,4 +583,37 @@ def run_node_immediately(account_id):
 
     except Exception as e:
         logger.error(f"Error executing node immediate: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@scheduler_bp.route('/fix-dates', methods=['GET'])
+def fix_dates_route():
+    """Temporary route to fix schedule start dates"""
+    try:
+        # Import needed models if not at top (but they are)
+        
+        schedules = WarmupSchedule.query.filter_by(status='active').all()
+        count = 0
+        details = []
+        for s in schedules:
+            if s.account and s.account.created_at:
+                c_date = s.account.created_at.date()
+                if s.start_date != c_date:
+                    old_date = s.start_date
+                    s.start_date = c_date
+                    # Also update end date to keep duration from new start
+                    s.end_date = s.start_date + timedelta(days=14)
+                    
+                    count += 1
+                    details.append(f"Schedule {s.id}: {old_date} -> {c_date}")
+        
+        if count > 0:
+            db.session.commit()
+            
+        return jsonify({
+            'message': f'Fixed {count} schedules',
+            'details': details
+        }), 200
+    except Exception as e:
+        logger.error(f"Error fixing dates: {e}")
         return jsonify({'error': str(e)}), 500
