@@ -958,8 +958,21 @@
         const tempConfig = {};
         for (let [key, value] of formData.entries()) {
             if (['execution_time', 'is_random_time'].includes(key)) continue;
-            tempConfig[key] = value;
+            // Handle checkboxes correctly
+            if (key === 'enable_scroll') tempConfig[key] = form.elements[key].checked;
+            else tempConfig[key] = value;
         }
+
+        // 1. SAVE node state locally (update object)
+        currentNode.execution_time = form.execution_time.value;
+        currentNode.is_random_time = form.is_random_time.checked;
+        currentNode.config = tempConfig;
+
+        // Update duration if changed
+        if (tempConfig.duration_minutes) currentNode._ui_duration = parseInt(tempConfig.duration_minutes);
+
+        // 2. SAVE to server (persist node ID)
+        await saveSchedule(true); // Silent save
 
         const payload = {
             node_type: currentNode.node_type,
@@ -968,6 +981,7 @@
 
         // CLOSE MODAL IMMEDIATELY
         configModal.hide();
+        renderNodes(); // Re-render to show updates if any
 
         // Show running status on node element in calendar
         if (currentNode.el) {
