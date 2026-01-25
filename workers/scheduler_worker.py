@@ -125,7 +125,15 @@ def check_warmup_schedules():
                         has_active_running = False
                         for r_node in stuck_nodes:
                             # If updated_at is older than 60 mins, it's stuck
-                            if r_node.updated_at < now - timedelta(minutes=60):
+                            # Fix: Ensure timezone compatibility
+                            last_update = r_node.updated_at
+                            current_now = now
+                            
+                            # If DB time is naive (common), make 'now' naive for comparison
+                            if last_update and last_update.tzinfo is None and current_now.tzinfo is not None:
+                                current_now = current_now.replace(tzinfo=None)
+                            
+                            if last_update and last_update < current_now - timedelta(minutes=60):
                                 logger.warning(f"Node {r_node.id} appears stuck (running since {r_node.updated_at}). Marking as failed.")
                                 r_node.status = 'failed'
                                 r_node.error_message = "Timeout: Execution stuck for > 60 mins"
