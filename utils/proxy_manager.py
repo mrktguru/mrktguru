@@ -17,30 +17,42 @@ def assign_dynamic_port(account, network_id):
         if not network:
             raise ValueError(f"Proxy network with ID {network_id} not found")
 
-        # 1. Generate full set of potential ports
-        all_ports = set(range(network.start_port, network.end_port + 1))
-
-        # 2. Find ports currently assigned to ACTIVE accounts (or just any account occupying it)
-        # We assume ANY account holding a port makes it unavailable.
+        # 1. Fetch ports currently assigned (sorted)
+        # Avoid generating full range set to prevent OOM/Timeout on large ranges
         used_ports_query = db.session.query(Account.assigned_port).filter(
             Account.proxy_network_id == network_id,
             Account.assigned_port != None
-        ).all()
+        ).order_by(Account.assigned_port).all()
         
-        used_ports = {row[0] for row in used_ports_query}
+        used_ports = [row[0] for row in used_ports_query]
 
-        # 3. Calculate free ports
-        free_ports = list(all_ports - used_ports)
-        free_ports.sort() # low to high
-
-        if not free_ports:
-            raise Exception(f"No free ports available in network '{network.name}' ({network.start_port}-{network.end_port})!")
-
-        # 4. Assign the first one
-        target_port = free_ports[0]
+        # 2. Find first available port (Gap Finding Algorithm)
+        target_port = None
+        current_check = network.start_port
         
-        # Update account instance (caller must commit if they want, or we commit here)
-        # Assuming account is attached to session.
+        # Optimize: if no used ports, just take start
+        if not used_ports:
+            target_port = network.start_port
+        else:
+            # Check for gaps between used ports
+            for port in used_ports:
+                if port == current_check:
+                    current_check += 1
+                elif port > current_check:
+                    # Found a gap!
+                    target_port = current_check
+                    break
+                # If port < current_check, it duplicates or is out of order (shouldn't happen with order_by), continue
+            
+            # If no gap found in middle, check if we can append after last used
+            if target_port is None:
+                if current_check <= network.end_port:
+                    target_port = current_check
+
+        if target_port is None or target_port > network.end_port:
+             raise Exception(f"No free ports available in network '{network.name}' ({network.start_port}-{network.end_port})!")
+
+        # 3. Assign
         account.proxy_network_id = network.id
         account.assigned_port = target_port
         

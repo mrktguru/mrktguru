@@ -271,8 +271,22 @@ def add_network():
     """Add new proxy network"""
     name = request.form.get('name')
     base_url = request.form.get('base_url')
-    start_port = int(request.form.get('start_port'))
-    end_port = int(request.form.get('end_port'))
+    
+    try:
+        start_port = int(request.form.get('start_port'))
+        end_port = int(request.form.get('end_port'))
+    except (ValueError, TypeError):
+        flash('Ports must be integers', 'error')
+        return redirect(url_for('proxies.list_proxies'))
+
+    if start_port > end_port:
+         flash('Start port cannot be greater than end port', 'error')
+         return redirect(url_for('proxies.list_proxies'))
+         
+    MAX_RANGE = 50000
+    if (end_port - start_port) > MAX_RANGE:
+         flash(f'Port range too large (max {MAX_RANGE} ports). Please create multiple smaller networks.', 'error')
+         return redirect(url_for('proxies.list_proxies'))
     
     if not name or not base_url or not start_port or not end_port:
         flash('All fields required', 'error')
