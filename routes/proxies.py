@@ -116,34 +116,45 @@ def update(proxy_id):
     """Update proxy settings"""
     proxy = Proxy.query.get_or_404(proxy_id)
     
-    # Update proxy string if provided
-    proxy_string = request.form.get('proxy_string')
-    if proxy_string:
-        from utils.validators import validate_proxy
-        is_valid, result = validate_proxy(proxy_string)
-        if is_valid:
-            proxy.type = result['type']
-            proxy.host = result['host']
-            proxy.port = result['port']
-            proxy.username = result['username']
-            proxy.password = result['password']
-            
-            # Update country
-            proxy.country = extract_country_from_username(result.get('username'))
-            
-            # Reset status to allow re-testing
-            proxy.status = 'active'
-            proxy.current_ip = None
-        else:
-            flash(f'Invalid proxy format: {result}', 'error')
-            return redirect(url_for('proxies.list_proxies'))
+    try:
+        # Update proxy string if provided
+        proxy_string = request.form.get('proxy_string')
+        if proxy_string:
+            from utils.validators import validate_proxy
+            is_valid, result = validate_proxy(proxy_string)
+            if is_valid:
+                proxy.type = result['type']
+                proxy.host = result['host']
+                proxy.port = result['port']
+                proxy.username = result['username']
+                proxy.password = result['password']
+                
+                # Update country
+                proxy.country = extract_country_from_username(result.get('username'))
+                
+                # Reset status to allow re-testing
+                proxy.status = 'active'
+                proxy.current_ip = None
+            else:
+                flash(f'Invalid proxy format: {result}', 'error')
+                return redirect(url_for('proxies.list_proxies'))
 
-    if proxy.is_mobile:
-        proxy.rotation_url = request.form.get('rotation_url')
-        proxy.rotation_interval = int(request.form.get('rotation_interval', 1200))
-    
-    proxy.notes = request.form.get('notes')
-    db.session.commit()
+        if proxy.is_mobile:
+            proxy.rotation_url = request.form.get('rotation_url')
+            proxy.rotation_interval = int(request.form.get('rotation_interval', 1200))
+        
+        proxy.notes = request.form.get('notes')
+        db.session.commit()
+    except RecursionError:
+        import traceback
+        traceback.print_exc()
+        db.session.rollback()
+        flash('System Error: Recursion Depth Exceeded. Check logs.', 'error')
+        return redirect(url_for('proxies.list_proxies'))
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error updating proxy: {str(e)}', 'error')
+        return redirect(url_for('proxies.list_proxies'))
     
     # Auto-test if credentials changed
     if proxy_string:
