@@ -2,8 +2,12 @@
 Celery Application Configuration
 """
 # 🔥 Monkey Patching for Gevent (Must be first)
-from gevent import monkey
-monkey.patch_all()
+# Apply gevent monkey patching for async support if available
+try:
+    from gevent import monkey
+    monkey.patch_all()
+except ImportError:
+    pass
 
 from celery import Celery
 from celery.schedules import crontab

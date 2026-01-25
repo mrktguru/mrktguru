@@ -86,8 +86,29 @@ def check_warmup_schedules():
                     ).count()
                     
                     if running_nodes_count > 0:
-                        logger.info(f"Schedule {schedule.id} has {running_nodes_count} running nodes. Skipping new checks.")
-                        continue
+                        # Check if any running node is stuck (e.g. running > 60 mins)
+                        stuck_nodes = WarmupScheduleNode.query.filter_by(
+                            schedule_id=schedule.id,
+                            status='running'
+                        ).all()
+                        
+                        has_active_running = False
+                        for r_node in stuck_nodes:
+                            # If updated_at is older than 60 mins, it's stuck
+                            if r_node.updated_at < now - timedelta(minutes=60):
+                                logger.warning(f"Node {r_node.id} appears stuck (running since {r_node.updated_at}). Marking as failed.")
+                                r_node.status = 'failed'
+                                r_node.error_message = "Timeout: Execution stuck for > 60 mins"
+                                r_node.executed_at = now
+                                db.session.commit()
+                                WarmupLog.log(schedule.account_id, 'error', f"Node {r_node.id} timed out (stuck)", action='timeout_error')
+                            else:
+                                has_active_running = True
+                                logger.info(f"Node {r_node.id} is currently running (started {r_node.updated_at})")
+                        
+                        if has_active_running:
+                            logger.info(f"Schedule {schedule.id} has active running nodes. Waiting for completion.")
+                            continue
 
                     logger.info(f"Schedule {schedule.id}: Found {len(nodes)} pending node(s) for day {day_number}")
                     
