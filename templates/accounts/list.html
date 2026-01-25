@@ -70,12 +70,13 @@
             <thead>
                 <tr>
                     <th>Phone</th>
+                    <th>Name</th>
+                    <th>Username</th>
                     <th>Status</th>
-                    <th>Health</th>
+                    <th>Warmup</th>
                     <th>Proxy</th>
-                    <th>Device</th>
                     <th>Sent Today</th>
-                    <th>Warm-up</th>
+                    <th>Age</th>
                     <th>Last Activity</th>
                     <th>Actions</th>
                 </tr>
@@ -87,6 +88,16 @@
                         <a href="{{ url_for('accounts.detail', account_id=account.id) }}">
                             {{ account.phone }}
                         </a>
+                    </td>
+                    <td>
+                        {{ account.first_name or '' }} {{ account.last_name or '' }}
+                    </td>
+                    <td>
+                        {% if account.username %}
+                        @{{ account.username }}
+                        {% else %}
+                        <span class="text-muted">-</span>
+                        {% endif %}
                     </td>
                     <td>
                         {% if account.status == 'active' %}
@@ -102,12 +113,12 @@
                         {% endif %}
                     </td>
                     <td>
-                        <div class="progress" style="height: 20px;">
-                            <div class="progress-bar {% if account.health_score >= 70 %}bg-success{% elif account.health_score >= 40 %}bg-warning{% else %}bg-danger{% endif %}"
-                                style="width: {{ account.health_score }}%">
-                                {{ account.health_score }}%
-                            </div>
-                        </div>
+                        {% set active_sch = account.active_schedule %}
+                        {% if active_sch and active_sch.status == 'active' %}
+                        <span class="badge bg-success">Running</span>
+                        {% else %}
+                        <span class="badge bg-secondary">Stopped</span>
+                        {% endif %}
                     </td>
                     <td>
                         {% if account.proxy %}
@@ -116,15 +127,6 @@
                         </span>
                         {% else %}
                         <span class="text-muted">No proxy</span>
-                        {% endif %}
-                    </td>
-                    <td>
-                        {% if account.device_profile %}
-                        <small title="{{ account.device_profile.device_model }}">
-                            {{ account.device_profile.device_model[:20] }}...
-                        </small>
-                        {% else %}
-                        <span class="text-muted">-</span>
                         {% endif %}
                     </td>
                     <td>
