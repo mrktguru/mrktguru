@@ -888,6 +888,7 @@ async def execute_node_passive_activity(client, account_id, config):
             # === ACTIVE PHASE (SCROLLING) ===
             if current_scroll:
                 logger.info(f"[{account_id}] 👀 Waking up to scroll feed for {current_scroll['duration']}s...")
+                WarmupLog.log(account_id, 'info', f"👀 Waking up: Scrolling feed for {current_scroll['duration']}s", action='scroll_start')
                 
                 # 2.1. Explicitly set Online (in case we were Idle)
                 await client(UpdateStatusRequest(offline=False))
@@ -913,6 +914,7 @@ async def execute_node_passive_activity(client, account_id, config):
                 # 2.3. Finish scroll
                 current_scroll['done'] = True
                 logger.info(f"[{account_id}] 💤 Scroll finished. Going back to IDLE wait.")
+                WarmupLog.log(account_id, 'info', "💤 Scroll finished. Going back to IDLE.", action='scroll_end')
                 # We do NOT set offline=True manually.
                 # Use natural timeout or Orchestrator IDLE logic.
 
