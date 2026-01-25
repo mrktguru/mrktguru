@@ -222,13 +222,14 @@ def execute_scheduled_node(node_id):
                 logger.error(f"Node {node_id} not found")
                 return
             
-            if node.status != 'pending':
+            if node.status not in ['pending', 'running']:
                 logger.warning(f"Node {node_id} status is {node.status}, skipping")
                 return
             
-            # Update status to running
-            node.status = 'running'
-            db.session.commit()
+            # Update status to running (if not already)
+            if node.status != 'running':
+                node.status = 'running'
+                db.session.commit()
             
             account_id = node.schedule.account_id
             

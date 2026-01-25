@@ -1004,7 +1004,7 @@
         // 3. EXECUTE (Persistent)
         if (currentNode.el) {
             currentNode.el.classList.add('executing');
-            currentNode.el.style.border = '2px solid #ffc107';
+            currentNode.el.style.border = '2px solid #28a745';
 
             try {
                 // Pass node_id to use persistent execution path

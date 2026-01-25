@@ -437,10 +437,13 @@ def run_node_immediately(account_id):
             # Re-read worker logic:
             # if node.status != 'pending': skip.
             
-            # So here we MUST ensure it's pending.
+            # So here we MUST ensure it's pending or running?
+            # We set it to 'running' so UI sees it immediately even after reload.
+            # Worker is updated to accept 'running'.
             node = WarmupScheduleNode.query.get(node_id)
             if node:
-                node.status = 'pending' 
+                node.status = 'running' 
+                node.executed_at = datetime.now() # Mark start time
                 db.session.commit()
                 
             task = execute_scheduled_node.apply_async(args=[node_id])
