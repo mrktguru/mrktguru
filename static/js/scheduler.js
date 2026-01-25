@@ -699,6 +699,7 @@
             `;
         }
         else if (type === 'username') {
+            const defaultUser = config.username || (accountData ? accountData.username : '') || '';
             html += `
                 <div class="mb-3">
                     <label class="form-label">Set Username</label>
