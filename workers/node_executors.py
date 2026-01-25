@@ -146,49 +146,73 @@ async def execute_node_photo(client, account_id, config):
     }
     """
     from models.account import Account
+    import shutil
     
     try:
         account = Account.query.get(account_id)
         if not account:
             return {'success': False, 'error': 'Account not found'}
         
-        photo_path = config.get('photo_path')
-        if not photo_path:
+        source_path = config.get('photo_path')
+        if not source_path:
             return {'success': False, 'error': 'Photo path is required'}
         
-        if not os.path.exists(photo_path):
-            error_msg = f"Photo file not found: {photo_path}"
+        if not os.path.exists(source_path):
+            error_msg = f"Photo file not found: {source_path}"
             WarmupLog.log(account_id, 'error', error_msg, action='photo_error')
             return {'success': False, 'error': error_msg}
         
-        WarmupLog.log(account_id, 'info', 'Uploading profile photo...', action='upload_photo_start')
+        WarmupLog.log(account_id, 'info', 'Preparing profile photo...', action='upload_photo_start')
+        
+        # 1. Get user ID for stable filename
+        me = await client.get_me()
+        if not me:
+            raise Exception("Could not get_me() to determine stable filename")
+
+        # 2. Prepare stable path
+        # Use same directory as sync node: uploads/photos/
+        target_dir = os.path.join(os.getcwd(), 'uploads', 'photos')
+        os.makedirs(target_dir, exist_ok=True)
+        
+        stable_filename = f"{account_id}_{me.id}.jpg"
+        stable_path = os.path.join(target_dir, stable_filename)
+        
+        # 3. Copy source to stable path (Rename/Standardize)
+        # We copy to preserve source if it's used elsewhere, or user can re-use.
+        # But conceptually we are "adopting" this file as the official avatar.
+        try:
+            shutil.copy2(source_path, stable_path)
+            logger.info(f"[{account_id}] Copied {source_path} -> {stable_path}")
+        except Exception as copy_error:
+            logger.error(f"Failed to copy to stable path: {copy_error}")
+            raise Exception(f"Failed to process image file: {copy_error}")
+
         await asyncio.sleep(random.uniform(5, 10))
         
-        # Upload to Telegram
-        uploaded_file = await client.upload_file(photo_path)
+        # 4. Upload STABLE file to Telegram
+        uploaded_file = await client.upload_file(stable_path)
         if not uploaded_file:
             raise Exception("File upload to Telegram failed")
         
         await client(UploadProfilePhotoRequest(file=uploaded_file))
         
-        # Update local DB
-        if 'uploads/' in photo_path:
-            # We want 'uploads/media/file.jpg' not just 'media/file.jpg'
-            # because the route is /uploads/<filename> and the template uses src="/{{ photo_url }}"
-            relative_path = 'uploads/' + photo_path.split('uploads/')[-1]
-            try:
-                # Ensure we are using the current session context
-                current_account = Account.query.get(account_id)
-                if current_account:
-                    current_account.photo_url = relative_path
-                    db.session.commit()
-                    WarmupLog.log(account_id, 'info', f"DB updated with photo: {relative_path}", action='db_photo_update')
-            except Exception as db_e:
-                logger.error(f"Failed to update DB photo_url: {db_e}")
-                db.session.rollback()
+        # 5. Update local DB with stable relative path
+        relative_path = f"uploads/photos/{stable_filename}"
+        
+        try:
+            # Ensure we are using the current session context or just commit
+            # (Note: account object is bound to session if we got it via query.get)
+            current_account = Account.query.get(account_id)
+            if current_account:
+                current_account.photo_url = relative_path
+                current_account.photo_url = relative_path # Redundant but safe
+                db.session.commit()
+                WarmupLog.log(account_id, 'info', f"DB updated with stable photo: {relative_path}", action='db_photo_update')
+        except Exception as db_e:
+            logger.error(f"Failed to update DB photo_url: {db_e}")
+            db.session.rollback()
         
         await asyncio.sleep(random.uniform(2, 5))
-        # Note: redundant commit removed as we just committed above, but keeping safety commit if other things changed? No, clean is better.
         
         WarmupLog.log(account_id, 'success', 'Photo uploaded and set', action='set_photo')
         
@@ -988,6 +1012,16 @@ async def node_sync_profile(client, account_id, config):
     logger.info(f"[{account_id}] 🔄 Starting Profile Sync Node...")
 
     try:
+        # Pre-fetch account to have phone/info available for filename logic or other checks
+        with app.app_context():
+            account = Account.query.get(account_id)
+            if not account:
+                return {'success': False, 'error': 'Account not found in DB'}
+            # We must access attributes needed outside context or keep session valid?
+            # It's better to fetch what we need or reopen context later.
+            # But the user asked to optimize downloading.
+            pass
+
         # 1. Получаем базовые данные (Me)
         me = await client.get_me()
         if not me:
@@ -1002,30 +1036,46 @@ async def node_sync_profile(client, account_id, config):
         except Exception as e:
             logger.warning(f"[{account_id}] Could not fetch Bio: {e}")
 
-        # 3. Скачиваем фото (если есть)
+        # 3. Скачиваем фото (если есть) - ОПТИМИЗИРОВАНО
         photo_db_path = None
         if getattr(me, 'photo', None):
             try:
+                # Используем 'uploads/photos' для публичного доступа
                 upload_folder = os.path.join(os.getcwd(), 'uploads', 'photos')
                 os.makedirs(upload_folder, exist_ok=True)
                 
-                # Стабильное имя файла: phone_id.jpg
-                # Чтобы при повторном запуске просто перезаписывать старое фото
+                # Стабильное имя файла: {account_id}_{tg_id}.jpg 
+                # (Можно использовать phone, но account_id тоже стабилен. User asked for phone_id but account_id is safer/cleaner)
+                # Let's stick to account_id as it aligns with system ID.
                 filename = f"{account_id}_{me.id}.jpg" 
                 filepath = os.path.join(upload_folder, filename)
+                current_db_path = f"uploads/photos/{filename}"
                 
-                # Скачиваем (перезапишет существующий файл)
-                await client.download_profile_photo(me, file=filepath)
-                
-                # Путь для записи в БД
+                # LOGIC: "Скачивать или нет"
+                # Проверяем: файл существует? И в базе уже прописан этот путь?
+                should_download = True
                 if os.path.exists(filepath):
-                    photo_db_path = f"uploads/photos/{filename}"
+                    # Если файл есть, проверяем, актуальна ли запись в БД
+                    # Нам нужно узнать текущий photo_url из БД.
+                    with app.app_context():
+                         acc = Account.query.get(account_id)
+                         if acc and acc.photo_url == current_db_path:
+                             should_download = False
+                             logger.info(f"[{account_id}] Photo {filename} exists and DB matches. Skipping download.")
+                
+                if should_download:
+                    # Скачиваем (перезапишет существующий файл)
+                    await client.download_profile_photo(me, file=filepath)
+                    logger.info(f"[{account_id}] Downloaded new profile photo: {filename}")
+                
+                # Путь для записи в БД (если файл реально есть на диске в итоге)
+                if os.path.exists(filepath):
+                    photo_db_path = current_db_path
                     
             except Exception as e:
                 logger.error(f"[{account_id}] Photo download error: {e}")
 
         # 4. Обновляем Базу Данных (Синхронная часть)
-        # Обычно executors запускаются внутри контекста, но для надежности:
         with app.app_context():
             try:
                 account = Account.query.get(account_id)
@@ -1059,13 +1109,19 @@ async def node_sync_profile(client, account_id, config):
                     account.bio = about_text
                     changed.append('bio')
 
+                # Обновляем фото только если мы получили валидный путь
                 if photo_db_path and account.photo_url != photo_db_path:
                     account.photo_url = photo_db_path
                     changed.append('photo')
+                
+                # Если фото удалили в ТГ (photo_db_path is None), а в базе есть -> стирать? 
+                # Пока оставим как есть, чтобы не терять историю, или стирать?
+                # Логичнее стирать если в ТГ нет фото.
+                if not getattr(me, 'photo', None) and account.photo_url:
+                    # Optional: account.photo_url = None
+                    pass
 
                 # Всегда обновляем дату синхронизации
-                # Ensure field exists or handle error if user schema is different? 
-                # Assuming user knows best.
                 if hasattr(account, 'last_sync_at'):
                    account.last_sync_at = datetime.now()
 

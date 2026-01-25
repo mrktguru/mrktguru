@@ -176,32 +176,6 @@ async def safe_get_me(client, last_check_time=None):
         # Execute get_me
         me = await client.get_me()
         
-        # Get Full User Info (Bio/About) - optional but requested
-        bio = None
-        try:
-            from telethon.tl.functions.users import GetFullUserRequest
-            full_user = await client(GetFullUserRequest(me))
-            bio = getattr(full_user.full_user, 'about', None)
-        except Exception as bio_err:
-            logger.warning(f"Failed to fetch bio: {bio_err}")
-            
-        # Download Photo
-        photo_path = None
-        if getattr(me, 'photo', None):
-            try:
-                import os
-                upload_folder = os.path.join(os.getcwd(), 'uploads', 'photos')
-                os.makedirs(upload_folder, exist_ok=True)
-                
-                filename = f"{me.id}_{int(datetime.utcnow().timestamp())}.jpg"
-                filepath = os.path.join(upload_folder, filename)
-                
-                await client.download_profile_photo(me, file=filepath)
-                if os.path.exists(filepath):
-                    photo_path = f"uploads/photos/{filename}"
-            except Exception as photo_err:
-                logger.warning(f"Failed to download photo: {photo_err}")
-        
         # Random delay AFTER request (3-8 seconds)
         delay_after = random.uniform(3, 8)
         logger.info(f"Waiting {delay_after:.1f}s after get_me...")
@@ -217,8 +191,6 @@ async def safe_get_me(client, last_check_time=None):
             'first_name': me.first_name,
             'last_name': me.last_name,
             'phone': me.phone,
-            'bio': bio,
-            'photo_url': photo_path,
             'check_time': datetime.now().isoformat(),
             'duration': '~10-25s',
             'next_check_allowed': (datetime.now() + timedelta(hours=2)).isoformat()

@@ -350,9 +350,10 @@ def execute_scheduled_node(node_id):
                 # Session stays in ACTIVE_SESSIONS
                 return await orch.execute(task_wrapper)
 
-            # Run
+            # Run on global background loop
             try:
-                result = asyncio.run(run_with_orchestrator())
+                from utils.bg_loop import BackgroundLoop
+                result = BackgroundLoop.submit(run_with_orchestrator())
             except Exception as loop_e:
                  logger.exception(f"Orchestrator error: {loop_e}")
                  result = {'success': False, 'error': str(loop_e)}
@@ -421,7 +422,8 @@ def execute_adhoc_node(account_id, node_type, config):
                 return await orch.execute(task_wrapper)
 
             try:
-                result = asyncio.run(run_with_orchestrator())
+                from utils.bg_loop import BackgroundLoop
+                result = BackgroundLoop.submit(run_with_orchestrator())
             except Exception as e:
                 logger.error(f"Adhoc Orchestrator error: {e}")
                 if account_id in ACTIVE_SESSIONS: del ACTIVE_SESSIONS[account_id]
