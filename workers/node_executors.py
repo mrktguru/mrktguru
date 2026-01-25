@@ -859,6 +859,9 @@ async def execute_node_passive_activity(client, account_id, config):
 
     logger.info(f"[{account_id}] 🧘 Starting Passive Activity for {duration_mins}m. "
                 f"Scrolls scheduled: {len(scroll_events)}")
+    
+    # Log to DB
+    WarmupLog.log(account_id, 'info', f"Starting Passive Activity ({duration_mins}m)", action='passive_start')
 
     start_time = datetime.now()
 

@@ -326,3 +326,55 @@ def execute_scheduled_node(node_id):
                         )
             except:
                 pass
+
+@celery.task(name='workers.scheduler_worker.execute_adhoc_node')
+def execute_adhoc_node(account_id, node_type, config):
+    """
+    Execute a node immediately (adhoc) without a schedule record
+    """
+    from app import app
+    from models.account import Account
+    
+    with app.app_context():
+        try:
+            logger.info(f"Executing ADHOC node: {node_type} for account {account_id}")
+            WarmupLog.log(account_id, 'info', f"Starting manual {node_type} execution", action=f'{node_type}_manual_start')
+            
+            # Execute logic
+            from utils.session_orchestrator import SessionOrchestrator
+            import asyncio
+            
+            async def run_with_orchestrator():
+                orch = SessionOrchestrator(account_id)
+                try:
+                    async def task_wrapper(client):
+                        if not client.is_connected():
+                             await client.connect()
+                        
+                        return await execute_node(
+                            node_type,
+                            client,
+                            account_id,
+                            config
+                        )
+                    return await orch.execute(task_wrapper)
+                finally:
+                    await orch.stop()
+
+            try:
+                result = asyncio.run(run_with_orchestrator())
+            except Exception as loop_e:
+                 logger.exception(f"Orchestrator error: {loop_e}")
+                 result = {'success': False, 'error': f"Orchestrator failed: {loop_e}"}
+            
+            if result and result.get('success'):
+                logger.info(f"Adhoc node {node_type} completed")
+                WarmupLog.log(account_id, 'success', f"Manual {node_type} completed", action=f'{node_type}_manual_complete')
+            else:
+                error = result.get('error', 'Unknown error') if result else 'Unknown error'
+                logger.error(f"Adhoc node {node_type} failed: {error}")
+                WarmupLog.log(account_id, 'error', f"Manual {node_type} failed: {error}", action=f'{node_type}_manual_error')
+                
+        except Exception as e:
+            logger.error(f"Error in execute_adhoc_node: {e}")
+            WarmupLog.log(account_id, 'error', f"System error executing {node_type}: {str(e)}", action='system_error')

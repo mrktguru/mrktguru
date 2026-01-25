@@ -424,27 +424,16 @@ def run_node_immediately(account_id):
             return jsonify({'error': 'node_type required'}), 400
             
         # Execute using shared node logic
-        async def run_wrapper():
-            client = get_telethon_client(account_id)
-            if not client:
-                return {'success': False, 'error': 'Failed to get Telethon client'}
-                
-            try:
-                if not client.is_connected():
-                    await client.connect()
-                    
-                return await execute_node(node_type, client, account_id, config)
-            finally:
-                if client and client.is_connected():
-                    await client.disconnect()
-
-        # Run async in sync context
-        result = asyncio.run(run_wrapper())
+        # Execute asynchronously via Celery
+        from workers.scheduler_worker import execute_adhoc_node
         
-        if result.get('success'):
-            return jsonify({'message': 'Executed', 'result': result}), 200
-        else:
-            return jsonify({'error': result.get('error', 'Execution failed')}), 400
+        # Launch task
+        task = execute_adhoc_node.apply_async(args=[account_id, node_type, config])
+        
+        return jsonify({
+            'message': 'Execution started in background', 
+            'task_id': task.id
+        }), 200
 
     except Exception as e:
         logger.error(f"Error executing node immediate: {e}")
