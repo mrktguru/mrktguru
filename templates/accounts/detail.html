@@ -697,63 +697,96 @@
 
     <!-- NEW WARMUP SYSTEM -->
     <!-- RECENT ACTIVITY LOGS -->
+    <!-- REAL-TIME ACTIVITY TERMINAL -->
     <div class="card mb-3">
-        <div class="card-header d-flex justify-content-between align-items-center">
-            <h5 class="mb-0"><i class="bi bi-list-check"></i> Recent Activity</h5>
-            <a href="{{ url_for('accounts.activity_logs', account_id=account.id) }}"
-                class="btn btn-sm btn-outline-primary">
-                View All
-            </a>
+        <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center py-2">
+            <div class="d-flex align-items-center gap-2">
+                <i class="bi bi-terminal-fill small"></i>
+                <span class="small fw-bold">Live Activity Log: Account {{ account.id }}</span>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-secondary" id="log-status-badge" style="font-size:0.6rem;">OFFLINE</span>
+                <div class="form-check form-switch mb-0" style="min-height:auto;">
+                    <input class="form-check-input" type="checkbox" id="autoscroll-switch" checked
+                        style="width: 2em; height: 1em; margin-top: 0.1em;">
+                    <label class="form-check-label text-white small ms-1" for="autoscroll-switch">Auto-scroll</label>
+                </div>
+            </div>
         </div>
-        <div class="card-body p-0">
-            <div class="table-responsive">
-                <table class="table table-striped table-hover mb-0">
-                    <thead>
-                        <tr>
-                            <th>Time</th>
-                            <th>Action</th>
-                            <th>Status</th>
-                            <th>Description</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% if recent_logs %}
-                        {% for log in recent_logs %}
-                        <tr>
-                            <td class="text-nowrap" title="{{ log.timestamp }}">{{ log.timestamp.strftime('%H:%M:%S
-                                %d.%m') }}</td>
-                            <td>
-                                <span class="badge bg-secondary">{{ log.action_type }}</span>
-                            </td>
-                            <td>
-                                {% if log.status == 'success' %}
-                                <span class="badge bg-success">Success</span>
-                                {% elif log.status == 'failed' or log.status == 'error' %}
-                                <span class="badge bg-danger">Failed</span>
-                                {% elif log.status == 'warning' %}
-                                <span class="badge bg-warning text-dark">Warning</span>
-                                {% else %}
-                                <span class="badge bg-secondary">{{ log.status }}</span>
-                                {% endif %}
-                            </td>
-                            <td class="text-truncate" style="max-width: 300px;" title="{{ log.description or '' }}">
-                                {{ log.description or '-' }}
-                                {% if log.error_message %}
-                                <br><small class="text-danger">{{ log.error_message }}</small>
-                                {% endif %}
-                            </td>
-                        </tr>
-                        {% endfor %}
-                        {% else %}
-                        <tr>
-                            <td colspan="4" class="text-center text-muted py-3">No recent activity logs found</td>
-                        </tr>
-                        {% endif %}
-                    </tbody>
-                </table>
+
+        <div class="card-body p-0 bg-black">
+            <div id="terminal-content"
+                style="height: 300px; overflow-y: auto; font-family: 'Consolas', 'Monaco', monospace; font-size: 0.75rem; padding: 10px; color: #d4d4d4; background-color: #1e1e1e;">
+                <div class="text-muted fst-italic">Connecting to log stream...</div>
             </div>
         </div>
     </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const accountId = "{{ account.id }}";
+            const terminal = document.getElementById('terminal-content');
+            const badge = document.getElementById('log-status-badge');
+            let eventSource = null;
+
+            function connectLogs() {
+                if (eventSource) eventSource.close();
+
+                eventSource = new EventSource(`/scheduler/stream/logs/${accountId}`);
+
+                eventSource.onopen = () => {
+                    badge.className = 'badge bg-success';
+                    badge.innerText = 'LIVE';
+                    if (terminal.innerText.includes('Connecting')) terminal.innerHTML = '';
+                    appendLine({ timestamp: new Date().toLocaleTimeString(), level: 'SYSTEM', message: 'Connection established.' }, true);
+                };
+
+                eventSource.onmessage = (e) => {
+                    try {
+                        const data = JSON.parse(e.data);
+                        appendLine(data);
+                    } catch (err) {
+                        console.error('Log parse error', err);
+                    }
+                };
+
+                eventSource.onerror = () => {
+                    badge.className = 'badge bg-danger';
+                    badge.innerText = 'RECONNECTING';
+                };
+            }
+
+            function appendLine(log, isSystem = false) {
+                const row = document.createElement('div');
+                row.style.marginBottom = '2px';
+                row.style.lineHeight = '1.2';
+                row.style.wordWrap = 'break-word';
+
+                let color = '#d4d4d4';
+                let levelColor = '#808080';
+
+                if (log.level === 'INFO') { levelColor = '#569cd6'; }
+                else if (log.level === 'WARNING') { levelColor = '#ce9178'; color = '#ce9178'; }
+                else if (log.level === 'ERROR' || log.level === 'CRITICAL') { levelColor = '#f44747'; color = '#f44747'; }
+                else if (isSystem) { color = '#6a9955'; }
+
+                row.innerHTML = `
+                    <span style="color: #6a9955; margin-right: 5px; opacity:0.7;">[${log.timestamp}]</span>
+                    <span style="color: ${levelColor}; font-weight: bold; min-width: 50px; display: inline-block;">${log.level}</span>
+                    <span style="color: ${color};">${log.clean_message || log.message}</span>
+                `;
+
+                terminal.appendChild(row);
+
+                const autoscroll = document.getElementById('autoscroll-switch').checked;
+                if (autoscroll) {
+                    terminal.scrollTop = terminal.scrollHeight;
+                }
+            }
+
+            if (accountId) connectLogs();
+        });
+    </script>
 
     <!-- SCHEDULER UI -->
     {% include 'accounts/scheduler_section.html' %}
