@@ -19,10 +19,10 @@ from database import db
 from utils.proxy_manager import release_dynamic_port 
 from utils.redis_logger import setup_redis_logging # Added
 
-# Setup Redis logging
-setup_redis_logging()
-
 logger = logging.getLogger(__name__)
+
+# Setup Redis logging
+setup_redis_logging(logger)
 
 
 @celery.task(name='workers.scheduler_worker.check_warmup_schedules')
@@ -306,7 +306,7 @@ ACTIVE_SESSIONS = {}
 @celery.task(name='workers.scheduler_worker.execute_scheduled_node')
 def execute_scheduled_node(node_id):
     # Ensure redis logging is setup in this worker process
-    setup_redis_logging()
+    setup_redis_logging(logger)
     
     from app import app
     
@@ -423,7 +423,7 @@ def execute_scheduled_node(node_id):
 
 @celery.task(name='workers.scheduler_worker.execute_adhoc_node')
 def execute_adhoc_node(account_id, node_type, config):
-    setup_redis_logging()
+    setup_redis_logging(logger)
     
     from app import app
     
