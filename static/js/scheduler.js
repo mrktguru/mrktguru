@@ -673,7 +673,7 @@
             const data = await res.json();
 
             if (res.ok) {
-                alert("Started! Task ID: " + data.task_id);
+                console.log("Started! Task ID: " + data.task_id);
                 configModal.hide();
             } else {
                 alert("Error: " + data.error);
