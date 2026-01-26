@@ -128,25 +128,25 @@ def get_telethon_client(account_id, proxy=None):
         if api_cred:
             api_id = api_cred.api_id
             api_hash = decrypt_api_hash(api_cred.api_hash)
-            print(f"✅ Using selected API credential: {api_cred.name} (ID: {api_id})")
+            print(f"✅ [{account_id}] Using selected API credential: {api_cred.name} (ID: {api_id})")
         else:
             # Fallback to config
             api_id = Config.TG_API_ID
             api_hash = Config.TG_API_HASH
-            print(f"⚠️ API credential not found, using config")
+            print(f"⚠️ [{account_id}] API credential not found, using config")
     
     elif account.tdata_metadata and account.tdata_metadata.original_api_id:
         # Use original API from TData
         tdata = account.tdata_metadata
         api_id = tdata.original_api_id
         api_hash = decrypt_api_hash(tdata.original_api_hash) if tdata.original_api_hash else Config.TG_API_HASH
-        print(f"✅ Using original API from TData (ID: {api_id})")
+        print(f"✅ [{account_id}] Using original API from TData (ID: {api_id})")
     
     else:
         # Fallback to config
         api_id = Config.TG_API_ID
         api_hash = Config.TG_API_HASH
-        print(f"ℹ️ Using API from config (ID: {api_id})")
+        print(f"ℹ️ [{account_id}] Using API from config (ID: {api_id})")
     
     # ==================== DEVICE FINGERPRINT ====================
     # Priority: JSON (if selected) > TData binary > DeviceProfile > Defaults
@@ -192,7 +192,7 @@ def get_telethon_client(account_id, proxy=None):
         # LOGIC: Choose between JSON and TData binary
         # If user selected JSON and data exists - use it
         if getattr(tdata, 'device_source', None) == 'json' and tdata.json_device_model:
-            print(f"✅ Using JSON fingerprint for account {account_id}")
+            print(f"✅ [{account_id}] Using JSON fingerprint")
             device_params.update({
                 'device_model': tdata.json_device_model,
                 'system_version': tdata.json_system_version or tdata.system_version,
@@ -202,7 +202,7 @@ def get_telethon_client(account_id, proxy=None):
             })
         else:
             # Otherwise use TData binary data
-            print(f"✅ Using TData binary fingerprint for account {account_id}")
+            print(f"✅ [{account_id}] Using TData binary fingerprint")
             device_params.update({
                 'device_model': tdata.device_model or "Desktop",
                 'system_version': tdata.system_version or "Windows 10",
@@ -214,7 +214,7 @@ def get_telethon_client(account_id, proxy=None):
     elif account.device_profile:
         # Use device profile (for .session uploads)
         device = account.device_profile
-        print(f"ℹ️  Using device profile: {device.device_model}")
+        print(f"ℹ️  [{account_id}] Using device profile: {device.device_model}")
         device_params.update({
             'device_model': device.device_model,
             'system_version': device.system_version,
@@ -223,7 +223,7 @@ def get_telethon_client(account_id, proxy=None):
             'system_lang_code': device.system_lang_code
         })
     else:
-        print(f"⚠️  Using default device fingerprint")
+        print(f"⚠️  [{account_id}] Using default device fingerprint")
     
     # ==================== FIX #3: API/DEVICE CONSISTENCY CHECK ====================
     # If api_id is TDesktop (2040) but device_model looks like mobile, override to Desktop
@@ -243,7 +243,7 @@ def get_telethon_client(account_id, proxy=None):
     is_mobile_device = any(pattern in device_model.lower() for pattern in mobile_patterns)
     
     if api_id == TDESKTOP_API_ID and is_mobile_device:
-        print(f"⚠️  FIX #3: Mobile device '{device_model}' with TDesktop API - overriding to Desktop")
+        print(f"⚠️  [{account_id}] FIX #3: Mobile device '{device_model}' with TDesktop API - overriding to Desktop")
         device_params.update({
             'device_model': "Desktop",
             'system_version': "Windows 10",
@@ -343,13 +343,13 @@ def get_telethon_client(account_id, proxy=None):
             
             if ip_response.status_code == 200:
                 real_ip = ip_response.text.strip()
-                print(f"🌍 Proxy Exit IP: {real_ip}")
+                print(f"🌍 [{account_id}] Proxy Exit IP: {real_ip}")
             else:
-                print(f"🌍 Proxy Exit IP: [Check Failed - Status {ip_response.status_code}]")
+                print(f"🌍 [{account_id}] Proxy Exit IP: [Check Failed - Status {ip_response.status_code}]")
                 
         except Exception as e:
             # Don't fail the client creation if IP check fails
-            print(f"🌍 Proxy Exit IP: [Check Failed - {str(e)}]")
+            print(f"🌍 [{account_id}] Proxy Exit IP: [Check Failed - {str(e)}]")
         # ===================================================================
     
     # ==================== SESSION CONFIGURATION ====================
@@ -359,7 +359,7 @@ def get_telethon_client(account_id, proxy=None):
     if account.session_string:
         # Preferred: StringSession stored in DB
         session = StringSession(account.session_string)
-        print(f"DEBUG: Using StringSession for account {account_id}")
+        print(f"DEBUG: [{account_id}] Using StringSession")
     elif account.session_file_path:
         # Legacy/TData: SQLite file path
         # Ensure path is absolute and clean
@@ -384,11 +384,11 @@ def get_telethon_client(account_id, proxy=None):
             else:
                 session_path = path_1 # Default to abspath
             
-        print(f"DEBUG: Resolving session file: {session_path}")
+        print(f"DEBUG: [{account_id}] Checking session file: {session_path}")
         
         if os.path.exists(session_path):
             session = session_path  # Telethon accepts str path for SQLiteSession
-            print(f"DEBUG: Using SQLite session file for account {account_id}")
+        print(f"DEBUG: [{account_id}] Using SQLite session file")
         else:
             print(f"WARNING: Session file not found at {session_path}")
             # If we create a new session here, it will be empty.
@@ -432,7 +432,7 @@ def get_telethon_client(account_id, proxy=None):
         catch_up=False
     )
     
-    logging.info(f"✅ Client created via ExtendedTelegramClient (lang_pack='tdesktop')")
+    logging.info(f"✅ [{account_id}] Client created via ExtendedTelegramClient (lang_pack='tdesktop')")
     
     # Save session back to DB on disconnect (if modified)
     # Save session back to DB on disconnect (if modified)
