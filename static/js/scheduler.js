@@ -890,8 +890,14 @@
                     <textarea class="form-control" name="keywords" rows="3">${config.keywords || ''}</textarea>
                 </div>
                 <div class="mb-3">
-                    <label class="form-label">Links</label>
-                    <textarea class="form-control" name="links" rows="3">${config.links || ''}</textarea>
+                    <label class="form-label">Mixed Source List (One per line)</label>
+                    <textarea class="form-control" name="links" rows="4" 
+                        placeholder="https://t.me/news_channel (Direct Click)&#10;@crypto_daily (Search + Typing)&#10;bitcoin news (Search + Typing)">${config.links || ''}</textarea>
+                    <small class="form-text text-muted">
+                        <i class="bi bi-info-circle"></i> Smart Logic:<br>
+                        • <b>Links (t.me/...)</b> → Opens directly like from browser (Referer).<br>
+                        • <b>@Usernames/Words</b> → Simulates typing in Global Search.
+                    </small>
                 </div>
             `;
         }

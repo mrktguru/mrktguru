@@ -1259,7 +1259,28 @@ NODE_EXECUTORS = {
     'passive_activity': execute_node_passive_activity, # 🔥 United Passive Node
     'sync_profile': node_sync_profile, # Added profile sync node
     'set_2fa': execute_node_set_2fa, # 🛡️ New 2FA node
+    'search_filter': execute_node_search_filter, # 🔍 Human-like Search & Filter
 }
+
+
+async def execute_node_search_filter(client, account_id, config):
+    """
+    Execute Search & Filter node with Human Behavior.
+    Connects to HumanBehavior util to simulate realistic browsing.
+    """
+    from utils.human_behavior import HumanBehavior
+    
+    try:
+        hb = HumanBehavior(client, account_id)
+        await hb.process_mixed_links(config)
+        
+        WarmupLog.log(account_id, 'success', f"Search & Filter session completed", action='search_filter_complete')
+        return {'success': True, 'message': 'Search & Filter session completed'}
+        
+    except Exception as e:
+        logger.error(f"[{account_id}] Search & Filter node failed: {e}")
+        WarmupLog.log(account_id, 'error', f"Search & Filter failed: {str(e)}", action='search_filter_error')
+        return {'success': False, 'error': str(e)}
 
 
 async def execute_node(client, node_type, account_id, config):
