@@ -59,13 +59,15 @@ class RedisPubSubHandler(logging.Handler):
             print(f"RedisPubSubHandler Error: {e}", flush=True)
             self.handleError(record)
 
-def setup_redis_logging():
-    """Attaches Redis handler to the root logger"""
-    root_logger = logging.getLogger()
-    root_logger.setLevel(logging.INFO) # Force INFO level
+def setup_redis_logging(target_logger=None):
+    """Attaches Redis handler to the target logger or root"""
+    if target_logger is None:
+        target_logger = logging.getLogger()
+        
+    target_logger.setLevel(logging.INFO) # Force INFO level
     
     # Avoid adding duplicate handlers
-    if any(isinstance(h, RedisPubSubHandler) for h in root_logger.handlers):
+    if any(isinstance(h, RedisPubSubHandler) for h in target_logger.handlers):
         return
 
     redis_handler = RedisPubSubHandler()
@@ -73,5 +75,5 @@ def setup_redis_logging():
     formatter = logging.Formatter('[%(asctime)s] %(levelname)s: %(message)s')
     redis_handler.setFormatter(formatter)
     
-    root_logger.addHandler(redis_handler)
-    print("RedisPubSubHandler attached to root logger", flush=True)
+    target_logger.addHandler(redis_handler)
+    print(f"RedisPubSubHandler attached to logger: {target_logger.name}", flush=True)
