@@ -166,8 +166,8 @@ class HumanBehavior:
 
         typed_text = ""
         for char in text:
-            # 15% chance for massive typo
-            if char.lower() in nearby_keys and random.random() < 0.15:
+            # 2% chance for massive typo
+            if char.lower() in nearby_keys and random.random() < 0.02:
                 typo = random.choice(nearby_keys[char.lower()])
                 # Press wrong key
                 await asyncio.sleep(random.uniform(0.1, 0.3))
