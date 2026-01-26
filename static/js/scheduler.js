@@ -101,7 +101,7 @@
 
         // Actions
         document.getElementById('save-schedule-btn').addEventListener('click', saveSchedule);
-        document.getElementById('start-schedule-btn').addEventListener('click', startSchedule);
+        // document.getElementById('start-schedule-btn').addEventListener('click', startSchedule); // Handled by updateControlButtons
         document.getElementById('clear-schedule-btn').addEventListener('click', clearSchedule);
 
         // Config Modal
@@ -506,6 +506,8 @@
             const data = await res.json();
             if (data.schedule) {
                 scheduleData.schedule_id = data.schedule.id;
+                scheduleData.status = data.schedule.status; // 'draft', 'active', 'paused'
+                updateControlButtons();
             }
             if (data.nodes) {
                 scheduleData.nodes = data.nodes;
@@ -514,6 +516,38 @@
         } catch (e) {
             console.error(e);
         }
+    }
+
+    function updateControlButtons() {
+        const btn = document.getElementById('start-schedule-btn');
+        if (!btn) return;
+
+        // Remove old listeners to be safe (cloning)
+        const newBtn = btn.cloneNode(true);
+        btn.parentNode.replaceChild(newBtn, btn);
+
+        if (scheduleData.status === 'active') {
+            newBtn.innerHTML = '<i class="bi bi-stop-fill"></i> Stop';
+            newBtn.className = 'btn btn-sm btn-danger';
+            newBtn.addEventListener('click', stopSchedule);
+        } else {
+            newBtn.innerHTML = '<i class="bi bi-play-fill"></i> Start';
+            newBtn.className = 'btn btn-sm btn-success';
+            newBtn.addEventListener('click', startSchedule);
+        }
+    }
+
+    async function stopSchedule() {
+        if (!confirm("Stop the schedule? This will pause execution.")) return;
+        try {
+            const res = await fetch(`/scheduler/schedules/${scheduleData.schedule_id}/pause`, { method: 'POST' });
+            const data = await res.json();
+            if (data.error) alert(data.error);
+            else {
+                alert("Schedule Stopped/Paused!");
+                window.location.reload();
+            }
+        } catch (e) { console.error(e); }
     }
 
     async function saveSchedule(silent = false) {
