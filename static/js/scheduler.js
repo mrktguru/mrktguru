@@ -517,9 +517,31 @@
     }
 
     async function saveSchedule(silent = false) {
-        if (!scheduleData.schedule_id) return;
+        // 1. Ensure Schedule Exists (Lazy Creation)
+        if (!scheduleData.schedule_id) {
+            try {
+                console.log("Creating new schedule...");
+                const res = await fetch(`/scheduler/accounts/${schedulerAccountId}/schedule`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: 'Warmup Schedule' })
+                });
+                const data = await res.json();
+                if (data.schedule) {
+                    scheduleData.schedule_id = data.schedule.id;
+                    console.log("Schedule created with ID:", scheduleData.schedule_id);
+                } else {
+                    console.error("Failed to create schedule:", data);
+                    if (!silent) alert("Error creating schedule: " + (data.error || 'Unknown'));
+                    return;
+                }
+            } catch (e) {
+                console.error("Error creating schedule network:", e);
+                return;
+            }
+        }
 
-        // 1. Process Deletions
+        // 2. Process Deletions
         if (window._deletedNodeIds && window._deletedNodeIds.length > 0) {
             for (const id of window._deletedNodeIds) {
                 try {
@@ -529,7 +551,7 @@
             window._deletedNodeIds = [];
         }
 
-        // 2. Process Upserts
+        // 3. Process Upserts
         for (const node of scheduleData.nodes) {
             if (node.is_ghost) continue;
 
@@ -570,7 +592,28 @@
     }
 
     async function startSchedule() {
-        if (!scheduleData.schedule_id) return;
+        // Ensure Schedule Exists before starting
+        if (!scheduleData.schedule_id) {
+            try {
+                const res = await fetch(`/scheduler/accounts/${schedulerAccountId}/schedule`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: 'Warmup Schedule' })
+                });
+                const data = await res.json();
+                if (data.schedule) {
+                    scheduleData.schedule_id = data.schedule.id;
+                } else {
+                    alert("Error creating schedule: " + (data.error || 'Unknown'));
+                    return;
+                }
+            } catch (e) {
+                console.error("Error creating schedule network:", e);
+                alert("Network error creating schedule");
+                return;
+            }
+        }
+
         try {
             const res = await fetch(`/scheduler/schedules/${scheduleData.schedule_id}/start`, { method: 'POST' });
             const data = await res.json();
