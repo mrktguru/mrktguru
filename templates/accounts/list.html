@@ -76,6 +76,7 @@
                     <th>Username</th>
                     <th>Status</th>
                     <th>Warmup</th>
+                    <th>2FA</th>
                     <th>Proxy</th>
                     <th>Sent Today</th>
                     <th>Age</th>
@@ -132,6 +133,13 @@
                         <span class="badge bg-success">Running</span>
                         {% else %}
                         <span class="badge bg-secondary">Stopped</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if account.two_fa_password %}
+                        <span class="text-success" title="2FA Enabled"><i class="bi bi-shield-lock-fill"></i></span>
+                        {% else %}
+                        <span class="text-muted" title="No 2FA">-</span>
                         {% endif %}
                     </td>
                     <td>
