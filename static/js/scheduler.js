@@ -569,20 +569,120 @@
         }
     }
 
-    // Stub functions for completion
-    function startSchedule() { }
-    function clearSchedule() { }
+    async function startSchedule() {
+        if (!scheduleData.schedule_id) return;
+        try {
+            const res = await fetch(`/scheduler/schedules/${scheduleData.schedule_id}/start`, { method: 'POST' });
+            const data = await res.json();
+            if (data.error) alert(data.error);
+            else {
+                alert("Schedule Started!");
+                window.location.reload();
+            }
+        } catch (e) { console.error(e); }
+    }
+
+    async function clearSchedule() {
+        if (!confirm("Delete entire schedule?")) return;
+        if (!scheduleData.schedule_id) return;
+        try {
+            await fetch(`/scheduler/schedules/${scheduleData.schedule_id}`, { method: 'DELETE' });
+            window.location.reload();
+        } catch (e) { console.error(e); }
+    }
+
+    function openNodeConfig(node) {
+        currentNode = node;
+        const form = document.getElementById('nodeConfigForm');
+        form.reset();
+
+        // Common Fields
+        const timeInput = form.elements['execution_time'];
+        const randomCheck = form.elements['is_random_time'];
+
+        if (timeInput && randomCheck) {
+            if (node.is_random_time) {
+                randomCheck.checked = true;
+                timeInput.disabled = true;
+                timeInput.value = '';
+            } else {
+                randomCheck.checked = false;
+                timeInput.disabled = false;
+                timeInput.value = node.execution_time || '';
+            }
+        }
+
+        // Render Dynamic Fields
+        renderDynamicFields(node.node_type, node.config);
+
+        configModal.show();
+    }
+
     function saveConfig() {
         if (currentNode) {
             const form = document.getElementById('nodeConfigForm');
-            // Map form to config...
-            // Close modal
+            const formData = new FormData(form);
+
+            // Common
+            currentNode.is_random_time = formData.has('is_random_time');
+            currentNode.execution_time = formData.get('execution_time');
+
+            // Config
+            currentNode.config = currentNode.config || {};
+
+            // Helper to get ALL inputs from the dynamic container
+            const dynamicContainer = document.getElementById('dynamicFields');
+            const inputs = dynamicContainer.querySelectorAll('input, select, textarea');
+
+            inputs.forEach(input => {
+                const name = input.name;
+                if (!name) return;
+
+                if (input.type === 'checkbox') {
+                    currentNode.config[name] = input.checked;
+                } else if (input.type === 'number') {
+                    if (input.value === '') currentNode.config[name] = null;
+                    else currentNode.config[name] = parseFloat(input.value);
+                } else {
+                    currentNode.config[name] = input.value;
+                }
+            });
+
             configModal.hide();
             renderNodes();
             saveSchedule(true);
         }
     }
-    function runNodeNow() { }
+
+    async function runNodeNow() {
+        if (!currentNode) return;
+
+        if (!currentNode.id) {
+            alert("Please save the node first (drag/drop and configure) before running.");
+            return;
+        }
+
+        if (!confirm("Run this node immediately?")) return;
+
+        try {
+            const res = await fetch(`/scheduler/accounts/${schedulerAccountId}/run_node`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ node_id: currentNode.id })
+            });
+            const data = await res.json();
+
+            if (res.ok) {
+                alert("Started! Task ID: " + data.task_id);
+                configModal.hide();
+            } else {
+                alert("Error: " + data.error);
+            }
+        } catch (e) {
+            console.error(e);
+            alert("Network error running node");
+        }
+    }
     function initResize(handle, node, nodeEl) {
         handle.addEventListener('mousedown', (e) => {
             e.stopPropagation();
