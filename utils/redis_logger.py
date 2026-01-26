@@ -16,7 +16,7 @@ class RedisPubSubHandler(logging.Handler):
     def emit(self, record):
         try:
             # DEBUG PRINT
-            print(f"RedisPubSubHandler: Processing record {record.msg}", flush=True)
+            # print(f"RedisPubSubHandler: Processing record {record.msg}", flush=True)
             
             msg = self.format(record)
             
@@ -32,7 +32,7 @@ class RedisPubSubHandler(logging.Handler):
 
             # If ID found, publish to Redis
             if account_id:
-                print(f"RedisPubSubHandler: Found account_id {account_id}, publishing...", flush=True)
+                # print(f"RedisPubSubHandler: Found account_id {account_id}, publishing...", flush=True)
                 channel = f"logs:account:{account_id}"
                 
                 # Format payload
@@ -56,7 +56,7 @@ class RedisPubSubHandler(logging.Handler):
                 pipe.execute()
                 
         except Exception as e:
-            print(f"RedisPubSubHandler Error: {e}", flush=True)
+            # print(f"RedisPubSubHandler Error: {e}", flush=True)
             self.handleError(record)
 
 def setup_redis_logging(target_logger=None):
