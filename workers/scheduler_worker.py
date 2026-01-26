@@ -305,6 +305,9 @@ ACTIVE_SESSIONS = {}
 
 @celery.task(name='workers.scheduler_worker.execute_scheduled_node')
 def execute_scheduled_node(node_id):
+    # Ensure redis logging is setup in this worker process
+    setup_redis_logging()
+    
     from app import app
     
     with app.app_context():
@@ -420,6 +423,8 @@ def execute_scheduled_node(node_id):
 
 @celery.task(name='workers.scheduler_worker.execute_adhoc_node')
 def execute_adhoc_node(account_id, node_type, config):
+    setup_redis_logging()
+    
     from app import app
     
     with app.app_context():
