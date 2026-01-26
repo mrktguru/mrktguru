@@ -171,7 +171,9 @@ def upload():
                     health_score=100,
                     proxy_id=assigned_proxy_id,
                     created_at=datetime.now(),
-                    session_metadata=metadata
+                    session_metadata=metadata,
+                    source=source,
+                    tags=tags
                 )
                 db.session.add(account)
                 db.session.flush()  # Get account ID
@@ -917,7 +919,44 @@ def update_profile(account_id):
         loop.run_until_complete(bot.stop())
         loop.close()
     
-    return redirect(url_for("accounts.detail", account_id=account_id))
+    try:
+        data = request.form
+        
+        username = data.get('username', '').replace('@', '').strip()
+        bio = data.get('bio', '').strip()
+        
+        # New fields
+        source = data.get('source', '').strip()
+        tags_str = data.get('tags', '')
+        tags = [t.strip() for t in tags_str.split(',') if t.strip()]
+        
+        if username:
+            account.username = username
+        if bio:
+            account.bio = bio
+            
+        # Update metadata
+        # Only update if provided or if clearing? 
+        # Usually update_profile is explicitly for these fields so we can overwrite.
+        account.source = source
+        account.tags = tags
+            
+        # Handle Photo Upload
+        if 'photo' in request.files:
+            file = request.files['photo']
+            if file and file.filename != '':
+                # ... existing photo logic ...
+                pass
+
+        db.session.commit()
+        flash("Profile updated successfully", 'success')
+        return redirect(url_for('accounts.detail', account_id=account_id))
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error updating profile: {e}")
+        flash(f"Error updating profile: {e}", 'danger')
+        return redirect(url_for('accounts.detail', account_id=account_id))
 
 
 # ==================== WARMUP SETTINGS ROUTES ====================

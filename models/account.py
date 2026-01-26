@@ -62,6 +62,10 @@ class Account(db.Model):
     phone_code_hash = db.Column(db.String(255))  # For interactive phone login
     two_fa_password = db.Column(db.String(255))  # Local record of 2FA password
     
+    # Metadata
+    source = db.Column(db.String(255)) # Manual source label (e.g. shop name)
+    tags = db.Column(db.JSON) # List of tags/hashtags
+    
     # Relationships
     proxy = db.relationship('Proxy', backref=db.backref('accounts', lazy='dynamic'))
     device_profile = db.relationship('DeviceProfile', backref='account', uselist=False, cascade='all, delete-orphan')

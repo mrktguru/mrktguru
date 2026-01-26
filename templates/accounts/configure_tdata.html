@@ -256,6 +256,26 @@
                         </table>
                         {% endif %}
 
+
+                        <!-- Source & Tags -->
+                        <div class="mb-3">
+                            <label class="form-label">Source / Origin</label>
+                            <input class="form-control" list="sourceOptions" name="source"
+                                placeholder="e.g. Seller Name, Shop URL...">
+                            <datalist id="sourceOptions">
+                                {% for s in existing_sources %}
+                                <option value="{{ s }}">
+                                    {% endfor %}
+                            </datalist>
+                            <small class="text-muted">Where did this account come from?</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Tags</label>
+                            <input type="text" class="form-control" name="tags" placeholder="e.g. #premium, #us, #old">
+                            <small class="text-muted">Comma separated tags for categorization</small>
+                        </div>
+
                         <div class="mb-3">
                             <label class="form-label"><strong>Select device parameters source:</strong></label>
                             <div class="form-check">

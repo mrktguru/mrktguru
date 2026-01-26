@@ -242,6 +242,16 @@ def configure_tdata(account_id):
             tdata = account.tdata_metadata
             tdata.device_source = device_source
             
+            # Save Source and Tags
+            source = request.form.get('source', '').strip()
+            tags_str = request.form.get('tags', '')
+            tags = [t.strip() for t in tags_str.split(',') if t.strip()]
+            
+            if source:
+                account.source = source
+            if tags:
+                account.tags = tags
+            
             # ==================== CREATE SESSION FILE FROM TDATA ====================
             # ==================== CREATE SESSION FILE FROM TDATA ====================
             # Use native opentele conversion to StringSession (Robust & Modern)
@@ -397,6 +407,9 @@ def configure_tdata(account_id):
         
         comparison = TDataParser.compare_sources(tdata_only_meta, json_meta)
     
+    # Get existing sources for autocomplete
+    existing_sources = [r[0] for r in db.session.query(Account.source).distinct().filter(Account.source != None)]
+
     return render_template(
         'accounts/configure_tdata.html',
         account=account,
@@ -406,7 +419,8 @@ def configure_tdata(account_id):
         proxy_networks=proxy_networks,
         recommended_api_id=recommended_api_id,
         has_json=has_json,
-        comparison=comparison
+        comparison=comparison,
+        existing_sources=existing_sources
     )
 
 

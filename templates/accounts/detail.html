@@ -72,6 +72,26 @@
                         <span class="text-muted">Not Set</span>
                         {% endif %}
                     </dd>
+
+                    <dt class="col-sm-5">Source:</dt>
+                    <dd class="col-sm-7">
+                        {% if account.source %}
+                        {{ account.source }}
+                        {% else %}
+                        <span class="text-muted">-</span>
+                        {% endif %}
+                    </dd>
+
+                    <dt class="col-sm-5">Tags:</dt>
+                    <dd class="col-sm-7">
+                        {% if account.tags %}
+                        {% for tag in account.tags %}
+                        <span class="badge bg-secondary">{{ tag }}</span>
+                        {% endfor %}
+                        {% else %}
+                        <span class="text-muted">-</span>
+                        {% endif %}
+                    </dd>
                 </dl>
 
                 <div class="d-grid gap-2 mt-3">
@@ -213,6 +233,17 @@
                             <textarea name="bio" class="form-control" rows="3"
                                 placeholder="About me">{{ account.bio or "" }}</textarea>
                         </div>
+
+                        <div class="mb-2">
+                            <label class="form-label">Source</label>
+                            <input type="text" name="source" class="form-control" value="{{ account.source or "" }}">
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label">Tags (comma separated)</label>
+                            <input type="text" name="tags" class="form-control"
+                                value="{{ account.tags|join(', ') if account.tags else '' }}">
+                        </div>
+
                         <div class="mb-3">
                             <label class="form-label">Profile Photo</label>
                             <input type="file" name="photo" class="form-control" accept="image/*">
