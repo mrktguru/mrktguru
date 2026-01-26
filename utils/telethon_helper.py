@@ -362,14 +362,29 @@ def get_telethon_client(account_id, proxy=None):
         print(f"DEBUG: Using StringSession for account {account_id}")
     elif account.session_file_path:
         # Legacy/TData: SQLite file path
-        # Ensure path is absolute
-        if os.path.isabs(account.session_file_path):
-            session_path = account.session_file_path
+        # Ensure path is absolute and clean
+        clean_path = account.session_file_path.strip()
+        
+        if os.path.isabs(clean_path):
+            session_path = clean_path
         else:
-            # Assuming relative to app root or check existence
-            session_path = os.path.abspath(account.session_file_path)
+            # Try 1: Relative to CWD (app root)
+            path_1 = os.path.abspath(clean_path)
+            # Try 2: Relative to SESSIONS_FOLDER
+            path_2 = os.path.join(Config.SESSIONS_FOLDER, clean_path)
+            # Try 3: Relative to uploads
+            path_3 = os.path.join(Config.UPLOAD_FOLDER, clean_path)
             
-        print(f"DEBUG: Checking session file: {session_path}")
+            if os.path.exists(path_1):
+                session_path = path_1
+            elif os.path.exists(path_2):
+                session_path = path_2
+            elif os.path.exists(path_3):
+                session_path = path_3
+            else:
+                session_path = path_1 # Default to abspath
+            
+        print(f"DEBUG: Resolving session file: {session_path}")
         
         if os.path.exists(session_path):
             session = session_path  # Telethon accepts str path for SQLiteSession
@@ -377,14 +392,15 @@ def get_telethon_client(account_id, proxy=None):
         else:
             print(f"WARNING: Session file not found at {session_path}")
             # If we create a new session here, it will be empty.
-            # But maybe we want that for initial login?
-            # For TData import, the file MUST exist.
             if account.source_type == 'tdata':
                  # Try to find it relative to cwd if absolute check failed
                  if os.path.exists(account.session_file_path):
                       session = account.session_file_path
                  else:
-                      raise ValueError(f"Session file missing for TData account: {account.session_file_path}")
+                      # CRITICAL: Don't just reset to empty string, raise error to prevent data loss
+                      # raise ValueError(f"Session file missing for TData account: {account.session_file_path}")
+                      print(f"CRITICAL: TData Session file missing! Account might appear logged out.")
+                      session = StringSession('')
             else:
                  session = StringSession('')
     else:
