@@ -1615,10 +1615,13 @@ async def set_2fa_password(account_id, password):
 
 async def get_active_sessions(account_id):
     """
-    Get active sessions for account
+    Get active sessions for account and persist them to DB
     """
     from telethon.tl.functions.account import GetAuthorizationsRequest
     from utils.human_behavior import random_sleep
+    from models.account_session import AccountSession
+    from database import db
+    from datetime import datetime
 
     client = None
     try:
@@ -1634,9 +1637,38 @@ async def get_active_sessions(account_id):
         # Get sessions
         result = await client(GetAuthorizationsRequest())
         
-        sessions = []
+        sessions_data = []
+        
+        # CLEAR existing sessions for this account (full refresh)
+        try:
+            AccountSession.query.filter_by(account_id=account_id).delete()
+            db.session.commit()
+        except Exception as db_err:
+            db.session.rollback()
+            print(f"Error clearing sessions: {db_err}")
+
         for auth in result.authorizations:
-            sessions.append({
+            # Create DB Record
+            session_rec = AccountSession(
+                account_id=account_id,
+                session_hash=str(auth.hash),
+                device_model=auth.device_model,
+                platform=auth.platform,
+                system_version=auth.system_version,
+                api_id=auth.api_id,
+                app_name=auth.app_name,
+                app_version=auth.app_version,
+                date_created=auth.date_created,
+                date_active=auth.date_active,
+                ip=auth.ip,
+                country=auth.country,
+                region=auth.region,
+                is_current=auth.current
+            )
+            db.session.add(session_rec)
+            
+            # Add to return list
+            sessions_data.append({
                 "hash": str(auth.hash),
                 "device_model": auth.device_model,
                 "platform": auth.platform,
@@ -1652,7 +1684,14 @@ async def get_active_sessions(account_id):
                 "current": auth.current
             })
             
-        return {"success": True, "sessions": sessions}
+        try:
+            db.session.commit()
+            print(f"✅ Persisted {len(sessions_data)} sessions for account {account_id}")
+        except Exception as commit_err:
+            db.session.rollback()
+            print(f"❌ Failed to persist sessions: {commit_err}")
+            
+        return {"success": True, "sessions": sessions_data}
         
     except Exception as e:
         return {"success": False, "error": str(e)}

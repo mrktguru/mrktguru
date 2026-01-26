@@ -68,6 +68,7 @@ class Account(db.Model):
     subscriptions = db.relationship('AccountSubscription', backref='account', lazy='dynamic', cascade='all, delete-orphan')
     api_credential = db.relationship('ApiCredential', backref='accounts')
     tdata_metadata = db.relationship('TDataMetadata', backref='account', uselist=False, cascade='all, delete-orphan')
+    active_sessions = db.relationship('AccountSession', backref='account', lazy='dynamic', cascade='all, delete-orphan')
     
     def __repr__(self):
         return f'<Account {self.phone}>'

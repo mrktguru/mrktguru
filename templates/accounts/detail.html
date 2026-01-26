@@ -415,8 +415,13 @@
                 <h6 class="mb-3"><i class="bi bi-laptop"></i> Active Sessions</h6>
 
                 <div id="sessions-container">
+                    {% set active_sessions = account.active_sessions.all() %}
                     <button class="btn btn-sm btn-outline-primary w-100" onclick="loadSessions()">
+                        {% if active_sessions %}
+                        <i class="bi bi-arrow-clockwise"></i> Refresh Active Sessions
+                        {% else %}
                         <i class="bi bi-cloud-download"></i> Load Active Sessions
+                        {% endif %}
                     </button>
                     <div id="sessions-loading" class="text-center mt-3 d-none">
                         <span class="spinner-border text-primary" role="status"></span>
@@ -424,7 +429,7 @@
                     </div>
                 </div>
 
-                <div id="sessions-list" class="mt-3 d-none">
+                <div id="sessions-list" class="mt-3 {% if not active_sessions %}d-none{% endif %}">
                     <div class="table-responsive">
                         <table class="table table-sm table-hover" style="font-size: 0.85rem;">
                             <thead>
@@ -436,7 +441,32 @@
                                 </tr>
                             </thead>
                             <tbody id="sessions-table-body">
-                                <!-- Populated by JS -->
+                                {% for s in active_sessions %}
+                                <tr class="{% if s.is_current %}table-success{% endif %}">
+                                    <td>
+                                        <div class="fw-bold">{{ s.device_model }}</div>
+                                        <small class="text-muted">{{ s.app_name }} {{ s.app_version }}</small>
+                                    </td>
+                                    <td>
+                                        <div>{{ s.country }}</div>
+                                        <small class="text-muted">{{ s.ip }}</small>
+                                    </td>
+                                    <td>
+                                        <small title="Created: {{ s.date_created }}">{{
+                                            s.date_active.strftime('%Y-%m-%d') if s.date_active else '-' }}</small>
+                                    </td>
+                                    <td>
+                                        {% if s.is_current %}
+                                        <span class="badge bg-success">Current</span>
+                                        {% else %}
+                                        <button class="btn btn-xs btn-outline-danger"
+                                            onclick="terminateSession('{{ s.session_hash }}')" title="Terminate">
+                                            <i class="bi bi-x"></i>
+                                        </button>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
                             </tbody>
                         </table>
                     </div>

@@ -336,6 +336,7 @@
         `;
 
         // Event Listeners
+        // Event Listeners
         if (!node.is_ghost) {
             el.addEventListener('dragstart', (e) => {
                 e.stopPropagation();
@@ -344,9 +345,33 @@
                 e.dataTransfer.effectAllowed = 'move';
                 el.style.opacity = '0.5';
             });
-            el.addEventListener('dblclick', (e) => { e.stopPropagation(); openNodeConfig(node); });
-            el.querySelector('.node-config-btn').addEventListener('click', (e) => { e.stopPropagation(); openNodeConfig(node); });
-            el.querySelector('.node-remove-btn').addEventListener('click', (e) => { e.stopPropagation(); removeNode(node); });
+
+            // Fix: Double Click
+            el.addEventListener('dblclick', (e) => {
+                e.preventDefault(); // Prevent text selection
+                e.stopPropagation();
+                console.log('Double click on node', node);
+                openNodeConfig(node);
+            });
+
+            // Config Button
+            const configBtn = el.querySelector('.node-config-btn');
+            if (configBtn) {
+                configBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    console.log('Config click on node', node);
+                    openNodeConfig(node);
+                });
+            }
+
+            // Remove Button
+            const removeBtn = el.querySelector('.node-remove-btn');
+            if (removeBtn) {
+                removeBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    removeNode(node);
+                });
+            }
 
             initResize(el.querySelector('.resize-handle'), node, el);
         }
