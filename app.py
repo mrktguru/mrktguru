@@ -79,6 +79,8 @@ def create_app():
     # Import models after app context
     with app.app_context():
         from models.user import User
+        # Import other models to ensure relationships are registered
+        from models.account_session import AccountSession
         
         @login_manager.user_loader
         def load_user(user_id):
