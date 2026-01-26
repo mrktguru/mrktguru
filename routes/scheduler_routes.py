@@ -436,9 +436,10 @@ def _get_ghost_nodes(account_id, schedule_id):
     
     nodes = []
     account = Account.query.get(account_id)
-    if not account or not account.created_at:
-        return []
+    # If no creation date, fallback to now (though logic requires it)
+    created_at = account.created_at if (account and account.created_at) else datetime.now()
         
+    # Fetch ALL successful logs
     logs = WarmupLog.query.filter_by(
         account_id=account_id, 
         status='success'
@@ -446,11 +447,17 @@ def _get_ghost_nodes(account_id, schedule_id):
     
     ghost_id_counter = -1
     for log in logs:
-        # Calculate Day Number
-        delta = log.timestamp - account.created_at
-        day_num = max(1, delta.days + 1)
+        # --- FIXED DAY CALCULATION ---
+        # Calculate diff in days
+        delta_days = (log.timestamp.date() - created_at.date()).days
         
-        # Format time
+        # Day 1 = creation day. Day 0 (or negative) = before creation.
+        day_num = delta_days + 1
+        
+        # If log is older than account creation (rare but possible), clamp to 1 or handled by UI
+        if day_num < 1: 
+             day_num = 1 
+
         time_str = log.timestamp.strftime('%H:%M')
         
         # Determine Node Type

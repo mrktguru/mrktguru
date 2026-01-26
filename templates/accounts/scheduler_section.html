@@ -127,7 +127,8 @@
                 <!-- Time-Grid Container -->
                 <div id="scheduler-calendar" class="scheduler-calendar scheduler-container border rounded"
                     style="position: relative; background: #fff;" data-account-id="{{ account.id }}"
-                    data-start-date="{{ account.active_schedule.start_date.isoformat() if account.active_schedule and account.active_schedule.start_date else (account.latest_schedule.start_date.isoformat() if account.latest_schedule and account.latest_schedule.start_date else (account.created_at.isoformat() if account.created_at else '')) }}"
+                    data-created-at="{{ account.created_at.isoformat() if account.created_at else '' }}"
+                    data-start-date="{{ account.active_schedule.start_date.isoformat() if account.active_schedule and account.active_schedule.start_date else (account.created_at.isoformat() if account.created_at else '') }}"
                     data-bio="{{ account.bio | default('', true) | e }}"
                     data-username="{{ account.username | default('', true) | e }}"
                     data-first-name="{{ account.first_name | default('', true) | e }}"
