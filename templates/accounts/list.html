@@ -143,7 +143,11 @@
                         {% endif %}
                     </td>
                     <td>
-                        {% if account.proxy %}
+                        {% if account.proxy_network %}
+                        <span class="badge bg-info" title="Network: {{ account.proxy_network.name }}">
+                            Network
+                        </span>
+                        {% elif account.proxy %}
                         <span class="badge bg-primary" title="{{ account.proxy.host }}:{{ account.proxy.port }}">
                             {{ account.proxy.type }}
                         </span>
