@@ -1245,22 +1245,7 @@ async def execute_node_set_2fa(client, account_id, config):
         return {'success': False, 'error': str(e)}
 
 
-# Node executor registry
-NODE_EXECUTORS = {
-    'bio': execute_node_bio,
-    'username': execute_node_username,
-    'photo': execute_node_photo,
-    'import_contacts': execute_node_import_contacts,
-    'send_message': execute_node_send_message,
-    'subscribe': execute_node_subscribe_channels,
-    'visit': execute_node_visit_channels,
-    'idle': execute_node_idle,
-    'smart_subscribe': execute_node_smart_subscribe,
-    'passive_activity': execute_node_passive_activity, # 🔥 United Passive Node
-    'sync_profile': node_sync_profile, # Added profile sync node
-    'set_2fa': execute_node_set_2fa, # 🛡️ New 2FA node
-    'search_filter': execute_node_search_filter, # 🔍 Human-like Search & Filter
-}
+
 
 
 async def execute_node_search_filter(client, account_id, config):
@@ -1281,6 +1266,24 @@ async def execute_node_search_filter(client, account_id, config):
         logger.error(f"[{account_id}] Search & Filter node failed: {e}")
         WarmupLog.log(account_id, 'error', f"Search & Filter failed: {str(e)}", action='search_filter_error')
         return {'success': False, 'error': str(e)}
+
+
+# Node executor registry
+NODE_EXECUTORS = {
+    'bio': execute_node_bio,
+    'username': execute_node_username,
+    'photo': execute_node_photo,
+    'import_contacts': execute_node_import_contacts,
+    'send_message': execute_node_send_message,
+    'subscribe': execute_node_subscribe_channels,
+    'visit': execute_node_visit_channels,
+    'idle': execute_node_idle,
+    'smart_subscribe': execute_node_smart_subscribe,
+    'passive_activity': execute_node_passive_activity, # 🔥 United Passive Node
+    'sync_profile': node_sync_profile, # Added profile sync node
+    'set_2fa': execute_node_set_2fa, # 🛡️ New 2FA node
+    'search_filter': execute_node_search_filter, # 🔍 Human-like Search & Filter
+}
 
 
 async def execute_node(client, node_type, account_id, config):
