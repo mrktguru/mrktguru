@@ -1,4 +1,4 @@
-в"""
+"""
 Scheduler Worker for Warmup Automation
 Celery tasks for checking and executing scheduled warmup nodes
 """
