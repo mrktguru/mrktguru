@@ -704,13 +704,31 @@
     async function runNodeNow() {
         if (!currentNode) return;
 
-        // 1. Apply current form settings to the node object in memory
+        // 1. Capture current form state first (config, etc.)
         applyFormToNode();
-        renderNodes(); // Update UI immediately
 
-        // 2. Auto-save to ensure it exists in DB (and we get an ID)
-        //    We show a small loading indicator or just rely on backend speed?
-        //    Let's await the save.
+        // 2. MOVE TO "NOW"
+        const now = new Date();
+        const startOfDay = new Date(now);
+        startOfDay.setHours(0, 0, 0, 0);
+
+        // Calculate Day Index (1-based)
+        if (accountCreatedAtDate) {
+            const diffTime = startOfDay.getTime() - accountCreatedAtDate.getTime();
+            const dayIndex = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+            currentNode.day_number = Math.max(1, dayIndex);
+        }
+
+        // Calculate Time HH:MM
+        const hh = String(now.getHours()).padStart(2, '0');
+        const mm = String(now.getMinutes()).padStart(2, '0');
+        currentNode.execution_time = `${hh}:${mm}`;
+        currentNode.is_random_time = false;
+
+        // Update UI immediately (so user sees the jump)
+        renderNodes();
+
+        // 3. Auto-save to ensure it exists in DB (and we get an ID) and persists the move
         await saveSchedule(true);
 
         if (!currentNode.id) {
@@ -718,7 +736,7 @@
             return;
         }
 
-        if (!confirm("Run this node immediately?")) return;
+        if (!confirm(`Run this node immediately? (Node moved to Today at ${currentNode.execution_time})`)) return;
 
         try {
             const res = await fetch(`/scheduler/accounts/${schedulerAccountId}/run_node`, {
@@ -731,6 +749,9 @@
             if (res.ok) {
                 console.log("Started! Task ID: " + data.task_id);
                 configModal.hide();
+                // Reload to reflect status change if needed, or just let the socket/polling handle it?
+                // User asked for calendar update. reload is safe.
+                window.location.reload();
             } else {
                 alert("Error: " + data.error);
             }
