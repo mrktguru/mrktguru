@@ -70,6 +70,8 @@
             <thead>
                 <tr>
                     <th style="width: 40px;">ID</th>
+                    <th>Source</th>
+                    <th>Tags</th>
                     <th style="width: 50px;">Photo</th>
                     <th>Phone</th>
                     <th>Name</th>
@@ -88,6 +90,16 @@
                 {% for account in accounts %}
                 <tr>
                     <td><small class="text-muted">{{ account.id }}</small></td>
+                    <td><small class="text-muted">{{ account.source or '-' }}</small></td>
+                    <td>
+                        {% if account.tags %}
+                        {% for tag in account.tags %}
+                        <span class="badge bg-secondary" style="font-size: 0.65rem;">{{ tag }}</span>
+                        {% endfor %}
+                        {% else %}
+                        <small class="text-muted">-</small>
+                        {% endif %}
+                    </td>
                     <td>
                         {% if account.photo_url and account.photo_url != "photo_available" %}
                         <img src="/{{ account.photo_url }}" class="rounded-circle" width="32" height="32"
