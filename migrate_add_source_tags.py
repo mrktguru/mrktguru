@@ -1,36 +1,36 @@
 
 from app import app, db
-from sqlalchemy import text
+from sqlalchemy import text, inspect
 
 def migrate():
     print("Starting migration: Adding source and tags to accounts...")
     with app.app_context():
-        # Check if columns exist
+        inspector = inspect(db.engine)
+        columns = [c['name'] for c in inspector.get_columns('accounts')]
+        
         with db.engine.connect() as conn:
             # Check source
-            try:
-                conn.execute(text("SELECT source FROM accounts LIMIT 1"))
+            if 'source' in columns:
                 print("Column 'source' already exists.")
-            except Exception:
+            else:
                 print("Adding column 'source'...")
                 conn.execute(text("ALTER TABLE accounts ADD COLUMN source VARCHAR(255)"))
                 conn.commit()
+                print("Added 'source'")
                 
             # Check tags
-            try:
-                conn.execute(text("SELECT tags FROM accounts LIMIT 1"))
+            if 'tags' in columns:
                 print("Column 'tags' already exists.")
-            except Exception:
+            else:
                 print("Adding column 'tags'...")
-                # SQLite doesn't have native JSON type in older versions but SQLAlchemy handles it as Text/JSON
-                # In raw SQL for SQLite, we create as TEXT or JSON. Postgres uses JSONB/JSON.
-                # Since we use SQLAlchemy models, let's trust the altering.
-                # But raw SQL is safer for simple adds.
                 if 'sqlite' in str(db.engine.url):
+                     # SQLite doesn't strictly enforce JSON type but we can use JSON or TEXT
                      conn.execute(text("ALTER TABLE accounts ADD COLUMN tags JSON"))
                 else:
+                     # PostgreSQL
                      conn.execute(text("ALTER TABLE accounts ADD COLUMN tags JSON"))
                 conn.commit()
+                print("Added 'tags'")
 
         print("✅ Migration checks completed")
 
