@@ -15,6 +15,9 @@ class RedisPubSubHandler(logging.Handler):
     """
     def emit(self, record):
         try:
+            # DEBUG PRINT
+            print(f"RedisPubSubHandler: Processing record {record.msg}", flush=True)
+            
             msg = self.format(record)
             
             # 1. Determine account_id
@@ -29,6 +32,7 @@ class RedisPubSubHandler(logging.Handler):
 
             # If ID found, publish to Redis
             if account_id:
+                print(f"RedisPubSubHandler: Found account_id {account_id}, publishing...", flush=True)
                 channel = f"logs:account:{account_id}"
                 
                 # Format payload
@@ -51,19 +55,23 @@ class RedisPubSubHandler(logging.Handler):
                 pipe.expire(history_key, 86400)   # Expire after 24 hours of inactivity
                 pipe.execute()
                 
-        except Exception:
+        except Exception as e:
+            print(f"RedisPubSubHandler Error: {e}", flush=True)
             self.handleError(record)
 
 def setup_redis_logging():
     """Attaches Redis handler to the root logger"""
     root_logger = logging.getLogger()
+    root_logger.setLevel(logging.INFO) # Force INFO level
     
     # Avoid adding duplicate handlers
     if any(isinstance(h, RedisPubSubHandler) for h in root_logger.handlers):
         return
 
     redis_handler = RedisPubSubHandler()
+    redis_handler.setLevel(logging.INFO) # Force INFO level
     formatter = logging.Formatter('[%(asctime)s] %(levelname)s: %(message)s')
     redis_handler.setFormatter(formatter)
     
     root_logger.addHandler(redis_handler)
+    print("RedisPubSubHandler attached to root logger", flush=True)
