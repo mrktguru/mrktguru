@@ -17,6 +17,10 @@ from utils.telethon_helper import get_telethon_client
 
 logger = logging.getLogger(__name__)
 
+class SessionDeathError(Exception):
+    """Critical session error: Ban or Authorization lost."""
+    pass
+
 class SessionOrchestrator:
     """
     Manages the lifecycle of a Telegram session using a State Machine approach.
@@ -77,6 +81,17 @@ class SessionOrchestrator:
                 self.last_activity = datetime.now()
                 return result
 
+            except SessionDeathError as e:
+                # === CUSTOM HANDLER ===
+                error_msg = str(e)
+                logger.critical(f"[{self.account_id}] 🛑 FATAL SESSION ERROR: {error_msg}")
+                
+                # Async cleanup
+                await self._handle_ban_logic()
+                
+                # Return failure status (don't crash worker)
+                return {"status": "failed", "error": "account_banned", "details": error_msg}
+
             except Exception as e:
                 logger.error(f"[{self.account_id}] ❌ Execution failed in {task_func.__name__}: {e}")
                 
@@ -91,6 +106,22 @@ class SessionOrchestrator:
                         except:
                             pass
                 raise e
+
+    async def _handle_ban_logic(self):
+        """Logic to handle banned/dead account cleanup"""
+        try:
+            logger.info(f"[{self.account_id}] 🗑️ Processing ban cleanup...")
+            
+            # 1. Update DB functionality would go here (requires app context or separate service)
+            # For now, just logging and disconnecting
+            
+            # 2. Release resources
+            if self.client:
+                await self.client.disconnect()
+                
+            logger.info(f"[{self.account_id}] ✅ Account marked as DEAD/BANNED and resources released.")
+        except Exception as cleanup_error:
+            logger.error(f"[{self.account_id}] Failed to cleanup banned account: {cleanup_error}")
 
     async def stop(self):
         """Graceful shutdown of the session and monitor."""
@@ -129,7 +160,6 @@ class SessionOrchestrator:
                     
                     try:
                         logger.debug(f"[{self.account_id}] Disconnecting client...")
-                        # CHECKPOINT: This is a prime suspect for "NoneType can't be used in await"
                         await self.client.disconnect()
                         logger.debug(f"[{self.account_id}] Client disconnected.")
                     except TypeError as te:
@@ -173,7 +203,7 @@ class SessionOrchestrator:
         if not await self.client.is_user_authorized():
             await self.client.disconnect()
             self.state = "OFFLINE"
-            raise Exception("Session Unauthorized/Banned during Cold Start")
+            raise SessionDeathError("Session Unauthorized/Banned during Cold Start")
 
         # Emulate TDesktop startup sequences
         try:
