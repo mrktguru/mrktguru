@@ -618,47 +618,60 @@
         configModal.show();
     }
 
-    function saveConfig() {
+    function applyFormToNode() {
+        if (!currentNode) return;
+        const form = document.getElementById('nodeConfigForm');
+        const formData = new FormData(form);
+
+        // Common
+        currentNode.is_random_time = formData.has('is_random_time');
+        currentNode.execution_time = formData.get('execution_time');
+
+        // Config
+        currentNode.config = currentNode.config || {};
+
+        // Helper to get ALL inputs from the dynamic container
+        const dynamicContainer = document.getElementById('dynamicFields');
+        const inputs = dynamicContainer.querySelectorAll('input, select, textarea');
+
+        inputs.forEach(input => {
+            const name = input.name;
+            if (!name) return;
+
+            if (input.type === 'checkbox') {
+                currentNode.config[name] = input.checked;
+            } else if (input.type === 'number') {
+                if (input.value === '') currentNode.config[name] = null;
+                else currentNode.config[name] = parseFloat(input.value);
+            } else {
+                currentNode.config[name] = input.value;
+            }
+        });
+    }
+
+    async function saveConfig() {
         if (currentNode) {
-            const form = document.getElementById('nodeConfigForm');
-            const formData = new FormData(form);
-
-            // Common
-            currentNode.is_random_time = formData.has('is_random_time');
-            currentNode.execution_time = formData.get('execution_time');
-
-            // Config
-            currentNode.config = currentNode.config || {};
-
-            // Helper to get ALL inputs from the dynamic container
-            const dynamicContainer = document.getElementById('dynamicFields');
-            const inputs = dynamicContainer.querySelectorAll('input, select, textarea');
-
-            inputs.forEach(input => {
-                const name = input.name;
-                if (!name) return;
-
-                if (input.type === 'checkbox') {
-                    currentNode.config[name] = input.checked;
-                } else if (input.type === 'number') {
-                    if (input.value === '') currentNode.config[name] = null;
-                    else currentNode.config[name] = parseFloat(input.value);
-                } else {
-                    currentNode.config[name] = input.value;
-                }
-            });
-
+            applyFormToNode();
             configModal.hide();
             renderNodes();
-            saveSchedule(true);
+            await saveSchedule(true);
         }
     }
 
     async function runNodeNow() {
         if (!currentNode) return;
 
+        // 1. Apply current form settings to the node object in memory
+        applyFormToNode();
+        renderNodes(); // Update UI immediately
+
+        // 2. Auto-save to ensure it exists in DB (and we get an ID)
+        //    We show a small loading indicator or just rely on backend speed?
+        //    Let's await the save.
+        await saveSchedule(true);
+
         if (!currentNode.id) {
-            alert("Please save the node first (drag/drop and configure) before running.");
+            alert("Could not save node to database. Cannot run.");
             return;
         }
 
