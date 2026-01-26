@@ -1,6 +1,9 @@
 import os
-# Force SQLite
-os.environ['DATABASE_URL'] = 'sqlite:////Users/nikita/Documents/MRKT/TG MRKTGURU/mrktguru/instance/mrktguru.db'
+# Determine DB path dynamically if not set
+if not os.environ.get('DATABASE_URL'):
+    base_dir = os.path.abspath(os.path.dirname(__file__))
+    db_path = os.path.join(base_dir, 'instance', 'mrktguru.db')
+    os.environ['DATABASE_URL'] = f"sqlite:///{db_path}"
 
 from app import create_app
 from database import db
