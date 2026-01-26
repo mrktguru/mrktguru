@@ -1687,9 +1687,20 @@ async def get_active_sessions(account_id):
         try:
             db.session.commit()
             print(f"✅ Persisted {len(sessions_data)} sessions for account {account_id}")
+            
+            # Double check count
+            saved_count = AccountSession.query.filter_by(account_id=account_id).count()
+            
+            from utils.debug_logger import debug_log
+            debug_log(f"Persistence: Account {account_id} - Saved {len(sessions_data)} sessions. Verified in DB: {saved_count}")
+            
         except Exception as commit_err:
             db.session.rollback()
+            from utils.debug_logger import debug_log
+            debug_log(f"Persistence Error: {commit_err}")
             print(f"❌ Failed to persist sessions: {commit_err}")
+            # We still return success because the API call worked
+            # But the user needs to know persistence failed if they look at logs
             
         return {"success": True, "sessions": sessions_data}
         

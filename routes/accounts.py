@@ -288,6 +288,14 @@ def detail(account_id):
             'system_lang_code': account.tdata_metadata.json_system_lang_code or ''
         }
     
+    from models.account_session import AccountSession
+    from utils.debug_logger import debug_log
+    
+    # DEBUG: Check persisted sessions
+    session_count_rel = account.active_sessions.count()
+    session_count_direct = AccountSession.query.filter_by(account_id=account_id).count()
+    debug_log(f"Route Detail: Account {account_id} - Rel count: {session_count_rel}, Direct count: {session_count_direct}")
+    
     return render_template(
         "accounts/detail.html",
         account=account,
