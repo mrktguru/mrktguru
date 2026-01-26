@@ -15,13 +15,14 @@ PORT=8081 python3 app.py &
 FLASK_PID=$!
 
 # Start Celery worker
+# Start Celery worker
 echo "Starting Celery worker..."
-celery -A celery_app worker --loglevel=info &
+python3 -m celery -A celery_app worker --loglevel=info &
 WORKER_PID=$!
 
 # Start Celery beat
 echo "Starting Celery beat..."
-celery -A celery_app beat --loglevel=info &
+python3 -m celery -A celery_app beat --loglevel=info &
 BEAT_PID=$!
 
 echo "All services started!"
@@ -34,7 +35,7 @@ echo ""
 echo "To stop all services, run: kill $FLASK_PID $WORKER_PID $BEAT_PID"
 
 # Wait for any process to exit
-wait -n
+wait $FLASK_PID
 
 # Exit with status of process that exited first
 exit $?

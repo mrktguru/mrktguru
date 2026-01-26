@@ -70,7 +70,7 @@ class HumanBehavior:
                 hash_arg = hash_arg.replace('/', '').strip()
                 
                 # CheckChatInvite peeks at the chat without joining
-                invite_info = await self.client(functions.messages.CheckChatInvite(hash=hash_arg))
+                invite_info = await self.client(functions.messages.CheckChatInviteRequest(hash=hash_arg))
                 
                 logger.info(f"{self.log_prefix}   -> Viewed invite for: {getattr(invite_info, 'title', 'Unknown')}")
                 await asyncio.sleep(random.uniform(2, 5)) # "Thinking" time
@@ -116,7 +116,7 @@ class HumanBehavior:
         
         # 3. Final Search Request
         try:
-            results = await self.client(functions.contacts.Search(
+            results = await self.client(functions.contacts.SearchRequest(
                 q=clean_query,
                 limit=5
             ))
@@ -188,52 +188,61 @@ class HumanBehavior:
 
     async def _view_channel_content(self, entity, short_visit=False):
         """
-        Simulates viewing channel content: scrolling, reading, media expansion.
+        Общая логика просмотра: скроллинг, чтение.
+        Использует client.get_messages вместо сырых запросов.
         """
         try:
-            initial_limit = 5 if not short_visit else 2
-            history = await self.client(functions.messages.GetHistory(
-                peer=entity,
-                limit=initial_limit
-            ))
+            title = getattr(entity, 'title', getattr(entity, 'username', 'Chat'))
+            logger.info(f"{self.log_prefix}   👀 Viewing content in: {title}")
+
+            # 1. Получаем последние сообщения (High-level API)
+            # Это замена сломанному GetHistory
+            limit = 2 if short_visit else random.randint(5, 8)
+            messages = await self.client.get_messages(entity, limit=limit)
             
-            if not history.messages:
+            if not messages:
+                logger.info(f"{self.log_prefix}   -> Channel is empty")
                 return
 
-            logger.info(f"{self.log_prefix}   👀 Viewing content in {getattr(entity, 'title', 'chat')}...")
+            if short_visit:
+                 # Minimal interaction for short visit
+                 pass
 
-            # 1. Read latest post
-            await asyncio.sleep(random.uniform(2.0, 5.0))
+            # 2. Имитация чтения (скроллинг)
+            # Читаем сверху вниз (от более старых к новым в этой выборке)
+            # Если short_visit - читаем меньше
+            msgs_to_read = messages[:3] if not short_visit else messages[:1]
+            
+            for msg in reversed(msgs_to_read): 
+                text = getattr(msg, 'text', '') or getattr(msg, 'message', '') or ''
+                if text:
+                    # Скорость чтения: ~15 символов в секунду + база 1 сек
+                    read_time = (len(text) / 15) + 1
+                    read_time = min(read_time, 8.0) # Не залипаем дольше 8 сек на посте
+                    
+                    await asyncio.sleep(read_time)
+                
+                # Шанс развернуть медиа
+                if getattr(msg, 'media', None) and random.random() < 0.15:
+                    logger.info(f"{self.log_prefix}   🖼️ Maximized photo/video view")
+                    await asyncio.sleep(random.uniform(2, 5))
 
             if short_visit:
                 return
 
-            # 2. SCROLL UP SCENARIO (40% chance)
-            if random.random() < 0.4:
-                logger.info(f"{self.log_prefix}   ⬆️ Scrolling up to check history...")
-                if history.messages:
-                    last_msg_id = history.messages[-1].id
-                    await self.client(functions.messages.GetHistory(
-                        peer=entity, 
-                        offset_id=last_msg_id, 
-                        limit=5
-                    ))
-                    await asyncio.sleep(random.uniform(3.0, 8.0))
+            # 3. СКРОЛЛ ВВЕРХ (Context Check) — Шанс 30%
+            if len(messages) > 0 and random.random() < 0.3:
+                logger.info(f"{self.log_prefix}   ⬆️ Scrolling up to check context...")
+                last_id = messages[-1].id # ID самого старого из загруженных
                 
-                logger.info(f"{self.log_prefix}   ⬇️ Scrolling back to bottom...")
-
-            # 3. Media Interaction
-            # Check top 3 messages for media
-            for msg in history.messages[:3]:
-                if msg.message:
-                    # Reading speed
-                    read_time = min(len(msg.message) / 15, 8.0) 
-                    await asyncio.sleep(read_time)
-                
-                # Media Preview (30% chance)
-                if getattr(msg, 'media', None) and random.random() < 0.3:
-                    logger.info(f"{self.log_prefix}   🖼️ Maximized photo/video view")
-                    await asyncio.sleep(random.uniform(3.0, 7.0))
+                # Подгружаем историю ДО этого сообщения
+                older_msgs = await self.client.get_messages(
+                    entity, 
+                    limit=3, 
+                    offset_id=last_id
+                )
+                await asyncio.sleep(random.uniform(3, 6))
+                logger.info(f"{self.log_prefix}   ⬇️ Scrolling back to recent...")
 
         except Exception as e:
-            logger.error(f"{self.log_prefix}Error viewing content: {e}")
+            logger.error(f"{self.log_prefix}   ⚠️ Error viewing content: {e}")

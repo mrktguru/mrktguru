@@ -32,20 +32,17 @@ def create_app():
     os.makedirs(os.path.dirname(log_file), exist_ok=True)
     
     # Setup standard logging to file
+    # Setup standard logging to file
     if not app.debug:
-        file_handler = logging.FileHandler(log_file)
-        file_handler.setLevel(getattr(logging, log_level))
-        file_handler.setFormatter(logging.Formatter(
-            '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'
-        ))
-        app.logger.addHandler(file_handler)
-        
-        # Also configure root logger to catch our custom logs
+        # Configure root logger to catch all logs (app and modules)
         logging.basicConfig(
             filename=log_file,
             level=getattr(logging, log_level),
             format='%(asctime)s %(levelname)s: %(message)s'
         )
+        
+        # Remove default handlers if any to prevent stdout duplication if desired
+        app.logger.handlers = []
         
     app.logger.info("🚀 Application startup")
     
