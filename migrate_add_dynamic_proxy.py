@@ -7,15 +7,31 @@ def migrate():
         
         # 1. Create proxy_networks table
         try:
-            db.session.execute(text("""
-                CREATE TABLE IF NOT EXISTS proxy_networks (
-                    id SERIAL PRIMARY KEY,
-                    name VARCHAR(100),
-                    base_url VARCHAR(255) NOT NULL,
-                    start_port INTEGER NOT NULL,
-                    end_port INTEGER NOT NULL
-                );
-            """))
+            # Detect SQLite
+            is_sqlite = 'sqlite' in str(db.engine.url)
+            
+            if is_sqlite:
+                sql = """
+                    CREATE TABLE IF NOT EXISTS proxy_networks (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        name VARCHAR(100),
+                        base_url VARCHAR(255) NOT NULL,
+                        start_port INTEGER NOT NULL,
+                        end_port INTEGER NOT NULL
+                    );
+                """
+            else:
+                 sql = """
+                    CREATE TABLE IF NOT EXISTS proxy_networks (
+                        id SERIAL PRIMARY KEY,
+                        name VARCHAR(100),
+                        base_url VARCHAR(255) NOT NULL,
+                        start_port INTEGER NOT NULL,
+                        end_port INTEGER NOT NULL
+                    );
+                """
+            
+            db.session.execute(text(sql))
             print("✅ Created 'proxy_networks' table.")
         except Exception as e:
             print(f"⚠️ Error creating table: {e}")
