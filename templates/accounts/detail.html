@@ -75,11 +75,30 @@
 
                     <dt class="col-sm-5">Source:</dt>
                     <dd class="col-sm-7">
-                        {% if account.source %}
-                        {{ account.source }}
-                        {% else %}
-                        <span class="text-muted">-</span>
-                        {% endif %}
+                        <div id="source-display-{{ account.id }}">
+                            {% if account.source %}
+                            {{ account.source }}
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                            <button class="btn btn-sm btn-link p-0 ms-1"
+                                onclick="document.getElementById('source-edit-{{ account.id }}').style.display='block'; document.getElementById('source-display-{{ account.id }}').style.display='none';">
+                                <i class="bi bi-pencil" style="font-size: 0.8rem;"></i>
+                            </button>
+                        </div>
+                        <form id="source-edit-{{ account.id }}"
+                            action="{{ url_for('accounts.update_source', account_id=account.id) }}" method="POST"
+                            style="display:none;">
+                            <div class="input-group input-group-sm">
+                                <input type="text" name="source" class="form-control" value="{{ account.source or '' }}"
+                                    placeholder="Source...">
+                                <button class="btn btn-primary" type="submit"><i class="bi bi-check"></i></button>
+                                <button class="btn btn-outline-secondary" type="button"
+                                    onclick="document.getElementById('source-edit-{{ account.id }}').style.display='none'; document.getElementById('source-display-{{ account.id }}').style.display='block';">
+                                    <i class="bi bi-x"></i>
+                                </button>
+                            </div>
+                        </form>
                     </dd>
 
                     <dt class="col-sm-5">Tags:</dt>

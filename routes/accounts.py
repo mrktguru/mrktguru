@@ -744,6 +744,22 @@ def remove_tag(account_id):
     return redirect(url_for('accounts.detail', account_id=account_id))
 
 
+@accounts_bp.route('/<int:account_id>/update_source', methods=['POST'])
+@login_required
+def update_source(account_id):
+    """Update account source inline"""
+    account = Account.query.get_or_404(account_id)
+    new_source = request.form.get('source', '').strip()
+    
+    # Update if changed
+    if new_source != (account.source or ''):
+        account.source = new_source
+        db.session.commit()
+        flash("Source updated", "success")
+            
+    return redirect(url_for('accounts.detail', account_id=account_id))
+
+
 @accounts_bp.route("/<int:account_id>/add-subscription", methods=["POST"])
 @login_required
 def add_subscription(account_id):
