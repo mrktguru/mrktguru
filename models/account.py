@@ -88,6 +88,12 @@ class Account(db.Model):
         return self.warmup_schedules.filter_by(status='active').first()
 
     @property
+    def latest_schedule(self):
+        """Get latest schedule (active or draft)"""
+        from models.warmup_schedule import WarmupSchedule
+        return self.warmup_schedules.order_by(WarmupSchedule.created_at.desc()).first()
+
+    @property
     def proxy_connection_string(self):
         """Generates full proxy URL on the fly: socks5://user:pass@host:PORT"""
         if self.proxy_network and self.assigned_port:

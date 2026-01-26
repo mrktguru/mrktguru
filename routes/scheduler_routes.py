@@ -72,7 +72,8 @@ def create_schedule(account_id):
         schedule = WarmupSchedule(
             account_id=account_id,
             name=data.get('name', f'Warmup Schedule - {account.username or account.phone}'),
-            status='draft'
+            status='draft',
+            start_date=account.created_at.date() if account.created_at else datetime.now().date()
         )
         
         db.session.add(schedule)
@@ -593,7 +594,11 @@ def fix_dates_route():
     try:
         # Import needed models if not at top (but they are)
         
-        schedules = WarmupSchedule.query.filter_by(status='active').all()
+        # Fix active schedules OR draft schedules with missing start_date
+        schedules = WarmupSchedule.query.filter(
+            (WarmupSchedule.status == 'active') | 
+            ((WarmupSchedule.status == 'draft') & (WarmupSchedule.start_date == None))
+        ).all()
         count = 0
         details = []
         for s in schedules:
