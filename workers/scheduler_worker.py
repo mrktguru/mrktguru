@@ -1,4 +1,4 @@
-"""
+в"""
 Scheduler Worker for Warmup Automation
 Celery tasks for checking and executing scheduled warmup nodes
 """
@@ -16,7 +16,11 @@ from models.warmup_log import WarmupLog
 from workers.node_executors import execute_node
 from utils.telethon_helper import get_telethon_client
 from database import db
-from utils.proxy_manager import release_dynamic_port # Added
+from utils.proxy_manager import release_dynamic_port 
+from utils.redis_logger import setup_redis_logging # Added
+
+# Setup Redis logging
+setup_redis_logging()
 
 logger = logging.getLogger(__name__)
 

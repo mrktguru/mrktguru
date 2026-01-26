@@ -667,3 +667,39 @@ def debug_account(account_id):
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+@scheduler_bp.route('/stream/logs/<int:account_id>')
+def stream_logs(account_id):
+    """SSE Endpoint for real-time log streaming"""
+    from flask import Response, stream_with_context
+    from utils.redis_logger import redis_client
+    
+    @stream_with_context
+    def generate():
+        channel = f"logs:account:{account_id}"
+        
+        # 1. Send History
+        try:
+            history = redis_client.lrange(f"history:{channel}", 0, -1)
+            for log_json in history:
+                yield f"data: {log_json}\n\n"
+        except Exception as e:
+            logger.error(f"Error reading log history: {e}")
+        
+        # 2. Subscribe and Stream
+        pubsub = redis_client.pubsub()
+        pubsub.subscribe(channel)
+        
+        try:
+            # Listen indefinitely
+            for message in pubsub.listen():
+                if message['type'] == 'message':
+                    yield f"data: {message['data']}\n\n"
+        except GeneratorExit:
+            # Client disconnected
+            pubsub.unsubscribe()
+            pubsub.close()
+        except Exception as e:
+             logger.error(f"Redis stream error: {e}")
+
+    return Response(generate(), mimetype="text/event-stream")
