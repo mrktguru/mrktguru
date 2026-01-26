@@ -676,6 +676,9 @@ def stream_logs(account_id):
     
     @stream_with_context
     def generate():
+        # Yield comment to force headers flush immediately
+        yield ": start\n\n"
+        
         channel = f"logs:account:{account_id}"
         
         # 1. Send History
