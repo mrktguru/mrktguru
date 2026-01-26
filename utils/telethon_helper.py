@@ -388,7 +388,7 @@ def get_telethon_client(account_id, proxy=None):
         
         if os.path.exists(session_path):
             session = session_path  # Telethon accepts str path for SQLiteSession
-        print(f"DEBUG: [{account_id}] Using SQLite session file")
+            print(f"DEBUG: [{account_id}] Using SQLite session file")
         else:
             print(f"WARNING: Session file not found at {session_path}")
             # If we create a new session here, it will be empty.
