@@ -84,13 +84,28 @@
 
                     <dt class="col-sm-5">Tags:</dt>
                     <dd class="col-sm-7">
-                        {% if account.tags %}
-                        {% for tag in account.tags %}
-                        <span class="badge bg-secondary">{{ tag }}</span>
-                        {% endfor %}
-                        {% else %}
-                        <span class="text-muted">-</span>
-                        {% endif %}
+                        <div class="mb-2">
+                            {% if account.tags %}
+                            {% for tag in account.tags %}
+                            <form action="{{ url_for('accounts.remove_tag', account_id=account.id) }}" method="POST"
+                                style="display:inline;">
+                                <input type="hidden" name="tag" value="{{ tag }}">
+                                <button type="submit" class="badge bg-secondary border-0" style="cursor:pointer;"
+                                    title="Click to remove">
+                                    {{ tag }} &times;
+                                </button>
+                            </form>
+                            {% endfor %}
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </div>
+
+                        <form action="{{ url_for('accounts.add_tag', account_id=account.id) }}" method="POST"
+                            class="input-group input-group-sm">
+                            <input type="text" name="new_tag" class="form-control" placeholder="Add tag..." required>
+                            <button class="btn btn-outline-secondary" type="submit"><i class="bi bi-plus"></i></button>
+                        </form>
                     </dd>
                 </dl>
 

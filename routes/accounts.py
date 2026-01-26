@@ -702,6 +702,48 @@ def assign_proxy(account_id):
     return redirect(url_for("accounts.detail", account_id=account_id))
 
 
+@accounts_bp.route('/<int:account_id>/add_tag', methods=['POST'])
+@login_required
+def add_tag(account_id):
+    """Add a single tag to account"""
+    account = Account.query.get_or_404(account_id)
+    new_tag = request.form.get('new_tag', '').strip()
+    
+    if new_tag:
+        # Initialize list if None
+        if account.tags is None:
+            account.tags = []
+        
+        # Create a copy of the list to ensure SQLAlchemy detects change (for JSON mutable tracking)
+        current_tags = list(account.tags)
+        
+        if new_tag not in current_tags:
+            current_tags.append(new_tag)
+            account.tags = current_tags
+            db.session.commit()
+            flash(f"Added tag: {new_tag}", 'success')
+            
+    return redirect(url_for('accounts.detail', account_id=account_id))
+
+
+@accounts_bp.route('/<int:account_id>/remove_tag', methods=['POST'])
+@login_required
+def remove_tag(account_id):
+    """Remove a single tag from account"""
+    account = Account.query.get_or_404(account_id)
+    tag_to_remove = request.form.get('tag')
+    
+    if tag_to_remove and account.tags:
+        current_tags = list(account.tags)
+        if tag_to_remove in current_tags:
+            current_tags.remove(tag_to_remove)
+            account.tags = current_tags
+            db.session.commit()
+            flash(f"Removed tag: {tag_to_remove}", 'success')
+            
+    return redirect(url_for('accounts.detail', account_id=account_id))
+
+
 @accounts_bp.route("/<int:account_id>/add-subscription", methods=["POST"])
 @login_required
 def add_subscription(account_id):
