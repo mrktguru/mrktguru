@@ -228,7 +228,7 @@
                                     <td>{{ net.start_port }} - {{ net.end_port }}</td>
                                     <td>{{ net.total_ports }}</td>
                                     <td>
-                                        <span class="badge bg-info">{{ net.accounts|length }} used</span>
+                                        <span class="badge bg-info">{{ net.accounts.count() }} used</span>
                                     </td>
                                     <td>
                                         <form method="POST" action="{{ url_for('proxies.delete_network', id=net.id) }}"
