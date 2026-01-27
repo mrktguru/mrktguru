@@ -387,38 +387,38 @@ def execute_scheduled_node(node_id, is_adhoc=False):
                 import asyncio
                 
                 async def run_with_orchestrator():
-                # 1. Check for live session
-                orch = ACTIVE_SESSIONS.get(account_id)
-                
-                # If no session or disconnected -> create new
-                if not orch or not orch.client or not orch.client.is_connected():
-                    if account_id in ACTIVE_SESSIONS:
-                        del ACTIVE_SESSIONS[account_id] # Cleaning
+                    # 1. Check for live session
+                    orch = ACTIVE_SESSIONS.get(account_id)
                     
-                    orch = SessionOrchestrator(account_id)
-                    ACTIVE_SESSIONS[account_id] = orch
-                    
-                    # 🔥 IMPORTANT: Start monitor so it auto-kills session after 10-15 min
-                    await orch.start_monitoring()
-                    logger.info(f"[{account_id}] Created NEW SessionOrchestrator (Cached)")
-                else:
-                    logger.info(f"[{account_id}] ♻️ Reusing EXISTING active session")
+                    # If no session or disconnected -> create new
+                    if not orch or not orch.client or not orch.client.is_connected():
+                        if account_id in ACTIVE_SESSIONS:
+                            del ACTIVE_SESSIONS[account_id] # Cleaning
+                        
+                        orch = SessionOrchestrator(account_id)
+                        ACTIVE_SESSIONS[account_id] = orch
+                        
+                        # 🔥 IMPORTANT: Start monitor so it auto-kills session after 10-15 min
+                        await orch.start_monitoring()
+                        logger.info(f"[{account_id}] Created NEW SessionOrchestrator (Cached)")
+                    else:
+                        logger.info(f"[{account_id}] ♻️ Reusing EXISTING active session")
 
-                # 2. Task Wrapper
-                async def task_wrapper(client):
-                    # Connection check
-                    if not client.is_connected():
-                         await client.connect()
-                    
-                    if not await client.is_user_authorized():
-                         raise Exception("Client not authorized")
+                    # 2. Task Wrapper
+                    async def task_wrapper(client):
+                        # Connection check
+                        if not client.is_connected():
+                             await client.connect()
+                        
+                        if not await client.is_user_authorized():
+                             raise Exception("Client not authorized")
 
-                    return await execute_node(
-                        client,
-                        node.node_type,
-                        account_id,
-                        node.config or {}
-                    )
+                        return await execute_node(
+                            client,
+                            node.node_type,
+                            account_id,
+                            node.config or {}
+                        )
                 
                 # 3. Execute
                 # ❌ WE REMOVED FINALLY WITH ORCH.STOP()
