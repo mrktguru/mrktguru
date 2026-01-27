@@ -169,7 +169,6 @@ def add_node(schedule_id):
             execution_time=data.get('execution_time'),
             is_random_time=data.get('is_random_time', False),
             config=data.get('config', {}),
-            config=data.get('config', {}),
             status=data.get('status', 'draft')  # Default to draft (Yellow)
         )
         
