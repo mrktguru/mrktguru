@@ -428,7 +428,7 @@
             </div>
             <div class="d-flex justify-content-between align-items-center mt-1">
                 <div class="small text-truncate">${node.is_random_time ? '🎲' : node.execution_time}</div>
-                <div class="small text-muted" style="font-size: 0.7em; opacity: 0.7;">${node.id ? '#' + node.id : 'new'}</div>
+                <div class="small text-muted" style="font-size: 0.7em; opacity: 0.7;">${node.ordinal_id ? '#' + node.ordinal_id : 'new'}</div>
             </div>
             ${!isLocked ? '<div class="resize-handle position-absolute bottom-0 start-0 w-100" style="height:5px; cursor:ns-resize"></div>' : ''}
         `;

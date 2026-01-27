@@ -42,6 +42,31 @@ def get_schedule(account_id):
         ghost_nodes = _get_ghost_nodes(account_id, schedule.id if schedule else 0)
         node_dicts.extend(ghost_nodes)
 
+        # ---------------------------------------------------------
+        # LOGIC: Assign Ordinal IDs (1, 2, 3...)
+        # Sort by Date -> Time -> internal ID
+        # ---------------------------------------------------------
+        def sort_key(n):
+            # Parse execution_date (string 'YYYY-MM-DD' or date obj)
+            d_str = n.get('execution_date')
+            t_str = n.get('execution_time', '00:00')
+            n_id = n.get('id', 0)
+            
+            # Handle ghost node date discrepancies
+            if not d_str:
+                d_str = '1970-01-01'
+            
+            return (str(d_str), str(t_str), n_id)
+
+        node_dicts.sort(key=sort_key)
+
+        # Assign ordinal
+        for idx, node in enumerate(node_dicts, 1):
+            node['ordinal_id'] = idx
+            # We keep 'id' as the DB ID (or fake ID)
+            # The custom format requested: %user_id%_%ordinal%
+            node['custom_logic_id'] = f"{account_id}_{idx}"
+
         return jsonify({
             'schedule': schedule_dict,
             'nodes': node_dicts
