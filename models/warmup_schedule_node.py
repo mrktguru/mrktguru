@@ -28,7 +28,8 @@ class WarmupScheduleNode(db.Model):
     
     # Execution tracking
     status = db.Column(db.String(50), nullable=False, default='pending')  # pending, running, completed, failed, skipped
-    executed_at = db.Column(db.DateTime, nullable=True)
+    executed_at = db.Column(db.DateTime, nullable=True)  # When execution finished
+    execution_started_at = db.Column(db.DateTime, nullable=True)  # When execution actually started (status→running)
     error_message = db.Column(db.Text, nullable=True)
     
     # Timestamps

@@ -130,17 +130,17 @@ def check_warmup_schedules():
                         
                         has_active_running = False
                         for r_node in stuck_nodes:
-                            # If updated_at is older than 60 mins, it's stuck
-                            # Fix: Ensure timezone compatibility
-                            last_update = r_node.updated_at
+                            # Use execution_started_at (set when status→running) instead of updated_at
+                            # This prevents false positives when nodes are edited but not yet running
+                            execution_start = r_node.execution_started_at or r_node.updated_at  # Fallback for old nodes
                             current_now = now
                             
                             # If DB time is naive (common), make 'now' naive for comparison
-                            if last_update and last_update.tzinfo is None and current_now.tzinfo is not None:
+                            if execution_start and execution_start.tzinfo is None and current_now.tzinfo is not None:
                                 current_now = current_now.replace(tzinfo=None)
                             
-                            if last_update and last_update < current_now - timedelta(minutes=120):
-                                logger.warning(f"Node {r_node.id} appears stuck (running since {r_node.updated_at}). Marking as failed.")
+                            if execution_start and execution_start < current_now - timedelta(minutes=120):
+                                logger.warning(f"Node {r_node.id} appears stuck (running since {execution_start}). Marking as failed.")
                                 r_node.status = 'failed'
                                 r_node.error_message = "Timeout: Execution stuck for > 120 mins"
                                 r_node.executed_at = now
@@ -148,7 +148,7 @@ def check_warmup_schedules():
                                 WarmupLog.log(schedule.account_id, 'error', f"Node {r_node.id} timed out (stuck)", action='timeout_error')
                             else:
                                 has_active_running = True
-                                logger.info(f"Node {r_node.id} is currently running (started {r_node.updated_at})")
+                                logger.info(f"Node {r_node.id} is currently running (started {execution_start})")
                         
                         if has_active_running:
                             logger.info(f"Schedule {schedule.id} has active running nodes. Waiting for completion.")
@@ -386,6 +386,7 @@ def execute_scheduled_node(node_id, is_adhoc=False):
 
             if node.status != 'running':
                 node.status = 'running'
+                node.execution_started_at = datetime.now()  # Track actual execution start time
                 db.session.commit()
             
             account_id = node.schedule.account_id
