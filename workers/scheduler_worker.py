@@ -510,24 +510,24 @@ def execute_adhoc_node(account_id, node_type, config):
                 import asyncio
                 
                 async def run_with_orchestrator():
-                # CACHING LOGIC
-                orch = ACTIVE_SESSIONS.get(account_id)
-                
-                if not orch or not orch.client or not orch.client.is_connected():
-                    if account_id in ACTIVE_SESSIONS: del ACTIVE_SESSIONS[account_id]
-                    orch = SessionOrchestrator(account_id)
-                    ACTIVE_SESSIONS[account_id] = orch
-                    await orch.start_monitoring() # Start auto-kill timer
-                    logger.info(f"[{account_id}] Adhoc: Created NEW session")
-                else:
-                    logger.info(f"[{account_id}] Adhoc: Reusing EXISTING session")
+                    # CACHING LOGIC
+                    orch = ACTIVE_SESSIONS.get(account_id)
+                    
+                    if not orch or not orch.client or not orch.client.is_connected():
+                        if account_id in ACTIVE_SESSIONS: del ACTIVE_SESSIONS[account_id]
+                        orch = SessionOrchestrator(account_id)
+                        ACTIVE_SESSIONS[account_id] = orch
+                        await orch.start_monitoring() # Start auto-kill timer
+                        logger.info(f"[{account_id}] Adhoc: Created NEW session")
+                    else:
+                        logger.info(f"[{account_id}] Adhoc: Reusing EXISTING session")
 
-                async def task_wrapper(client):
-                    if not client.is_connected(): await client.connect()
-                    return await execute_node(client, node_type, account_id, config)
-                
-                # NO finally: stop()
-                return await orch.execute(task_wrapper)
+                    async def task_wrapper(client):
+                        if not client.is_connected(): await client.connect()
+                        return await execute_node(client, node_type, account_id, config)
+                    
+                    # NO finally: stop()
+                    return await orch.execute(task_wrapper)
 
             try:
                 from utils.bg_loop import BackgroundLoop
