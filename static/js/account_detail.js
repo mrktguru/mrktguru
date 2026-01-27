@@ -214,6 +214,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     const container = document.getElementById('sessions-container');
     // Ensure button is ready to load fresh data
+    const btn = document.getElementById('load-sessions-btn');
     if (btn) {
         btn.innerHTML = '<i class="bi bi-download"></i> Load Active Sessions';
     }
