@@ -730,13 +730,17 @@
                 status: node.status
             };
 
+            console.log(`[saveSchedule] ${node.id ? 'UPDATE' : 'CREATE'} Node ${node.id || 'NEW'}:`, payload);
+
             try {
                 if (node.id) {
-                    await fetch(`/scheduler/nodes/${node.id}`, {
+                    const res = await fetch(`/scheduler/nodes/${node.id}`, {
                         method: 'PUT',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(payload)
                     });
+                    const data = await res.json();
+                    console.log(`[saveSchedule] Server response for node ${node.id}:`, data);
                 } else {
                     const res = await fetch(`/scheduler/schedules/${scheduleData.schedule_id}/nodes`, {
                         method: 'POST',
@@ -747,6 +751,7 @@
                     if (data.node) {
                         node.id = data.node.id;
                     }
+                    console.log(`[saveSchedule] Server response for new node:`, data);
                 }
             } catch (e) {
                 console.error("Save error", e);
