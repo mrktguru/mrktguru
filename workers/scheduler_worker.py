@@ -544,10 +544,10 @@ def execute_adhoc_node(account_id, node_type, config):
             else:
                 logger.error(f"Adhoc {node_type} failed")
 
+        except Exception as e:
+            logger.error(f"Error in execute_adhoc_node: {e}")
+
         finally:
              # RELEASE LOCK
              redis_client.delete(lock_key)
              logger.info(f"[{account_id}] 🔓 Adhoc Lock released.")
-
-        except Exception as e:
-            logger.error(f"Error in execute_adhoc_node: {e}")
