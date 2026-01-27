@@ -714,7 +714,8 @@
                 day_number: node.day_number,
                 execution_time: node.execution_time,
                 is_random_time: node.is_random_time,
-                config: node.config
+                config: node.config,
+                status: node.status
             };
 
             try {
