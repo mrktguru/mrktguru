@@ -87,6 +87,11 @@
         renderGridStructure();
         loadSchedule(); // fetches nodes from backend
         initDragAndDrop();
+
+        // Auto-refresh schedule every 10 seconds to update node statuses
+        setInterval(() => {
+            loadSchedule();
+        }, 10000);
     });
 
     // Helper: Get Monday of the week for a given date
@@ -384,6 +389,9 @@
 
         // Styling (Colors)
         if (node.status === 'completed' || node.status === 'success') {
+            // COMPLETED (Gray)
+            el.style.backgroundColor = '#e9ecef';
+            el.classList.add('node-completed');
         } else if (node.status === 'running' || node.status === 'processing') {
             // RUNNING (Blue)
             el.style.backgroundColor = '#cfe2ff';
