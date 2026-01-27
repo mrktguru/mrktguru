@@ -186,16 +186,36 @@ def check_warmup_schedules():
                     if not executable_candidates:
                          continue
                          
-                    # 2. Sort by ID (First Created -> First Executed)
-                    executable_candidates.sort(key=lambda x: x.id)
+                    if not executable_candidates:
+                         continue
+                         
+                    # 2. Sort by Date -> Time -> ID to match frontend Ordinal Logic
+                    def sort_key(n):
+                         d_str = str(n.execution_date) if n.execution_date else '1970-01-01'
+                         t_str = n.execution_time or '00:00'
+                         return (d_str, t_str, n.id)
+                    
+                    executable_candidates.sort(key=sort_key)
                     
                     # 3. Pick the Target Node (The first one)
                     target_node = executable_candidates[0]
                     
+                    # 3.1 Calculate Ordinal ID (Dynamic)
+                    # Count nodes with (date,time,id) < target
+                    # Efficient Sort Key tuple comparison in DB is hard, so we just sort all nodes in memory or query simple count
+                    # Optimisation: We already know this node's position relative to *pending* nodes, but we need Global Ordinal.
+                    # Let's do a quick query for Global Ordinal
+                    try:
+                        all_sch_nodes = WarmupScheduleNode.query.filter_by(schedule_id=schedule.id).all()
+                        all_sch_nodes.sort(key=sort_key)
+                        target_ordinal = next((i for i, n in enumerate(all_sch_nodes, 1) if n.id == target_node.id), '?')
+                    except:
+                        target_ordinal = '?'
+
                     # 4. Check Distributed Lock (Is account busy?)
                     lock_key = f"lock:account:{schedule.account_id}"
                     if redis_client.get(lock_key):
-                         logger.info(f"[{schedule.account_id}] ⏳ Account is busy (Redis Lock). Queuing Node {target_node.id}.")
+                         logger.info(f"[{schedule.account_id}] ⏳ Account is busy (Redis Lock). Queuing Node #{target_ordinal} ({target_node.id}).")
                          # We do nothing. Node stays 'pending'. Worker will pick it up next tick when lock is free.
                          continue
                     
@@ -206,7 +226,7 @@ def check_warmup_schedules():
                          continue
 
                     # 6. Execute!
-                    logger.info(f"[{schedule.account_id}] 🚀 Smart Stack: Executing {target_node.id} (Type: {target_node.node_type})")
+                    logger.info(f"[{schedule.account_id}] 🚀 Smart Stack: Executing Node #{target_ordinal} (ID {target_node.id}, Type: {target_node.node_type})")
                     execute_scheduled_node.delay(target_node.id)
                     
                     # Stop processing this schedule for this tick (only 1 execute per account per tick)
