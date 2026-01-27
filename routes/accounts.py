@@ -1779,3 +1779,120 @@ def update_device(account_id):
     flash(f"✅ {msg}", "success")
     return redirect(url_for('accounts.detail', account_id=account_id))
 
+
+# -------------------------------------------------------------------------
+# DISCOVERED CHANNELS ROUTES (Warmup V2)
+# -------------------------------------------------------------------------
+
+@accounts_bp.route("/<int:account_id>/warmup/search-channels", methods=["POST"])
+@login_required
+def search_channels(account_id):
+    """Search discovered channels (candidates)"""
+    try:
+        from models.channel_candidate import ChannelCandidate
+        
+        query = request.json.get('query', '').strip()
+        if not query:
+            return jsonify({'success': False, 'error': 'Query required'})
+            
+        # Search by title or username
+        candidates = ChannelCandidate.query.filter(
+            ChannelCandidate.account_id == account_id,
+            (ChannelCandidate.title.ilike(f"%{query}%")) | 
+            (ChannelCandidate.username.ilike(f"%{query}%"))
+        ).order_by(ChannelCandidate.last_visit_ts.desc()).limit(50).all()
+        
+        results = [c.to_dict() for c in candidates]
+        return jsonify({'success': True, 'results': results})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+
+@accounts_bp.route("/<int:account_id>/warmup/add-channel", methods=["POST"])
+@login_required
+def add_channel_to_warmup(account_id):
+    """Add a channel candidate to the warmup schedule"""
+    try:
+        from models.warmup_schedule import WarmupSchedule
+        from models.warmup_schedule_node import WarmupScheduleNode
+        from models.channel_candidate import ChannelCandidate
+        from datetime import datetime, timedelta
+        
+        data = request.json
+        channel_id = data.get('channel_id')
+        action = data.get('action', 'view_only') # view_only or subscribe
+        read_count = data.get('read_count', 5)
+        
+        # Verify candidate exists
+        candidate = ChannelCandidate.query.get(channel_id)
+        if not candidate or candidate.account_id != account_id:
+            return jsonify({'success': False, 'error': 'Channel candidate not found'})
+            
+        # Get or Create active schedule
+        schedule = WarmupSchedule.query.filter_by(account_id=account_id).first()
+        if not schedule:
+            # Create default schedule
+            schedule = WarmupSchedule(
+                account_id=account_id,
+                name=f"Default Schedule",
+                status='active',
+                start_date=datetime.now().date()
+            )
+            db.session.add(schedule)
+            db.session.commit()
+            
+        # Determine node type
+        node_type = 'subscribe' if action == 'subscribe' else 'visit'
+        
+        # Create Node (Pending)
+        # We set it for TODAY, NOW
+        
+        # Quick fix: Calculate current relative day
+        account = Account.query.get(account_id)
+        days_active = (datetime.now().date() - account.created_at.date()).days + 1
+        days_active = max(1, days_active)
+        
+        # Execution time: Now + 1 min
+        exec_time = (datetime.now() + timedelta(minutes=1)).strftime("%H:%M")
+        
+        node = WarmupScheduleNode(
+            schedule_id=schedule.id,
+            day_number=days_active,
+            execution_time=exec_time,
+            node_type=node_type,
+            status='pending',
+            config={
+                'target': f"@{candidate.username}" if candidate.username else f"https://t.me/c/{candidate.peer_id}", # Target identifier
+                'username': candidate.username,
+                'peer_id': candidate.peer_id,
+                'access_hash': candidate.access_hash,
+                'read_count': read_count, 
+                'origin': 'discovered_ui'
+            }
+        )
+        
+        db.session.add(node)
+        db.session.commit()
+        
+        return jsonify({'success': True, 'node_id': node.id})
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+
+@accounts_bp.route("/<int:account_id>/warmup/execute-channels", methods=["POST"])
+@login_required
+def execute_channels_now(account_id):
+    """Trigger execution of pending channel nodes"""
+    try:
+        # Trigger the worker check immediately
+        from workers.scheduler_worker import check_warmup_schedules
+        
+        # Asynchronously trigger the global check
+        check_warmup_schedules.delay()
+        
+        return jsonify({'success': True, 'message': 'Execution triggered'})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
