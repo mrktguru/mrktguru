@@ -17,7 +17,8 @@ from workers.node_executors import execute_node
 from utils.telethon_helper import get_telethon_client
 from database import db
 from utils.proxy_manager import release_dynamic_port 
-from utils.redis_logger import setup_redis_logging # Added
+from utils.proxy_manager import release_dynamic_port 
+from utils.redis_logger import setup_redis_logging, redis_client # Added redis_client
 
 logger = logging.getLogger(__name__)
 
@@ -159,7 +160,10 @@ def check_warmup_schedules():
                          d_str = str(n.execution_date) if n.execution_date else "None"
                          logger.info(f"  -> Candidate Node {n.id}: Type={n.node_type}, Date={d_str}, Time={n.execution_time}")
                     
-                    # Check each node if it should execute now
+                    # === SMART STACKING & SERIAL EXECUTION ===
+                    # 1. Collect all executable candidates for this schedule
+                    executable_candidates = []
+                    
                     for node in nodes:
                         # Check expiration (skip if > 15 mins late)
                         if is_node_expired(node, now):
@@ -170,10 +174,39 @@ def check_warmup_schedules():
                             continue
 
                         if should_execute_now(node, now):
-                            logger.info(f"Executing node {node.id} ({node.node_type}) for account {schedule.account_id}")
-                            execute_scheduled_node.delay(node.id)
+                            executable_candidates.append(node)
                         else:
-                            logger.debug(f"Node {node.id} not ready yet (time: {node.execution_time})")
+                            # logger.debug(f"Node {node.id} not ready yet (time: {node.execution_time})")
+                            pass
+
+                    if not executable_candidates:
+                         continue
+                         
+                    # 2. Sort by ID (First Created -> First Executed)
+                    executable_candidates.sort(key=lambda x: x.id)
+                    
+                    # 3. Pick the Target Node (The first one)
+                    target_node = executable_candidates[0]
+                    
+                    # 4. Check Distributed Lock (Is account busy?)
+                    lock_key = f"lock:account:{schedule.account_id}"
+                    if redis_client.get(lock_key):
+                         logger.info(f"[{schedule.account_id}] ⏳ Account is busy (Redis Lock). Queuing Node {target_node.id}.")
+                         # We do nothing. Node stays 'pending'. Worker will pick it up next tick when lock is free.
+                         continue
+                    
+                    # 5. Check 'Running' DB status (Legacy/Manual check)
+                    # (Optional but good for safety if Redis fails or was flushed)
+                    if schedule.account and schedule.account.status == 'flood_wait':
+                         # Skip if flood wait (redundant as should_execute_now checks it, but safe)
+                         continue
+
+                    # 6. Execute!
+                    logger.info(f"[{schedule.account_id}] 🚀 Smart Stack: Executing {target_node.id} (Type: {target_node.node_type})")
+                    execute_scheduled_node.delay(target_node.id)
+                    
+                    # Stop processing this schedule for this tick (only 1 execute per account per tick)
+                    continue
                 
                 except Exception as e:
                     logger.error(f"Error processing schedule {schedule.id}: {e}")
@@ -304,7 +337,7 @@ def is_node_expired(node, current_time, threshold_minutes=15):
 ACTIVE_SESSIONS = {} 
 
 @celery.task(name='workers.scheduler_worker.execute_scheduled_node')
-def execute_scheduled_node(node_id):
+def execute_scheduled_node(node_id, is_adhoc=False):
     # Ensure redis logging is setup in this worker process
     setup_redis_logging()
     
@@ -313,7 +346,18 @@ def execute_scheduled_node(node_id):
     with app.app_context():
         try:
             node = WarmupScheduleNode.query.get(node_id)
-            if not node or node.status not in ['pending', 'running']:
+            if not node:
+                return
+                
+            # If it's already completed or failed, don't re-run
+            if node.status in ['completed', 'failed', 'skipped']:
+                logger.info(f"Node {node_id} already in final status {node.status}. Skipping.")
+                return
+                
+            # If it's already running and NOT an adhoc request (user 'Run Now'), abort
+            # This prevents overlapping scheduler runs from doubling the task
+            if node.status == 'running' and not is_adhoc:
+                logger.warning(f"Node {node_id} is already RUNNING. Aborting duplicate scheduler trigger.")
                 return
 
             if node.status != 'running':
@@ -322,12 +366,27 @@ def execute_scheduled_node(node_id):
             
             account_id = node.schedule.account_id
             logger.info(f"▶️ Executing node {node_id}: {node.node_type} for account {account_id}")
+
+            # --- DISTRIBUTED LOCK CHECK ---
+            lock_key = f"lock:account:{account_id}"
+            # TTL 30 mins (1800s) to match heavy tasks 
+            is_locked = redis_client.set(lock_key, "locked", nx=True, ex=1800)
             
-            # --- ORCHESTRATOR LOGIC WITH CACHING ---
-            from utils.session_orchestrator import SessionOrchestrator
-            import asyncio
-            
-            async def run_with_orchestrator():
+            if not is_locked:
+                logger.warning(f"[{account_id}] ⚠️ Account is busy! Skipping overlapping task {node_id}.")
+                node.status = 'failed'
+                node.error_message = "Overlap: Account busy (Lock check failed)"
+                node.executed_at = datetime.now()
+                db.session.commit()
+                WarmupLog.log(account_id, 'warning', f"Skipped overlap task {node_id}", action='lock_overlap')
+                return
+
+            try:
+                # --- ORCHESTRATOR LOGIC WITH CACHING ---
+                from utils.session_orchestrator import SessionOrchestrator
+                import asyncio
+                
+                async def run_with_orchestrator():
                 # 1. Check for live session
                 orch = ACTIVE_SESSIONS.get(account_id)
                 
@@ -416,6 +475,11 @@ def execute_scheduled_node(node_id):
                 WarmupLog.log(account_id, 'error', f"Node failed: {node.error_message}", action=f'{node.node_type}_error')
 
             db.session.commit()
+            
+            finally:
+                # RELEASE LOCK
+                redis_client.delete(lock_key)
+                logger.info(f"[{account_id}] 🔓 Lock released.")
 
         except Exception as e:
             logger.exception(f"System error node {node_id}: {e}")
@@ -431,10 +495,20 @@ def execute_adhoc_node(account_id, node_type, config):
         try:
             logger.info(f"Executing ADHOC node: {node_type} for account {account_id}")
             
-            from utils.session_orchestrator import SessionOrchestrator
-            import asyncio
+            # --- DISTRIBUTED LOCK CHECK ---
+            lock_key = f"lock:account:{account_id}"
+            is_locked = redis_client.set(lock_key, "locked", nx=True, ex=1800)
             
-            async def run_with_orchestrator():
+            if not is_locked:
+                 logger.warning(f"[{account_id}] ⚠️ Account is busy! Skipping ADHOC task.")
+                 # For adhoc we just return, maybe logging to notify user could be nice but no DB node to update
+                 return
+
+            try:
+                from utils.session_orchestrator import SessionOrchestrator
+                import asyncio
+                
+                async def run_with_orchestrator():
                 # CACHING LOGIC
                 orch = ACTIVE_SESSIONS.get(account_id)
                 
@@ -467,6 +541,11 @@ def execute_adhoc_node(account_id, node_type, config):
                 logger.info(f"Adhoc {node_type} success")
             else:
                 logger.error(f"Adhoc {node_type} failed")
+
+            finally:
+                 # RELEASE LOCK
+                 redis_client.delete(lock_key)
+                 logger.info(f"[{account_id}] 🔓 Adhoc Lock released.")
 
         except Exception as e:
             logger.error(f"Error in execute_adhoc_node: {e}")

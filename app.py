@@ -140,18 +140,8 @@ def create_app():
             return redirect(url_for("dashboard.index"))
         return redirect(url_for("auth.login"))
     
-    # Logging
-    if not app.debug:
-        if not os.path.exists("logs"):
-            os.mkdir("logs")
-        file_handler = logging.FileHandler("logs/app.log")
-        file_handler.setLevel(logging.INFO)
-        file_handler.setFormatter(logging.Formatter(
-            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-        ))
-        app.logger.addHandler(file_handler)
-        app.logger.setLevel(logging.INFO)
-        app.logger.info("Application started")
+    # Final app startup log
+    app.logger.info("Application instance created")
     
     return app
 

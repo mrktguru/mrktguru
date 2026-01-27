@@ -54,6 +54,8 @@ class HumanBehavior:
             except Exception as e:
                 logger.error(f"{self.log_prefix}Error processing item '{item}': {e}")
                 continue
+        
+        logger.info(f"{self.log_prefix}✅ All {len(lines)} items processed with Smart Human Logic")
 
     async def _simulate_browser_click(self, link):
         """
@@ -138,7 +140,7 @@ class HumanBehavior:
                 wrong_target = all_results[1]
                 logger.info(f"{self.log_prefix}   ⚠️ Misclick! Opened wrong channel: {getattr(wrong_target, 'title', 'Unknown')}")
                 
-                await self._view_channel_content(wrong_target, short_visit=True)
+                await self._view_channel_content(wrong_target, short_visit=True, origin='SEARCH')
                 
                 logger.info(f"{self.log_prefix}   🔙 Back to search results...")
                 await asyncio.sleep(random.uniform(1.0, 2.0))
@@ -146,10 +148,10 @@ class HumanBehavior:
                 target_idx = 0 # Correct target
             
             real_target = all_results[target_idx]
-            tit = getattr(real_target, 'title', getattr(real_target, 'username', 'Unknown'))
-            logger.info(f"{self.log_prefix}   -> Clicked result: {tit}")
+            title = getattr(real_target, 'title', getattr(real_target, 'username', 'Unknown'))
+            logger.info(f"{self.log_prefix}   -> Clicked result: {title}")
             
-            await self._view_channel_content(real_target)
+            await self._view_channel_content(real_target, origin='SEARCH')
 
         except Exception as e:
             logger.error(f"{self.log_prefix}Search failed: {e}")
@@ -186,12 +188,20 @@ class HumanBehavior:
             await asyncio.sleep(random.uniform(0.08, 0.35))
             typed_text += char
 
-    async def _view_channel_content(self, entity, short_visit=False):
+    async def _view_channel_content(self, entity, short_visit=False, origin='LINK'):
         """
         Общая логика просмотра: скроллинг, чтение.
         Использует client.get_messages вместо сырых запросов.
         """
         try:
+            from telethon.tl.types import Channel, Chat
+            from models.channel_candidate import ChannelCandidate
+            from database import db
+            from datetime import datetime
+            
+            # 0. Save as discovered channel
+            await self._save_discovered_channel(entity, origin)
+
             title = getattr(entity, 'title', getattr(entity, 'username', 'Chat'))
             logger.info(f"{self.log_prefix}   👀 Viewing content in: {title}")
 
@@ -243,6 +253,55 @@ class HumanBehavior:
                 )
                 await asyncio.sleep(random.uniform(3, 6))
                 logger.info(f"{self.log_prefix}   ⬇️ Scrolling back to recent...")
+                await asyncio.sleep(random.uniform(2, 4))
 
         except Exception as e:
             logger.error(f"{self.log_prefix}   ⚠️ Error viewing content: {e}")
+
+    async def _save_discovered_channel(self, entity, origin='LINK'):
+        """Persistence logic: save or update discovered channel candidate"""
+        try:
+            from telethon.tl.types import Channel, Chat
+            from models.channel_candidate import ChannelCandidate
+            from database import db
+            from datetime import datetime
+            
+            if not isinstance(entity, (Channel, Chat)):
+                return
+
+            peer_id = entity.id
+            access_hash = getattr(entity, 'access_hash', 0)
+            username = getattr(entity, 'username', None)
+            title = getattr(entity, 'title', 'Unknown')
+            
+            type_str = 'CHANNEL' if isinstance(entity, Channel) else 'MEGAGROUP'
+            
+            # Use app context if not present (usually worker has it)
+            # Find existing
+            candidate = ChannelCandidate.query.filter_by(
+                account_id=self.account_id, 
+                peer_id=peer_id
+            ).first()
+            
+            if not candidate:
+                candidate = ChannelCandidate(
+                    account_id=self.account_id,
+                    peer_id=peer_id,
+                    access_hash=access_hash,
+                    origin=origin
+                )
+                db.session.add(candidate)
+                logger.info(f"{self.log_prefix}   ✨ New channel discovered: {title}")
+            
+            # Update fields
+            candidate.username = username
+            candidate.title = title
+            candidate.type = type_str
+            candidate.last_visit_ts = datetime.utcnow()
+            candidate.status = 'VISITED'
+            
+            db.session.commit()
+            
+        except Exception as e:
+            logger.error(f"{self.log_prefix}   ❌ Failed to save discovered channel: {e}")
+            # Don't raise, persistence failure shouldn't kill the worker

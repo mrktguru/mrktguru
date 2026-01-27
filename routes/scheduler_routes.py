@@ -563,7 +563,7 @@ def run_node_immediately(account_id):
                 node.executed_at = datetime.now() # Mark start time
                 db.session.commit()
                 
-            task = execute_scheduled_node.apply_async(args=[node_id])
+            task = execute_scheduled_node.apply_async(args=[node_id, True])
             
             return jsonify({
                 'message': 'Execution started (persistent)', 

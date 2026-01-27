@@ -37,10 +37,10 @@ class RedisPubSubHandler(logging.Handler):
                 
                 # Format payload
                 log_payload = json.dumps({
-                    'timestamp': datetime.now().strftime('%H:%M:%S'),
+                    'timestamp': datetime.now().strftime('%d.%m.%Y %H:%M:%S'),
                     'level': record.levelname,
-                    'message': msg, # Full message
-                    'clean_message': msg.replace(f"[{account_id}]", "").strip() # Message without ID prefix
+                    'message': msg, # Full message (with asctime/level)
+                    'raw_message': record.getMessage() # Just the message text
                 })
                 
                 # Publish to channel (for live listeners)
@@ -60,20 +60,22 @@ class RedisPubSubHandler(logging.Handler):
             self.handleError(record)
 
 def setup_redis_logging(target_logger=None):
-    """Attaches Redis handler to the target logger or root"""
+    """Attaches Redis handler to the target logger or root, ensuring no duplicates"""
     if target_logger is None:
         target_logger = logging.getLogger()
         
     target_logger.setLevel(logging.INFO) # Force INFO level
     
-    # Avoid adding duplicate handlers
-    if any(isinstance(h, RedisPubSubHandler) for h in target_logger.handlers):
-        return
+    # Remove any existing RedisPubSubHandler to avoid duplicates across reloads/reconfigs
+    for h in list(target_logger.handlers):
+        if h.__class__.__name__ == 'RedisPubSubHandler':
+            target_logger.removeHandler(h)
 
     redis_handler = RedisPubSubHandler()
     redis_handler.setLevel(logging.INFO) # Force INFO level
+    # We use a formatter for the 'message' field, but 'raw_message' remains clean
     formatter = logging.Formatter('[%(asctime)s] %(levelname)s: %(message)s')
     redis_handler.setFormatter(formatter)
     
     target_logger.addHandler(redis_handler)
-    print(f"RedisPubSubHandler attached to logger: {target_logger.name}", flush=True)
+    print(f"RedisPubSubHandler (re)attached to logger: {target_logger.name}", flush=True)

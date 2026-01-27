@@ -36,6 +36,9 @@
     let elements = {};
     let configModal = null;
 
+    // 🔥 CONCURRENCY LOCK
+    let _isSaving = false;
+
     // --- INITIALIZATION ---
     document.addEventListener('DOMContentLoaded', () => {
         elements = {
@@ -239,7 +242,7 @@
         }
     }
 
-    // --- RENDERING NODES (REWRITTEN) ---
+    // --- RENDERING NODES (REWRITTEN - SUPERNODE SUPPORT) ---
     function renderNodes() {
         elements.eventsContainer.innerHTML = '';
 
@@ -247,6 +250,9 @@
         const baseMonday = getMonday(accountCreatedAtDate);
         const viewStartMonday = new Date(baseMonday);
         viewStartMonday.setDate(baseMonday.getDate() + (currentWeekOffset * 7));
+
+        // 1. Group nodes into clusters (Day + Time)
+        const clusters = {};
 
         scheduleData.nodes.forEach(node => {
             if (!node.day_number) return;
@@ -258,14 +264,92 @@
 
             // Check if falls in current view week
             const diffTime = nodeDate.getTime() - viewStartMonday.getTime();
-            const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24)); // 0 = Monday ... 6 = Sunday
+            const colIndex = Math.round(diffTime / (1000 * 60 * 60 * 24)); // 0 = Monday ... 6 = Sunday
 
-            if (diffDays >= 0 && diffDays < 7) {
-                // Pass diffDays as the column index (0-6)
-                const nodeEl = createNodeElement(node, diffDays);
-                elements.eventsContainer.appendChild(nodeEl);
+            if (colIndex >= 0 && colIndex < DAYS_PER_VIEW) {
+                // Key for clustering: "ColIndex_TimeStr" (e.g "3_14:00")
+                const timeStr = node.execution_time || '00:00';
+                const key = `${colIndex}_${timeStr}`;
+
+                if (!clusters[key]) {
+                    clusters[key] = {
+                        colIndex: colIndex,
+                        timeStr: timeStr,
+                        nodes: []
+                    };
+                }
+                clusters[key].nodes.push(node);
             }
         });
+
+        // 2. Render clusters
+        Object.values(clusters).forEach(cluster => {
+            // Sort nodes by ID (Creation Order)
+            cluster.nodes.sort((a, b) => a.id - b.id);
+
+            // === SUPERNODE LOGIC ===
+            if (cluster.nodes.length > 1) {
+                // If > 1 node at same time -> Render Supernode
+                renderSuperNode(cluster);
+            } else {
+                // Single node -> Render as usual
+                const node = cluster.nodes[0];
+                const el = createNodeElement(node, cluster.colIndex);
+                elements.eventsContainer.appendChild(el);
+            }
+        });
+    }
+
+    function renderSuperNode(cluster) {
+        // Parse start time to positioning
+        let timeStr = cluster.timeStr;
+        if (!timeStr.includes(':')) timeStr = '00:00';
+        const [h, m] = timeStr.split(':').map(Number);
+        const startMin = (h * 60) + m;
+        const topPx = startMin * PIXELS_PER_MINUTE;
+
+        // Column Width
+        const colWidthPercent = 100 / DAYS_PER_VIEW;
+        const leftPercent = cluster.colIndex * colWidthPercent;
+
+        // Create Wrapper
+        const wrapper = document.createElement('div');
+        wrapper.className = 'supernode-wrapper';
+        wrapper.style.top = `${topPx}px`;
+        wrapper.style.left = `${leftPercent}%`;
+        // Width slightly less than column
+        wrapper.style.width = `calc(${colWidthPercent}% - 4px)`;
+        wrapper.style.marginLeft = '2px';
+
+        // Header Label
+        wrapper.innerHTML = `
+            <div class="supernode-label">
+                <span><i class="bi bi-layers-fill"></i> Supernode</span>
+                <span>${cluster.nodes.length} actions</span>
+            </div>
+        `;
+
+        // Render inner nodes
+        cluster.nodes.forEach((node, index) => {
+            // Create normal element but reset positioning styles
+            // We pass colIndex=0 because inside wrapper position is relative
+            const nodeEl = createNodeElement(node, 0);
+
+            // Override styles to sit inside
+            nodeEl.style.position = 'relative';
+            nodeEl.style.left = '0';
+            nodeEl.style.top = '0';
+            nodeEl.style.width = '100%';
+
+            // Visual separator (except last)
+            if (index < cluster.nodes.length - 1) {
+                nodeEl.style.borderBottom = '1px dashed #ccc';
+            }
+
+            wrapper.appendChild(nodeEl);
+        });
+
+        elements.eventsContainer.appendChild(wrapper);
     }
 
     function createNodeElement(node, colIndex) {
@@ -299,22 +383,25 @@
         el.style.zIndex = 20;
 
         // Styling (Colors)
-        if (node.status === 'completed') {
-            el.style.backgroundColor = '#d1e7dd';
+        // Styling (Colors)
+        if (node.status === 'completed' || node.status === 'success') {
             el.classList.add('node-completed');
+            // Background handled by CSS .node-completed
         } else if (node.status === 'failed') {
             el.style.backgroundColor = '#f8d7da';
-        } else if (node.status === 'running') {
+            el.classList.add('node-failed');
+        } else if (node.status === 'running' || node.status === 'processing') {
             el.style.backgroundColor = '#fff3cd';
             el.classList.add('node-running');
         } else {
             el.style.backgroundColor = getNodeColor(node.node_type);
         }
 
-        if (node.is_ghost) {
+        if (node.is_ghost || node.status === 'completed' || node.status === 'success') {
             el.style.cursor = 'default';
             el.setAttribute('draggable', 'false');
-            el.style.opacity = '0.8';
+            if (node.status === 'completed') el.style.opacity = '0.9'; // Slightly dim but solid
+            else el.style.opacity = '0.8'; // Ghost
         } else {
             el.style.cursor = 'move';
             el.setAttribute('draggable', 'true');
@@ -327,30 +414,33 @@
             <div class="d-flex justify-content-between align-items-center">
                 <strong class="text-truncate">${getNodeLabel(node.node_type)}</strong>
                 <div class="d-flex gap-1" style="background: rgba(255,255,255,0.5); border-radius: 4px; padding: 0 2px;">
-                    <i class="bi bi-gear-fill node-config-btn" style="cursor:pointer; font-size: 10px;" title="Configure"></i>
-                    <i class="bi bi-x node-remove-btn" style="cursor:pointer; font-size: 10px; color: #dc3545;" title="Remove"></i>
+                    <i class="bi bi-gear-fill node-config-btn" style="cursor:pointer; font-size: 10px;" title="View Details"></i>
+                    ${(node.status !== 'completed' && node.status !== 'success') ? '<i class="bi bi-x node-remove-btn" style="cursor:pointer; font-size: 10px; color: #dc3545;" title="Remove"></i>' : ''}
                 </div>
             </div>
             <div class="small text-truncate mt-1">${node.is_random_time ? '🎲' : node.execution_time}</div>
-            <div class="resize-handle position-absolute bottom-0 start-0 w-100" style="height:5px; cursor:ns-resize"></div>
+            ${(node.status !== 'completed' && node.status !== 'success') ? '<div class="resize-handle position-absolute bottom-0 start-0 w-100" style="height:5px; cursor:ns-resize"></div>' : ''}
         `;
 
         // Event Listeners
-        // Event Listeners
         if (!node.is_ghost) {
-            el.addEventListener('dragstart', (e) => {
-                e.stopPropagation();
-                e.dataTransfer.setData('source', 'internal');
-                window._draggedNode = node;
-                e.dataTransfer.effectAllowed = 'move';
-                el.style.opacity = '0.5';
-            });
+            if (node.status !== 'completed' && node.status !== 'success') {
+                el.addEventListener('dragstart', (e) => {
+                    e.stopPropagation();
+                    e.dataTransfer.setData('source', 'internal');
+                    window._draggedNode = node;
+                    e.dataTransfer.effectAllowed = 'move';
+                    el.style.opacity = '0.5';
+                });
 
-            // Fix: Double Click
+                // Resize only if not completed
+                initResize(el.querySelector('.resize-handle'), node, el);
+            }
+
+            // Fix: Double Click (View Config)
             el.addEventListener('dblclick', (e) => {
-                e.preventDefault(); // Prevent text selection
+                e.preventDefault();
                 e.stopPropagation();
-                console.log('Double click on node', node);
                 openNodeConfig(node);
             });
 
@@ -359,12 +449,11 @@
             if (configBtn) {
                 configBtn.addEventListener('click', (e) => {
                     e.stopPropagation();
-                    console.log('Config click on node', node);
                     openNodeConfig(node);
                 });
             }
 
-            // Remove Button
+            // Remove Button (Only if exists)
             const removeBtn = el.querySelector('.node-remove-btn');
             if (removeBtn) {
                 removeBtn.addEventListener('click', (e) => {
@@ -372,8 +461,6 @@
                     removeNode(node);
                 });
             }
-
-            initResize(el.querySelector('.resize-handle'), node, el);
         }
 
         el.addEventListener('dragend', () => { el.style.opacity = '1'; window._draggedNode = null; });
@@ -551,6 +638,31 @@
     }
 
     async function saveSchedule(silent = false) {
+        // LOCK CHECK
+        if (_isSaving) {
+            console.warn("Save currently in progress. Waiting...");
+            // Poll until free (simple semaphore)
+            while (_isSaving) {
+                await new Promise(r => setTimeout(r, 100));
+            }
+            // After waiting, we might just return? 
+            // Better: run again to ensure *latest* state is saved (debounce logic would be better but lock is safer for non-duplication)
+            // If we just return, we might miss the second update.
+            // But for "creation id" issue, we MUST wait.
+            // Let's proceed after lock release.
+        }
+
+        _isSaving = true;
+        try {
+            await _internalSaveSchedule(silent);
+        } catch (e) {
+            console.error("Save error:", e);
+        } finally {
+            _isSaving = false;
+        }
+    }
+
+    async function _internalSaveSchedule(silent = false) {
         // 1. Ensure Schedule Exists (Lazy Creation)
         if (!scheduleData.schedule_id) {
             try {
@@ -673,11 +785,30 @@
         const form = document.getElementById('nodeConfigForm');
         form.reset();
 
+        const isReadOnly = (node.status === 'completed' || node.status === 'success' || node.is_ghost);
+
+        // Buttons
+        const saveBtn = document.getElementById('saveNodeConfigBtn');
+        const runBtn = document.getElementById('runNodeNowBtn');
+
+        if (isReadOnly) {
+            saveBtn.style.display = 'none';
+            runBtn.style.display = 'none';
+            document.querySelector('.modal-title').innerText = 'Node Details (History)';
+        } else {
+            saveBtn.style.display = 'inline-block';
+            runBtn.style.display = 'inline-block';
+            document.querySelector('.modal-title').innerText = 'Configure Node';
+        }
+
         // Common Fields
         const timeInput = form.elements['execution_time'];
         const randomCheck = form.elements['is_random_time'];
 
-        if (timeInput && randomCheck) {
+        if (timeInput) timeInput.disabled = isReadOnly;
+        if (randomCheck) randomCheck.disabled = isReadOnly;
+
+        if (timeInput && randomCheck && !isReadOnly) {
             if (node.is_random_time) {
                 randomCheck.checked = true;
                 timeInput.disabled = true;
@@ -687,10 +818,19 @@
                 timeInput.disabled = false;
                 timeInput.value = node.execution_time || '';
             }
+        } else if (timeInput && isReadOnly) {
+            timeInput.value = node.execution_time || '';
+            if (randomCheck) randomCheck.checked = !!node.is_random_time;
         }
 
         // Render Dynamic Fields
         renderDynamicFields(node.node_type, node.config);
+
+        // Disable all dynamic fields if read-only
+        if (isReadOnly) {
+            const dynamicContainer = document.getElementById('dynamicFields');
+            dynamicContainer.querySelectorAll('input, select, textarea').forEach(el => el.disabled = true);
+        }
 
         configModal.show();
     }
