@@ -165,6 +165,10 @@ def check_warmup_schedules():
                     executable_candidates = []
                     
                     for node in nodes:
+                        # Safety: Only execute PENDING nodes (skip 'draft')
+                        if node.status != 'pending':
+                            continue
+
                         # Check expiration (skip if > 15 mins late)
                         if is_node_expired(node, now):
                             logger.info(f"Node {node.id} expired (Target: {node.execution_time}). Skipping.")

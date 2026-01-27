@@ -169,7 +169,8 @@ def add_node(schedule_id):
             execution_time=data.get('execution_time'),
             is_random_time=data.get('is_random_time', False),
             config=data.get('config', {}),
-            status='pending'
+            config=data.get('config', {}),
+            status=data.get('status', 'draft')  # Default to draft (Yellow)
         )
         
         db.session.add(node)
@@ -195,9 +196,11 @@ def update_node(node_id):
         
         data = request.json or {}
         
-        # Update fields
         if 'day_number' in data:
             node.day_number = data['day_number']
+            
+        if 'status' in data:
+            node.status = data['status']
             # Recalculate date if schedule is active
             if node.schedule and node.schedule.start_date:
                 from datetime import timedelta

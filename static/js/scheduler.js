@@ -383,21 +383,26 @@
         el.style.zIndex = 20;
 
         // Styling (Colors)
-        // Styling (Colors)
         if (node.status === 'completed' || node.status === 'success') {
             el.classList.add('node-completed');
-            // Background handled by CSS .node-completed
         } else if (node.status === 'failed') {
             el.style.backgroundColor = '#f8d7da';
             el.classList.add('node-failed');
         } else if (node.status === 'running' || node.status === 'processing') {
             el.style.backgroundColor = '#fff3cd';
             el.classList.add('node-running');
+        } else if (node.status === 'pending') {
+            // READY TO RUN (Green)
+            el.style.backgroundColor = '#d1e7dd';
+            el.classList.add('node-ready');
         } else {
-            el.style.backgroundColor = getNodeColor(node.node_type);
+            // DRAFT (Yellow)
+            el.style.backgroundColor = '#fff3cd'; // Yellow-ish
+            el.classList.add('node-draft');
         }
 
         if (node.is_ghost || node.status === 'completed' || node.status === 'success') {
+            // ... (existing code)
             el.style.cursor = 'default';
             el.setAttribute('draggable', 'false');
             if (node.status === 'completed') el.style.opacity = '0.9'; // Slightly dim but solid
@@ -410,10 +415,12 @@
         el._nodeObj = node;
 
         // Inner Content
+        const isReady = node.status === 'pending';
         el.innerHTML = `
             <div class="d-flex justify-content-between align-items-center">
                 <strong class="text-truncate">${getNodeLabel(node.node_type)}</strong>
                 <div class="d-flex gap-1" style="background: rgba(255,255,255,0.5); border-radius: 4px; padding: 0 2px;">
+                    ${isReady ? '<i class="bi bi-check-circle-fill text-success" title="Ready to execute" style="font-size: 10px;"></i>' : ''}
                     <i class="bi bi-gear-fill node-config-btn" style="cursor:pointer; font-size: 10px;" title="View Details"></i>
                     ${(node.status !== 'completed' && node.status !== 'success') ? '<i class="bi bi-x node-remove-btn" style="cursor:pointer; font-size: 10px; color: #dc3545;" title="Remove"></i>' : ''}
                 </div>
@@ -550,7 +557,8 @@
             execution_time: time,
             is_random_time: false,
             config: {},
-            _ui_duration: 60
+            _ui_duration: 60,
+            status: 'draft' // Default to draft (Yellow)
         };
         // Defaults
         if (type === 'passive_activity') node.config.duration_minutes = 60;
