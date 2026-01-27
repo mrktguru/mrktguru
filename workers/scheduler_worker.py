@@ -139,10 +139,10 @@ def check_warmup_schedules():
                             if last_update and last_update.tzinfo is None and current_now.tzinfo is not None:
                                 current_now = current_now.replace(tzinfo=None)
                             
-                            if last_update and last_update < current_now - timedelta(minutes=60):
+                            if last_update and last_update < current_now - timedelta(minutes=120):
                                 logger.warning(f"Node {r_node.id} appears stuck (running since {r_node.updated_at}). Marking as failed.")
                                 r_node.status = 'failed'
-                                r_node.error_message = "Timeout: Execution stuck for > 60 mins"
+                                r_node.error_message = "Timeout: Execution stuck for > 120 mins"
                                 r_node.executed_at = now
                                 db.session.commit()
                                 WarmupLog.log(schedule.account_id, 'error', f"Node {r_node.id} timed out (stuck)", action='timeout_error')
