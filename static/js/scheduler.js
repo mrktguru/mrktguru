@@ -885,14 +885,22 @@
                 currentNode.config[name] = input.value;
             }
         });
+
+        // Promote draft nodes to pending (ready) when configuration is saved
+        if (currentNode.status === 'draft') {
+            currentNode.status = 'pending';
+        }
     }
 
     async function saveConfig() {
         if (currentNode) {
+            console.log('[saveConfig] Before applyFormToNode:', { execution_time: currentNode.execution_time, status: currentNode.status });
             applyFormToNode();
+            console.log('[saveConfig] After applyFormToNode:', { execution_time: currentNode.execution_time, status: currentNode.status });
             configModal.hide();
             renderNodes();
             await saveSchedule(true);
+            console.log('[saveConfig] After saveSchedule');
         }
     }
 
