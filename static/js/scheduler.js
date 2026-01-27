@@ -89,8 +89,13 @@
         initDragAndDrop();
 
         // Auto-refresh schedule every 10 seconds to update node statuses
+        // Skip refresh if save is in progress to prevent race condition
         setInterval(() => {
-            loadSchedule();
+            if (!_isSaving) {
+                loadSchedule();
+            } else {
+                console.log('[Auto-refresh] Skipped: save in progress');
+            }
         }, 10000);
     });
 
