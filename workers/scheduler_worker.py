@@ -505,7 +505,8 @@ def execute_adhoc_node(account_id, node_type, config):
                  # For adhoc we just return, maybe logging to notify user could be nice but no DB node to update
                  return
 
-            try:
+            # Wrapper to keep indentation
+            if True:
                 from utils.session_orchestrator import SessionOrchestrator
                 import asyncio
                 
