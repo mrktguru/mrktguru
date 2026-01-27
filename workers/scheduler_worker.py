@@ -423,7 +423,7 @@ def execute_scheduled_node(node_id, is_adhoc=False):
                 # 3. Execute
                 # ❌ WE REMOVED FINALLY WITH ORCH.STOP()
                 # Session stays in ACTIVE_SESSIONS
-                return await orch.execute(task_wrapper)
+                    return await orch.execute(task_wrapper)
 
                 # Run on global background loop
                 try:
