@@ -425,56 +425,57 @@ def execute_scheduled_node(node_id, is_adhoc=False):
                 # Session stays in ACTIVE_SESSIONS
                 return await orch.execute(task_wrapper)
 
-            # Run on global background loop
-            try:
-                from utils.bg_loop import BackgroundLoop
-                result = BackgroundLoop.submit(run_with_orchestrator())
-            except Exception as loop_e:
-                 logger.exception(f"Orchestrator error: {loop_e}")
-                 result = {'success': False, 'error': str(loop_e)}
-                 
-                 # On crash, remove from cache to start fresh next time
-                 if account_id in ACTIVE_SESSIONS:
-                     del ACTIVE_SESSIONS[account_id]
+                # Run on global background loop
+                try:
+                    from utils.bg_loop import BackgroundLoop
+                    result = BackgroundLoop.submit(run_with_orchestrator())
+                except Exception as loop_e:
+                     logger.exception(f"Orchestrator error: {loop_e}")
+                     result = {'success': False, 'error': str(loop_e)}
+                     
+                     # On crash, remove from cache to start fresh next time
+                     if account_id in ACTIVE_SESSIONS:
+                         del ACTIVE_SESSIONS[account_id]
 
-            # --- RESULT HANDLING (Same as before) ---
-            if result and result.get('success'):
-                node.status = 'completed'
-                node.executed_at = datetime.now()
-                WarmupLog.log(account_id, 'success', f"{node.node_type} completed", action=f'{node.node_type}_complete')
-            else:
-                # Check for FLOOD_WAIT
-                if result and result.get('flood_wait'):
-                    account = node.schedule.account
-                    if account and result.get('flood_wait_until'):
-                        account.status = 'flood_wait'
-                        account.flood_wait_until = result['flood_wait_until']
-                        account.flood_wait_action = node.node_type
-                        account.last_flood_wait = datetime.now()
-                        logger.critical(f"FLOOD_WAIT triggered for account {account_id}")
-                        WarmupLog.log(account_id, 'critical', f"FLOOD_WAIT until {account.flood_wait_until}", action='flood_wait_critical')
-                
-                # Check for BAN
-                err_msg = (result.get('error') or '').lower()
-                if 'banned' in err_msg or 'userdeactivated' in err_msg:
-                    account = node.schedule.account
-                    logger.critical(f"[{account_id}] ❌ ACCOUNT BANNED! Marking as banned and releasing port.")
-                    account.status = 'banned'
+                # --- RESULT HANDLING (Same as before) ---
+                if result and result.get('success'):
+                    node.status = 'completed'
+                    node.executed_at = datetime.now()
+                    WarmupLog.log(account_id, 'success', f"{node.node_type} completed", action=f'{node.node_type}_complete')
+                else:
+                    # Check for FLOOD_WAIT
+                    if result and result.get('flood_wait'):
+                        account = node.schedule.account
+                        if account and result.get('flood_wait_until'):
+                            account.status = 'flood_wait'
+                            account.flood_wait_until = result['flood_wait_until']
+                            account.flood_wait_action = node.node_type
+                            account.last_flood_wait = datetime.now()
+                            account.flood_wait_reason = f"Warmup {node.node_type}"
+                            logger.critical(f"FLOOD_WAIT triggered for account {account_id}")
+                            WarmupLog.log(account_id, 'critical', f"FLOOD_WAIT until {account.flood_wait_until}", action='flood_wait_critical')
                     
-                    # AUTO-RELEASE PORT
-                    if account.assigned_port:
-                         if release_dynamic_port(account):
-                             logger.info(f"[{account_id}] Port released.")
-                    
-                    WarmupLog.log(account_id, 'critical', "Account Banned", action='account_banned')
-                    db.session.commit()
+                    # Check for BAN
+                    err_msg = (result.get('error') or '').lower()
+                    if 'banned' in err_msg or 'userdeactivated' in err_msg:
+                        account = node.schedule.account
+                        logger.critical(f"[{account_id}] ❌ ACCOUNT BANNED! Marking as banned and releasing port.")
+                        account.status = 'banned'
+                        
+                        # AUTO-RELEASE PORT
+                        if account.assigned_port:
+                             if release_dynamic_port(account):
+                                 logger.info(f"[{account_id}] Port released.")
+                        
+                        WarmupLog.log(account_id, 'critical', "Account Banned", action='account_banned')
+                        db.session.commit()
 
-                node.status = 'failed'
-                node.error_message = result.get('error', 'Unknown error') if result else 'Unknown'
-                node.executed_at = datetime.now()
-                WarmupLog.log(account_id, 'error', f"Node failed: {node.error_message}", action=f'{node.node_type}_error')
+                    node.status = 'failed'
+                    node.error_message = result.get('error', 'Unknown error') if result else 'Unknown'
+                    node.executed_at = datetime.now()
+                    WarmupLog.log(account_id, 'error', f"Node failed: {node.error_message}", action=f'{node.node_type}_error')
 
-            db.session.commit()
+                db.session.commit()
             
             finally:
                 # RELEASE LOCK
