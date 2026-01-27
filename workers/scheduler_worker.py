@@ -465,6 +465,7 @@ def execute_scheduled_node(node_id, is_adhoc=False):
                 if result and result.get('success'):
                     node.status = 'completed'
                     node.executed_at = datetime.now()
+                    node.schedule.account.last_activity = datetime.now()
                     WarmupLog.log(account_id, 'success', f"{node.node_type} completed", action=f'{node.node_type}_complete')
                 else:
                     # Check for FLOOD_WAIT
@@ -565,6 +566,11 @@ def execute_adhoc_node(account_id, node_type, config):
             # Log result
             if result and result.get('success'):
                 logger.info(f"Adhoc {node_type} success")
+                from models.account import Account
+                account = Account.query.get(account_id)
+                if account:
+                    account.last_activity = datetime.now()
+                    db.session.commit()
             else:
                 logger.error(f"Adhoc {node_type} failed")
 
