@@ -1792,15 +1792,17 @@ def search_channels(account_id):
         from models.channel_candidate import ChannelCandidate
         
         query = request.json.get('query', '').strip()
-        if not query:
-            return jsonify({'success': False, 'error': 'Query required'})
+        
+        base_query = ChannelCandidate.query.filter(ChannelCandidate.account_id == account_id)
+        
+        if query:
+            # Search by title or username
+            base_query = base_query.filter(
+                (ChannelCandidate.title.ilike(f"%{query}%")) | 
+                (ChannelCandidate.username.ilike(f"%{query}%"))
+            )
             
-        # Search by title or username
-        candidates = ChannelCandidate.query.filter(
-            ChannelCandidate.account_id == account_id,
-            (ChannelCandidate.title.ilike(f"%{query}%")) | 
-            (ChannelCandidate.username.ilike(f"%{query}%"))
-        ).order_by(ChannelCandidate.last_visit_ts.desc()).limit(50).all()
+        candidates = base_query.order_by(ChannelCandidate.last_visit_ts.desc()).limit(50).all()
         
         results = [c.to_dict() for c in candidates]
         return jsonify({'success': True, 'results': results})
