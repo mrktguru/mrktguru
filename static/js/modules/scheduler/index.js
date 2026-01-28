@@ -54,7 +54,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!confirm("Delete entire schedule?")) return;
         if (!state.scheduleData.schedule_id) return;
         try {
-            await fetch(`/scheduler/schedules/${state.scheduleData.schedule_id}`, { method: 'DELETE' });
+            await API.deleteSchedule(state.scheduleData.schedule_id);
             window.location.reload();
         } catch (e) {
             console.error(e);

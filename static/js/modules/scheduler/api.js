@@ -43,5 +43,9 @@ export const API = {
     async pauseSchedule(scheduleId) {
         const res = await fetch(`/scheduler/schedules/${scheduleId}/pause`, { method: 'POST' });
         return await res.json();
+    },
+
+    async deleteSchedule(scheduleId) {
+        return await fetch(`/scheduler/schedules/${scheduleId}`, { method: 'DELETE' });
     }
 };
