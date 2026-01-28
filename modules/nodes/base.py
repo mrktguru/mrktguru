@@ -23,17 +23,23 @@ class BaseNodeExecutor:
         raise NotImplementedError
         
     def log(self, level, message, action=None):
-        """Wrapper for WarmupLog"""
-        # Echo to standard python logger for visibility in celery/terminal
+        """Wrapper for centralized logging"""
+        # 1. System log (Console/Celery)
         log_msg = f"[{self.account_id}] {message}"
-        if level == 'error' or level == 'critical':
+        lvl = level.lower()
+        
+        if lvl in ['error', 'critical']:
             logger.error(log_msg)
-        elif level == 'warning':
+        elif lvl == 'warning':
             logger.warning(log_msg)
         else:
             logger.info(log_msg)
             
-        WarmupLog.log(self.account_id, level, message, action=action)
+        # 2. Database log (WarmupLog)
+        try:
+            WarmupLog.log(self.account_id, level.upper(), message, action=action)
+        except Exception as e:
+            logger.error(f"[{self.account_id}] Failed to write to DB log: {e}")
         
     def get_config(self, key, default=None):
         """Helper to get config value"""
