@@ -27,7 +27,9 @@ from modules.accounts.services import (
     ProfileService,
     SubscriptionService,
     DeviceProfileService,
-    DeviceConfig
+    DeviceConfig,
+    ActivityService,
+    ActivityLogQuery
 )
 from modules.accounts.exceptions import (
     AccountNotFoundError,
@@ -499,45 +501,29 @@ def update_profile(account_id):
 @login_required
 def activity_logs(account_id):
     """View activity logs for account"""
-    from models.activity_log import AccountActivityLog
-    
     account = Account.query.get_or_404(account_id)
     
-    # Get filter parameters
-    action_type = request.args.get("action_type")
-    category = request.args.get("category")
-    status = request.args.get("status")
-    limit = int(request.args.get("limit", 100))
+    query = ActivityLogQuery(
+        account_id=account_id,
+        action_type=request.args.get("action_type"),
+        category=request.args.get("category"),
+        status=request.args.get("status"),
+        limit=int(request.args.get("limit", 100))
+    )
     
-    # Build query
-    query = AccountActivityLog.query.filter_by(account_id=account_id)
-    
-    if action_type:
-        query = query.filter_by(action_type=action_type)
-    if category:
-        query = query.filter_by(action_category=category)
-    if status:
-        query = query.filter_by(status=status)
-    
-    # Get logs
-    logs = query.order_by(AccountActivityLog.timestamp.desc()).limit(limit).all()
-    
-    # Get unique action types and categories for filters
-    all_logs = AccountActivityLog.query.filter_by(account_id=account_id).all()
-    action_types = sorted(set(log.action_type for log in all_logs if log.action_type))
-    categories = sorted(set(log.action_category for log in all_logs if log.action_category))
+    result = ActivityService.get_logs(query)
     
     return render_template(
         "accounts/activity_logs.html",
         account=account,
-        logs=logs,
-        action_types=action_types,
-        categories=categories,
+        logs=result.logs,
+        action_types=result.action_types,
+        categories=result.categories,
         current_filters={
-            "action_type": action_type,
-            "category": category,
-            "status": status,
-            "limit": limit
+            "action_type": query.action_type,
+            "category": query.category,
+            "status": query.status,
+            "limit": query.limit
         }
     )
 

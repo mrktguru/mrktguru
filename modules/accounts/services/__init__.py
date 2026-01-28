@@ -14,6 +14,7 @@ from .upload import UploadService
 from .profile import ProfileService
 from .subscription import SubscriptionService
 from .device import DeviceProfileService, DeviceConfig
+from .activity import ActivityService, ActivityLogQuery
 
 __all__ = [
     'MetadataService',
@@ -26,7 +27,10 @@ __all__ = [
     'SubscriptionService',
     'DeviceProfileService',
     'DeviceConfig',
+    'ActivityService',
+    'ActivityLogQuery',
 ]
+
 
 
 
