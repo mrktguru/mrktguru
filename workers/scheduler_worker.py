@@ -13,7 +13,7 @@ from celery_app import celery
 from models.warmup_schedule import WarmupSchedule
 from models.warmup_schedule_node import WarmupScheduleNode
 from models.warmup_log import WarmupLog
-from workers.node_executors import execute_node
+from modules.nodes import execute_node
 from utils.telethon_helper import get_telethon_client
 from database import db
 from utils.proxy_manager import release_dynamic_port 
