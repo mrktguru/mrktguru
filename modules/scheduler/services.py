@@ -33,8 +33,9 @@ class SchedulerService:
             
         node_dicts = [node.to_dict() for node in nodes]
         
-        ghost_nodes = SchedulerService._get_ghost_nodes(account_id, schedule_id)
-        node_dicts.extend(ghost_nodes)
+        # Ghost nodes are disabled to prevent data duplication and UI confusion
+        # ghost_nodes = SchedulerService._get_ghost_nodes(account_id, schedule_id)
+        # node_dicts.extend(ghost_nodes)
         
         def sort_key(n):
             d_str = n.get('execution_date')

@@ -146,7 +146,12 @@ function createNodeElement(node, colIndex) {
     }
     console.log(`[Scheduler] Rendering Node ${node.id}: status=${node.status}, color=${el.style.backgroundColor}`);
 
-    const isLocked = (node.is_ghost || node.status === 'completed' || node.status === 'success' || node.status === 'running');
+    const isLocked = (node.is_ghost ||
+        node.status === 'completed' ||
+        node.status === 'success' ||
+        node.status === 'running' ||
+        node.status === 'failed' ||
+        node.status === 'skipped');
 
     if (isLocked) {
         el.style.cursor = 'default';
