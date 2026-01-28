@@ -138,6 +138,7 @@ function createNodeElement(node, colIndex) {
         el.style.backgroundColor = '#fff3cd';
         el.classList.add('node-draft');
     }
+    console.log(`[Scheduler] Rendering Node ${node.id}: status=${node.status}, color=${el.style.backgroundColor}`);
 
     const isLocked = (node.is_ghost || node.status === 'completed' || node.status === 'success' || node.status === 'running');
 

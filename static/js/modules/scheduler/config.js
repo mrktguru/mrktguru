@@ -179,9 +179,20 @@ function applyFormToNode() {
         });
     }
 
-    if (node.status === 'draft') {
+    // Force node to pending if it's currently draft or undefined
+    if (!node.status || node.status === 'draft') {
         node.status = 'pending';
-        console.log("[Scheduler] Node status set to pending (draft -> pending)");
+        console.log(`[Scheduler] Node ${node.id || 'new'} status set to pending`);
+    }
+
+    // Reference safety: ensure the node in the state array is updated too
+    // in case state.currentNode is a stale reference from an old refresh
+    if (node.id) {
+        const index = state.scheduleData.nodes.findIndex(n => n.id === node.id);
+        if (index !== -1 && state.scheduleData.nodes[index] !== node) {
+            console.warn(`[Scheduler] Stale reference detected for node ${node.id}, updating state array.`);
+            state.scheduleData.nodes[index] = node;
+        }
     }
 }
 
