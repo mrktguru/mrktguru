@@ -134,6 +134,12 @@ function createNodeElement(node, colIndex) {
     } else if (node.status === 'pending') {
         el.style.backgroundColor = '#d1e7dd';
         el.classList.add('node-ready');
+    } else if (node.status === 'failed') {
+        el.style.backgroundColor = '#f8d7da';
+        el.classList.add('node-failed');
+    } else if (node.status === 'skipped') {
+        el.style.backgroundColor = '#e2e3e5';
+        el.classList.add('node-skipped');
     } else {
         el.style.backgroundColor = '#fff3cd';
         el.classList.add('node-draft');
