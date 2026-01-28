@@ -213,6 +213,10 @@ async def join_channel(account_id: int, channel_username: str, client=None):
         if own_client and client and client.is_connected():
             await client.disconnect()
 
+async def join_channel_for_warmup(account_id: int, channel_username: str, client=None):
+    """Alias for join_channel with legacy support for warmup logic"""
+    return await join_channel(account_id, channel_username, client)
+
 async def read_channel_posts(account_id: int, channel_username: str, count=10, delay_between=5, client=None):
     own_client = False
     try:
