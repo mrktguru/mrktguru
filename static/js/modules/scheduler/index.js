@@ -44,6 +44,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const modalEl = document.getElementById('nodeConfigModal');
     if (modalEl && typeof bootstrap !== 'undefined') {
         state.configModal = new bootstrap.Modal(modalEl);
+        modalEl.addEventListener('show.bs.modal', () => { state.isModalOpen = true; });
+        modalEl.addEventListener('hidden.bs.modal', () => { state.isModalOpen = false; });
     }
 
     // 5. Setup Controls
@@ -112,10 +114,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 8. Auto Refresh
     setInterval(() => {
-        if (!state.isSaving) {
+        if (!state.isSaving && !state.isModalOpen) {
             loadSchedule().then(updateControlButtons);
         } else {
-            console.log('[Auto-refresh] Skipped: save in progress');
+            console.log('[Auto-refresh] Skipped: save in progress or modal open');
         }
     }, 10000);
 

@@ -17,6 +17,7 @@ export const state = {
 
     // Locks
     isSaving: false,
+    isModalOpen: false,
 
     // Deleted nodes cache for sync
     deletedNodeIds: []
