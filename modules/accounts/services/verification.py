@@ -490,3 +490,128 @@ class VerificationService:
                 error_type='system_error',
                 message=str(e)
             )
+    
+    @staticmethod
+    def safe_verify(
+        account_id: int, 
+        method: Literal['self_check', 'get_me', 'public_channel'] = 'self_check'
+    ) -> VerificationResult:
+        """
+        Safe verification with selectable method.
+        
+        Methods:
+        - self_check: Safest (Saved Messages access)
+        - public_channel: Safe (Read public channel)
+        - get_me: Moderate (with delays and cooldown)
+        
+        Args:
+            account_id: Account ID
+            method: Verification method
+            
+        Returns:
+            VerificationResult
+        """
+        from utils.session_orchestrator import SessionOrchestrator
+        from tasks.verification import task_safe_self_check, task_safe_get_me, task_public_channel_verify
+        
+        account = VerificationService._get_account_or_raise(account_id)
+        VerificationService._check_session_configured(account)
+        logger = ActivityLogger(account_id)
+        
+        # Map method to task
+        method_map = {
+            'self_check': (task_safe_self_check, []),
+            'get_me': (task_safe_get_me, [account.last_verification_time]),
+            'public_channel': (task_public_channel_verify, [])
+        }
+        
+        if method not in method_map:
+            return VerificationResult(
+                success=False,
+                error_type='invalid_method',
+                message=f"Invalid method. Use: {', '.join(method_map.keys())}"
+            )
+        
+        task_func, args = method_map[method]
+        db.session.close()
+        
+        async def _execute():
+            bot = SessionOrchestrator(account_id)
+            try:
+                return await bot.execute(task_func, *args)
+            finally:
+                await bot.stop()
+        
+        try:
+            result = VerificationService._run_async(_execute())
+            
+            if result.get('success'):
+                # Update account
+                account = Account.query.get(account_id)
+                if result.get('user_id'):
+                    account.telegram_id = result.get('user_id')
+                if result.get('first_name'):
+                    account.first_name = result.get('first_name')
+                if result.get('last_name'):
+                    account.last_name = result.get('last_name')
+                if result.get('username'):
+                    account.username = result.get('username')
+                
+                account.status = 'active'
+                account.verified = True
+                account.last_activity = datetime.utcnow()
+                account.last_verification_method = method
+                account.last_verification_time = datetime.utcnow()
+                account.verification_count = (account.verification_count or 0) + 1
+                
+                db.session.commit()
+                
+                logger.log(
+                    action_type='safe_verification_success',
+                    status='success',
+                    description=f'Verification via {method}. {result.get("debug_info", "")}',
+                    category='system'
+                )
+                
+                return VerificationResult(
+                    success=True,
+                    verification_type='safe',
+                    message=f"Verified via {method}",
+                    user_data={
+                        'id': result.get('user_id'),
+                        'username': result.get('username'),
+                        'first_name': result.get('first_name'),
+                        'duration': result.get('duration'),
+                        'debug_info': result.get('debug_info')
+                    }
+                )
+            else:
+                error_type = result.get('error_type', 'generic_error')
+                error_msg = result.get('error', 'Unknown error')
+                
+                # Update status based on error
+                account = Account.query.get(account_id)
+                if error_type == 'flood_wait':
+                    account.status = 'flood_wait'
+                elif error_type == 'banned':
+                    account.status = 'banned'
+                    account.health_score = 0
+                else:
+                    account.status = 'error'
+                
+                db.session.commit()
+                
+                return VerificationResult(
+                    success=False,
+                    error_type=error_type,
+                    message=error_msg,
+                    wait_seconds=result.get('wait', 0)
+                )
+                
+        except Exception as e:
+            return VerificationResult(
+                success=False,
+                error_type='system_error',
+                message=str(e)
+            )
+

@@ -565,196 +565,49 @@ def verify_safe(account_id):
     - public_channel: Safe (Read public channel)
     - get_me: Moderate (with delays and cooldown)
     """
-    from utils.telethon_helper import get_telethon_client
-    from utils.safe_verification import safe_self_check, safe_get_me, check_via_public_channel
-    from utils.activity_logger import ActivityLogger
-    import asyncio
-    from datetime import datetime
-    
-    account = Account.query.get_or_404(account_id)
-    method = request.form.get('method', 'self_check')  # Default to safest
+    method = request.form.get('method', 'self_check')
     
     # Validate method
     valid_methods = ['self_check', 'get_me', 'public_channel']
     if method not in valid_methods:
         return jsonify({'success': False, 'error': f'Invalid method. Use: {", ".join(valid_methods)}'}), 400
     
-    # Run with Session Orchestrator
-    from utils.session_orchestrator import SessionOrchestrator
-    from tasks.verification import task_safe_self_check, task_safe_get_me, task_public_channel_verify, task_perform_alignment_check
-    
-    # Anti-Lock
-    db.session.close()
-
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    
-    bot = SessionOrchestrator(account_id)
-    
     try:
-        task_func = None
-        args = []
+        result = VerificationService.safe_verify(account_id, method=method)
         
-        if method == 'self_check':
-            task_func = task_safe_self_check
-        elif method == 'get_me':
-            task_func = task_safe_get_me
-            args = [account.last_verification_time]
-        elif method == 'public_channel':
-            task_func = task_public_channel_verify
-            
-        # Execute via Orchestrator
-        result = loop.run_until_complete(bot.execute(task_func, *args))
-        
-        if result['success']:
-            # ... (success logic remains similar, but we need to re-fetch account)
-            try:
-                account_ref = Account.query.get(account_id)
-                
-                # Check mapping from task result
-                user = result
-                # task_safe_self_check returns user_id, username etc top level? 
-                # Yes, checking utils/safe_verification.py, returns dict with keys.
-                
-                if user.get('user_id'): account_ref.telegram_id = user.get('user_id')
-                if user.get('first_name'): account_ref.first_name = user.get('first_name')
-                if user.get('last_name'): account_ref.last_name = user.get('last_name')
-                if user.get('username'): account_ref.username = user.get('username')
-                
-                account_ref.status = 'active'
-                account_ref.verified = True
-                account_ref.last_activity = datetime.utcnow()
-                
-                account_ref.last_verification_method = method
-                account_ref.last_verification_time = datetime.utcnow()
-                account_ref.verification_count = (account_ref.verification_count or 0) + 1
-                
-                db.session.commit()
-            except Exception as db_err:
-                 db.session.rollback()
-                 print(f"DB Error: {db_err}")
-            
-            logger.log(
-                action_type='safe_verification_success',
-                status='success',
-                description=f'Verification successful via {method}. ({result.get("debug_info", "")})',
-                category='system'
-            )
-            
-            flash(f"✅ Verification successful via {method}! {result.get('debug_info', '')}", "success")
+        if result.success:
+            flash(f"✅ Verification successful via {method}!", "success")
             return jsonify({
-                 'success': True,
-                 'method': method,
-                 'user': {
-                     'id': result.get('user_id'),
-                     'username': result.get('username'),
-                     'first_name': result.get('first_name')
-                 },
-                 'duration': result.get('duration'),
-                 'next_check_allowed': result.get('next_check_allowed'),
-                 'debug_info': result.get('debug_info')
+                'success': True,
+                'method': method,
+                'user': result.user_data
             })
-            
         else:
-             # Handle failures (Error logic same as before, just using result dict)
-             error_type = result.get('error_type', 'generic_error')
-             
-             # Re-fetch for updating status
-             try:
-                account_ref = Account.query.get(account_id)
-                
-                if error_type == 'flood_wait':
-                    account_ref.status = 'flood_wait'
-                    wait_time = result.get('wait', 0)
-                    flash(f"❌ Telegram FloodWait limit. Please wait {wait_time} seconds.", "error")
-                    
-                elif error_type == 'banned':
-                    account_ref.status = 'banned'
-                    account_ref.health_score = 0
-                    flash(f"❌ Account is BANNED by Telegram: {result.get('error')}", "error")
-                    
-                elif error_type == 'invalid_session':
-                    account_ref.status = 'error'
-                    flash(f"❌ Session Invalid: {result.get('error')}", "error")
-                    
-                else:
-                    account_ref.status = 'error'
-                    flash(f"❌ Verification failed: {result.get('error')}", "error")
-                    
-                db.session.commit()
-             except:
-                 pass
-                 
-             return jsonify(result), 400 if error_type == 'invalid_session' else (429 if error_type == 'flood_wait' or error_type == 'cooldown' else 500)
-
+            flash(f"❌ {result.message}", "error")
+            
+            # Map error type to HTTP status
+            status_map = {
+                'flood_wait': 429, 'cooldown': 429,
+                'invalid_session': 400, 'banned': 403
+            }
+            return jsonify({
+                'success': False,
+                'error': result.message,
+                'error_type': result.error_type,
+                'wait': result.wait_seconds
+            }), status_map.get(result.error_type, 500)
+            
+    except AccountNotFoundError:
+        return jsonify({'success': False, 'error': 'Account not found'}), 404
+    except SessionNotConfiguredError:
+        return jsonify({'success': False, 'error': 'Session not configured'}), 400
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
-        
-    finally:
-        loop.run_until_complete(bot.stop())
-        loop.close()
 
 
 # Warmup routes moved to routes/warmup_routes.py
 
-
-@accounts_bp.route("/<int:account_id>/sync-profile", methods=["POST"])
-@login_required
-def sync_profile_from_telegram(account_id):
-    """
-    Sync profile info from Telegram (Manual Trigger)
-    """
-    # Session Orchestrator Refactor
-    from utils.session_orchestrator import SessionOrchestrator
-    from tasks.profile import task_sync_profile, task_update_profile
-    from utils.activity_logger import ActivityLogger
-    import asyncio
-    
-    # Anti-Lock
-    db.session.close()
-    
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    
-    bot = SessionOrchestrator(account_id)
-    
-    try:
-        # Execute Task
-        result = loop.run_until_complete(bot.execute(task_sync_profile))
-        
-        # Re-fetch account
-        account_ref = Account.query.get(account_id)
-        if not account_ref:
-            return jsonify({"success": False, "error": "Account not found"}), 404
-            
-        if result['success']:
-            data = result['data']
-            
-            # Update local DB
-            # Use getattr with default to avoid None if key missing
-            if data.get('username') is not None: account_ref.username = data.get('username')
-            if data.get('first_name') is not None: account_ref.first_name = data.get('first_name')
-            if data.get('last_name') is not None: account_ref.last_name = data.get('last_name')
-            # phone? likely matches, but ignore for safety unless needed
-            if data.get('bio') is not None: account_ref.bio = data.get('bio')
-            if data.get('photo_path'): account_ref.photo_url = data.get('photo_path')
-            
-            account_ref.last_sync_at = datetime.utcnow()
-            
-            # Log
-            logger = ActivityLogger(account_id)
-            logger.log_sync(status='success', items_synced=5)
-            
-            db.session.commit()
-            return jsonify({"success": True, "data": data})
-        else:
-            return jsonify({"success": False, "error": result.get('error')}), 500
-            
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
-    finally:
-        loop.run_until_complete(bot.stop())
-        loop.close()
+# NOTE: sync_profile_from_telegram removed - use sync_from_telegram (line 172) instead
 
 
 @accounts_bp.route('/channel_candidates/<int:candidate_id>', methods=['DELETE'])
