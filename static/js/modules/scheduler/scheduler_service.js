@@ -23,9 +23,13 @@ export async function loadSchedule() {
 
 export async function saveSchedule(silent = false) {
     if (state.isSaving) {
-        console.warn("Save in progress...");
-        // Simple polling or just ignore (debounce preferred in real world)
-        return;
+        console.warn("Save in progress, waiting...");
+        // Wait for current save to finish
+        while (state.isSaving) {
+            await new Promise(r => setTimeout(r, 100));
+        }
+        // Recurse to ensure we save with latest state
+        return await saveSchedule(silent);
     }
 
     state.isSaving = true;
