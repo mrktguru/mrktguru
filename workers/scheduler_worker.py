@@ -14,7 +14,7 @@ from models.warmup_schedule import WarmupSchedule
 from models.warmup_schedule_node import WarmupScheduleNode
 from models.warmup_log import WarmupLog
 from modules.nodes import execute_node
-from utils.telethon_helper import get_telethon_client
+from modules.telethon import ClientFactory
 from database import db
 from utils.proxy_manager import release_dynamic_port 
 from utils.proxy_manager import release_dynamic_port 
@@ -408,7 +408,7 @@ def execute_scheduled_node(node_id, is_adhoc=False):
 
             try:
                 # --- ORCHESTRATOR LOGIC WITH CACHING ---
-                from utils.session_orchestrator import SessionOrchestrator
+                from modules.telethon import SessionOrchestrator
                 import asyncio
                 
                 async def run_with_orchestrator():
@@ -533,7 +533,7 @@ def execute_adhoc_node(account_id, node_type, config):
 
             # Wrapper to keep indentation
             if True:
-                from utils.session_orchestrator import SessionOrchestrator
+                from modules.telethon import SessionOrchestrator
                 import asyncio
                 
                 async def run_with_orchestrator():

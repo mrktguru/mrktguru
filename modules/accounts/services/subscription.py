@@ -70,7 +70,7 @@ class SubscriptionService:
         Returns:
             JoinResult with status and subscription ID
         """
-        from utils.session_orchestrator import SessionOrchestrator
+        from modules.telethon import SessionOrchestrator
         from tasks.warmup import task_join_channel
         
         account = SubscriptionService._get_account_or_raise(account_id)

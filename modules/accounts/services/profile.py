@@ -69,7 +69,7 @@ class ProfileService:
         Returns:
             ProfileUpdateResult with updated fields and any errors
         """
-        from utils.session_orchestrator import SessionOrchestrator
+        from modules.telethon import SessionOrchestrator
         from tasks.profile import task_update_profile, task_update_photo, task_update_username
         
         account = ProfileService._get_account_or_raise(account_id)

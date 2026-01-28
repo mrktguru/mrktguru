@@ -88,8 +88,8 @@ class VerificationService:
             AccountNotFoundError: If account doesn't exist
             SessionNotConfiguredError: If session not configured
         """
-        from utils.session_orchestrator import SessionOrchestrator
-        from utils.telethon_helper import verify_session
+        from modules.telethon import SessionOrchestrator
+        from modules.telethon import verify_session
         
         account = VerificationService._get_account_or_raise(account_id)
         VerificationService._check_session_configured(account)
