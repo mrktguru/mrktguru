@@ -55,11 +55,36 @@ export function openNodeConfig(node) {
 }
 
 export async function saveConfig() {
-    if (state.currentNode) {
-        applyFormToNode();
-        state.configModal.hide();
-        renderNodes();
-        await saveSchedule(true);
+    console.log("[Scheduler] saveConfig start");
+    try {
+        if (state.currentNode) {
+            console.log("[Scheduler] Applying form to node:", state.currentNode);
+            applyFormToNode();
+
+            console.log("[Scheduler] Hiding modal");
+            if (state.configModal) {
+                state.configModal.hide();
+            } else {
+                console.warn("[Scheduler] state.configModal is null, trying manual hide");
+                const modalEl = document.getElementById('nodeConfigModal');
+                if (modalEl && typeof bootstrap !== 'undefined') {
+                    const inst = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+                    inst.hide();
+                }
+            }
+
+            console.log("[Scheduler] Triggering re-render");
+            renderNodes();
+
+            console.log("[Scheduler] Triggering background save");
+            await saveSchedule(true);
+            console.log("[Scheduler] saveConfig complete");
+        } else {
+            console.warn("[Scheduler] saveConfig called but state.currentNode is null");
+        }
+    } catch (e) {
+        console.error("[Scheduler] Error in saveConfig:", e);
+        alert("Error saving configuration: " + e.message);
     }
 }
 
@@ -118,32 +143,42 @@ export async function runNodeNow() {
 function applyFormToNode() {
     if (!state.currentNode) return;
     const form = document.getElementById('nodeConfigForm');
+    if (!form) {
+        console.error("[Scheduler] nodeConfigForm not found");
+        return;
+    }
+
     const formData = new FormData(form);
     const node = state.currentNode;
 
     node.is_random_time = formData.has('is_random_time');
-    node.execution_time = formData.get('execution_time');
+    node.execution_time = formData.get('execution_time') || '00:00';
+
+    console.log(`[Scheduler] Updated node time: ${node.execution_time}, random: ${node.is_random_time}`);
+
     node.config = node.config || {};
 
     const dynamicContainer = document.getElementById('dynamicFields');
-    const inputs = dynamicContainer.querySelectorAll('input, select, textarea');
+    if (dynamicContainer) {
+        const inputs = dynamicContainer.querySelectorAll('input, select, textarea');
+        inputs.forEach(input => {
+            const name = input.name;
+            if (!name) return;
 
-    inputs.forEach(input => {
-        const name = input.name;
-        if (!name) return;
-
-        if (input.type === 'checkbox') {
-            node.config[name] = input.checked;
-        } else if (input.type === 'number') {
-            if (input.value === '') node.config[name] = null;
-            else node.config[name] = parseFloat(input.value);
-        } else {
-            node.config[name] = input.value;
-        }
-    });
+            if (input.type === 'checkbox') {
+                node.config[name] = input.checked;
+            } else if (input.type === 'number') {
+                if (input.value === '') node.config[name] = null;
+                else node.config[name] = parseFloat(input.value);
+            } else {
+                node.config[name] = input.value;
+            }
+        });
+    }
 
     if (node.status === 'draft') {
         node.status = 'pending';
+        console.log("[Scheduler] Node status changed to pending");
     }
 }
 

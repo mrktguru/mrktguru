@@ -23,11 +23,14 @@ export async function loadSchedule() {
 
 export async function saveSchedule(silent = false) {
     if (state.isSaving) {
-        console.warn("Save in progress, waiting...");
-        // Wait for current save to finish
-        while (state.isSaving) {
+        console.warn("[Scheduler] Save in progress, waiting...");
+        let waited = 0;
+        // Wait for current save to finish (max 5s safety)
+        while (state.isSaving && waited < 50) {
             await new Promise(r => setTimeout(r, 100));
+            waited++;
         }
+        if (waited >= 50) console.error("[Scheduler] Save wait timeout!");
         // Recurse to ensure we save with latest state
         return await saveSchedule(silent);
     }
