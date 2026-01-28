@@ -1,4 +1,5 @@
-from models.campaign import InviteCampaign, InviteLog, Account, SourceUser
+from models.campaign import InviteCampaign, InviteLog, SourceUser
+from models.account import Account
 from sqlalchemy import func
 from database import db
 import csv
