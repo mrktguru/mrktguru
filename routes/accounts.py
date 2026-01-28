@@ -15,6 +15,26 @@ import random
 
 import nest_asyncio
 nest_asyncio.apply()
+
+# Service Layer imports
+from modules.accounts.services import (
+    CrudService, 
+    MetadataService, 
+    ProxyService,
+    VerificationService,
+    SecurityService,
+    UploadService
+)
+from modules.accounts.exceptions import (
+    AccountNotFoundError,
+    ProxyNotFoundError,
+    ProxyNetworkNotFoundError,
+    ProxyAssignmentError,
+    SessionNotConfiguredError,
+    TwoFANotSetError,
+    CooldownError
+)
+
 accounts_bp = Blueprint("accounts", __name__)
 
 
@@ -23,20 +43,15 @@ accounts_bp = Blueprint("accounts", __name__)
 def list_accounts():
     """List all accounts"""
     page = request.args.get('page', 1, type=int)
-    per_page = 50
     
-    pagination = Account.query.order_by(Account.created_at.desc()).paginate(
-        page=page, per_page=per_page, error_out=False
-    )
-    
-    accounts = pagination.items
-    proxies = Proxy.query.filter_by(status="active").all()
+    # Use CrudService for business logic
+    result = CrudService.list_accounts(page=page, per_page=50)
     
     return render_template(
         "accounts/list.html", 
-        accounts=accounts, 
-        proxies=proxies,
-        pagination=pagination
+        accounts=result.accounts, 
+        proxies=result.proxies,
+        pagination=result.pagination
     )
 
 
@@ -47,12 +62,6 @@ def upload():
     from models.proxy import Proxy
     
     if request.method == "POST":
-        from utils.activity_logger import ActivityLogger
-        from utils.session_validator import SessionValidator
-        import shutil
-        import json
-        from datetime import datetime
-        
         files = request.files.getlist("session_files")
         
         if not files or files[0].filename == "":
@@ -63,198 +72,30 @@ def upload():
         region = request.form.get("region", "US")
         proxy_mode = request.form.get("proxy_mode", "none")
         specific_proxy_id = request.form.get("specific_proxy")
+        source = request.form.get("source", "")
+        tags = request.form.get("tags", "")
         
-        # Get available proxies
-        available_proxies = Proxy.query.filter_by(status='active').all()
-        proxy_index = 0
-        
-        # Counters
-        uploaded = 0
-        skipped = 0
-        quarantined = 0
-        errors = []
-        
-        # Initialize validator
-        validator = SessionValidator()
-        
-        for file in files:
-            if not file or not file.filename:
-                continue
-            
-            if not file.filename.endswith(".session"):
-                errors.append(f"{file.filename}: Not a .session file")
-                continue
-            
-            temp_path = None
-            
-            try:
-                filename = secure_filename(file.filename)
-                phone = filename.replace(".session", "")
-                
-                # 🔍 Check 1: Duplicate account
-                existing = Account.query.filter_by(phone=phone).first()
-                if existing:
-                    errors.append(f"{phone}: Account already exists")
-                    skipped += 1
-                    continue
-                
-                # 📁 Save to temp folder first
-                temp_dir = "uploads/temp_sessions"
-                os.makedirs(temp_dir, exist_ok=True)
-                temp_path = os.path.join(temp_dir, filename)
-                file.save(temp_path)
-                
-                # 🔍 Check 2: Validate file
-                validation = validator.validate_session_file(temp_path)
-                
-                if not validation['valid']:
-                    os.remove(temp_path)
-                    error_msg = validation.get('error', 'Unknown error')
-                    errors.append(f"{filename}: Invalid session - {error_msg}")
-                    continue
-                
-                # 📊 Extract metadata
-                metadata = validator.extract_metadata(temp_path)
-                
-                # ⚠️ Check 3: Suspicious session?
-                if metadata.get('suspicious', False):
-                    # Move to quarantine
-                    quarantine_dir = "uploads/quarantine"
-                    os.makedirs(quarantine_dir, exist_ok=True)
-                    quarantine_path = os.path.join(quarantine_dir, filename)
-                    shutil.move(temp_path, quarantine_path)
-                    
-                    reasons = ', '.join(metadata.get('suspicious_reasons', []))
-                    errors.append(f"{filename}: Suspicious session ({reasons}) - moved to quarantine")
-                    quarantined += 1
-                    continue
-                
-                # 📂 Create structured folder for account
-                account_dir = f"uploads/sessions/{phone}"
-                os.makedirs(account_dir, exist_ok=True)
-                
-                final_path = os.path.join(account_dir, f"{phone}.session")
-                
-                # 🔄 Move from temp to final location
-                shutil.move(temp_path, final_path)
-                temp_path = None  # Clear so cleanup doesn't try to remove it
-                
-                # 📝 Save metadata.json
-                metadata_path = os.path.join(account_dir, "metadata.json")
-                with open(metadata_path, 'w') as f:
-                    json.dump({
-                        "uploaded_at": datetime.now().isoformat(),
-                        "original_filename": file.filename,
-                        "file_size": validation['size'],
-                        "format": validation['format'],
-                        "validation": validation,
-                        "metadata": metadata,
-                        "region": region
-                    }, f, indent=2)
-                
-                # 🔧 Determine proxy assignment
-                assigned_proxy_id = None
-                if proxy_mode == "specific" and specific_proxy_id:
-                    assigned_proxy_id = int(specific_proxy_id)
-                elif proxy_mode == "round_robin" and available_proxies:
-                    assigned_proxy_id = available_proxies[proxy_index % len(available_proxies)].id
-                    proxy_index += 1
-                elif proxy_mode == "random" and available_proxies:
-                    import random
-                    assigned_proxy_id = random.choice(available_proxies).id
-                
-                # 💾 Create account in database
-                account = Account(
-                    phone=phone,
-                    session_file_path=final_path,
-                    status="pending",  # Not verified yet
-                    health_score=100,
-                    proxy_id=assigned_proxy_id,
-                    created_at=datetime.now(),
-                    session_metadata=metadata,
-                    source=source,
-                    tags=tags
-                )
-                db.session.add(account)
-                db.session.flush()  # Get account ID
-                
-                # 📱 Create device profile
-                device = generate_device_profile(region=region)
-                device_profile = DeviceProfile(
-                    account_id=account.id,
-                    device_model=device["device_model"],
-                    system_version=device["system_version"],
-                    app_version=device["app_version"],
-                    lang_code=device["lang_code"],
-                    system_lang_code=device["system_lang_code"],
-                    client_type=device.get("client_type", "desktop")
-                )
-                db.session.add(device_profile)
-                
-                
-                # 🧹 Clean session file (Anti-Ban)
-                # Removes "Telethon" traces and sets correct device info in SQLite
-                # 📝 Log upload
-                logger = ActivityLogger(account.id)
-                logger.log(
-                    action_type='upload_session',
-                    status='success',
-                    description=f'Session file uploaded and validated',
-                    details=f"File: {filename}, Size: {validation['size']} bytes, Age: {metadata.get('estimated_age', 'unknown')}",
-                    category='system'
-                )
-                
-                # 🧹 Clean session file (Anti-Ban)
-                # Removes "Telethon" traces and sets correct device info in SQLite
-                try:
-                    cleaned = validator.clean_session_file(final_path, device)
-                    if cleaned:
-                        logger.log(
-                            action_type='clean_session',
-                            status='success',
-                            description='Session file signatures cleaned',
-                            details=f"Device: {device['device_model']} ({device.get('client_type', 'unknown')})",
-                            category='system'
-                        )
-                except Exception as clean_err:
-                    print(f"Warning: Failed to clean session file: {clean_err}")
-                
-                # 📝 Log proxy assignment if assigned
-                if assigned_proxy_id:
-                    proxy = Proxy.query.get(assigned_proxy_id)
-                    logger.log(
-                        action_type='assign_proxy',
-                        status='success',
-                        description=f"Proxy auto-assigned during upload: {proxy.host}:{proxy.port}",
-                        details=f"Mode: {proxy_mode}, Type: {proxy.type}",
-                        proxy_used=f"{proxy.host}:{proxy.port}",
-                        category='system'
-                    )
-                
-                uploaded += 1
-                
-            except Exception as e:
-                # Cleanup temp file on error
-                if temp_path and os.path.exists(temp_path):
-                    try:
-                        os.remove(temp_path)
-                    except:
-                        pass
-                errors.append(f"{file.filename}: {str(e)}")
-        
-        db.session.commit()
+        # Process uploads via service
+        result = UploadService.upload_batch(
+            files=files,
+            region=region,
+            proxy_mode=proxy_mode,
+            specific_proxy_id=specific_proxy_id,
+            source=source,
+            tags=tags
+        )
         
         # Show notifications
-        if uploaded > 0:
-            flash(f"✅ Successfully uploaded {uploaded} session file(s)", "success")
-        if skipped > 0:
-            flash(f"⚠️ Skipped {skipped} duplicate account(s)", "warning")
-        if quarantined > 0:
-            flash(f"🔒 Quarantined {quarantined} suspicious file(s)", "warning")
-        for error in errors[:10]:  # Show first 10 errors
+        if result.uploaded > 0:
+            flash(f"✅ Successfully uploaded {result.uploaded} session file(s)", "success")
+        if result.skipped > 0:
+            flash(f"⚠️ Skipped {result.skipped} duplicate account(s)", "warning")
+        if result.quarantined > 0:
+            flash(f"🔒 Quarantined {result.quarantined} suspicious file(s)", "warning")
+        for error in result.errors[:10]:
             flash(f"❌ {error}", "error")
-        if len(errors) > 10:
-            flash(f"... and {len(errors) - 10} more errors", "error")
+        if len(result.errors) > 10:
+            flash(f"... and {len(result.errors) - 10} more errors", "error")
         
         return redirect(url_for("accounts.list_accounts"))
     
@@ -267,221 +108,60 @@ def upload():
 @login_required
 def detail(account_id):
     """Account details"""
-    # Fix: Removed imports of deleted models (Warmup, ConversationPair)
-    
-    account = Account.query.get_or_404(account_id)
-    proxies = Proxy.query.filter_by(status="active").all()
-    proxy_networks = ProxyNetwork.query.all()
-    
-    # Get recent system/activity logs (replacement for warmup logs)
-    from models.activity_log import AccountActivityLog
-    recent_logs = AccountActivityLog.query.filter_by(
-        account_id=account_id
-    ).order_by(AccountActivityLog.timestamp.desc()).limit(20).all()
-    
-    # Get JSON device parameters if available
-    json_device_params = None
-    if account.tdata_metadata and account.tdata_metadata.json_raw_data:
-        json_device_params = {
-            'device_model': account.tdata_metadata.json_device_model or '',
-            'system_version': account.tdata_metadata.json_system_version or '',
-            'app_version': account.tdata_metadata.json_app_version or '',
-            'lang_code': account.tdata_metadata.json_lang_code or '',
-            'system_lang_code': account.tdata_metadata.json_system_lang_code or ''
-        }
-    
     from models.account_session import AccountSession
     from utils.debug_logger import debug_log
     
-    # DEBUG: Check persisted sessions
-    session_count_rel = account.active_sessions.count()
-    session_count_direct = AccountSession.query.filter_by(account_id=account_id).count()
-    debug_log(f"Route Detail: Account {account_id} - Rel count: {session_count_rel}, Direct count: {session_count_direct}")
-    
-    return render_template(
-        "accounts/detail.html",
-        account=account,
-        proxies=proxies,
-        proxy_networks=proxy_networks,
-        json_device_params=json_device_params,
-        recent_logs=recent_logs
-    )
+    try:
+        # Use CrudService for business logic
+        result = CrudService.get_account_detail(account_id)
+        
+        # DEBUG: Check persisted sessions
+        session_count_rel = result.account.active_sessions.count()
+        session_count_direct = AccountSession.query.filter_by(account_id=account_id).count()
+        debug_log(f"Route Detail: Account {account_id} - Rel count: {session_count_rel}, Direct count: {session_count_direct}")
+        
+        return render_template(
+            "accounts/detail.html",
+            account=result.account,
+            proxies=result.proxies,
+            proxy_networks=result.proxy_networks,
+            json_device_params=result.json_device_params,
+            recent_logs=result.recent_logs
+        )
+    except AccountNotFoundError:
+        flash("Account not found", "error")
+        return redirect(url_for("accounts.list_accounts"))
 
 
 @accounts_bp.route("/<int:account_id>/verify", methods=["POST"])
 @login_required
 def verify(account_id):
     """Verify account safe strategy"""
-    from utils.activity_logger import ActivityLogger
-    from datetime import datetime
-    import asyncio
-    
-    account = Account.query.get_or_404(account_id)
-    
-    # Pre-check: Ensure session is configured
-    if not account.session_string and not (account.session_file_path and os.path.exists(account.session_file_path)):
-        flash("Cannot verify: No session data configured. Please configure TData or login.", "error")
-        return redirect(url_for('accounts.detail', account_id=account_id))
-    
-    # Cooldown check removed per user request
-            
-    # Update attempt time
-    try:
-        if hasattr(Account, 'last_verification_attempt'):
-             account.last_verification_attempt = datetime.now()
-             db.session.commit()
-    except:
-        db.session.rollback()
-    
-    logger = ActivityLogger(account_id)
-    
-    # Log start
-    logger.log(
-        action_type='verification_start',
-        status='pending',
-        description='Starting risk-based verification',
-        category='system'
-    )
-            
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    
-    # Session Orchestrator Refactor
-    from utils.session_orchestrator import SessionOrchestrator
-    # We must import verify_session from helper to use as a task
-    from utils.telethon_helper import verify_session
-
-    # Capture settings before closing session to avoid DetachedInstanceError
-    enable_anchor = getattr(account, 'warmup_enabled', False)
-    # Allow form to override
-    if 'enable_anchor' in request.form:
-         enable_anchor = request.form.get('enable_anchor') == 'on'
-
-    # Anti-Lock
-    db.session.close()
-
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    
-    bot = SessionOrchestrator(account_id)
+    # Get enable_anchor from form
+    enable_anchor = request.form.get('enable_anchor') == 'on'
     
     try:
-        # Check if anchor is enabled in account settings
-        # (moved up)
+        result = VerificationService.verify_account(account_id, enable_anchor=enable_anchor)
         
-        # Define wrapper task for Orchestrator
-        async def task_full_verify(client):
-            # We reuse the robust logic in verify_session, passing the Orchestrator's client
-            return await verify_session(account_id, force_full=True, disable_anchor=not enable_anchor, client=client)
-
-        # Execute via Orchestrator
-        # This ensures we handle connection limits, idle states, and reuse active connections
-        result = loop.run_until_complete(bot.execute(task_full_verify))
-        
-        # Re-fetch account
-        account_ref = Account.query.get(account_id)
-        if not account_ref:
-            return redirect(url_for('accounts.detail', account_id=account_id))
-
-        if result['success']:
-            verification_type = result.get('verification_type', 'unknown')
-            
-            # FULL VERIFICATION - Update all user data
-            if verification_type == 'full' and result.get('user'):
-                user = result['user']
-                
-                # Check for name changes
-                if account_ref.last_name and not user.get('last_name'):
-                    flash("⚠️ Note: Telegram did not return a last name.", "warning")
-                
-                account_ref.telegram_id = user['id']
-                # Only update last_name if Telegram returned non-empty value
-                if user.get('last_name') and user['last_name'].strip():
-                    account_ref.last_name = user['last_name']
-                
-                # SAFETY: Don't overwrite existing first_name with None if account is marked active
-                if user.get('first_name'):
-                    account_ref.first_name = user['first_name']
-                elif not account_ref.first_name:
-                    account_ref.first_name = user.get('first_name')
-                
-                if user.get('username'):
-                    account_ref.username = user['username']
-                account_ref.status = 'active'
-                account_ref.last_check_status = 'active'
-                
-                if user.get('photo') and user.get('photo_path'):
-                    account_ref.photo_url = user['photo_path']
-                elif user.get('photo'):
-                    # Fallback if download failed but photo exists
-                    account_ref.photo_url = "photo_available"
-                
-                if hasattr(Account, 'verified'):
-                    try:
-                        account_ref.verified = True
-                    except:
-                        pass
-                
-                db.session.commit()
-                flash("✅ Account verified (Full verification with anti-ban handshake)", "success")
-                logger.log(action_type='verification_success', status='success', description='Full verification with handshake')
-            
-            # LIGHT VERIFICATION - Only update status
-            elif verification_type == 'light':
-                account_ref.status = 'active'
-                account_ref.last_check_status = 'active'
-                db.session.commit()
-                
-                flash("✅ Account check passed (Light verification)", "success")
-                logger.log(action_type='verification_success', status='success', description='Light verification passed')
-            
-            else:
-                flash("✅ Verification successful", "success")
-            
+        if result.success:
+            flash(f"✅ {result.message}", "success")
         else:
-            # Handle failure
-            error_type = result.get('error_type', 'generic_error')
+            # Map error types to icons
+            icons = {
+                'flood_wait': '⏱️',
+                'banned': '🚫',
+                'invalid_session': '🔑',
+                'handshake_failed': '❌'
+            }
+            icon = icons.get(result.error_type, '❌')
+            flash(f"{icon} {result.message}", "error")
             
-            if error_type == 'flood_wait':
-                account_ref.status = 'flood_wait'
-                account_ref.last_check_status = 'flood_wait'
-                wait_time = result.get('wait', 0)
-                flash(f"⏱️ FloodWait: {wait_time}s", "error")
-                logger.log(action_type='verification_failed', status='error', description=f"FloodWait: {wait_time}s", category='system')
-                
-            elif error_type == 'banned':
-                account_ref.status = 'banned'
-                account_ref.last_check_status = 'banned'
-                account_ref.health_score = 0
-                flash(f"🚫 Account BANNED: {result.get('error')}", "error")
-                logger.log(action_type='verification_failed', status='error', description=f"BANNED: {result.get('error')}", category='system')
-                
-            elif error_type == 'invalid_session':
-                account_ref.status = 'error'
-                account_ref.last_check_status = 'session_invalid'
-                flash(f"🔑 Session Invalid: {result.get('error')}", "error")
-                logger.log(action_type='verification_failed', status='error', description=f"Invalid: {result.get('error')}", category='system')
-            
-            elif error_type == 'handshake_failed':
-                account_ref.status = 'error'
-                account_ref.last_check_status = 'handshake_failed'
-                flash(f"❌ Handshake failed: {result.get('error')}", "error")
-                logger.log(action_type='verification_failed', status='error', description=f"Handshake: {result.get('error')}", category='system')
-                
-            else:
-                account_ref.status = 'error'
-                account_ref.last_check_status = 'error'
-                flash(f"❌ Failed: {result.get('error')}", "error")
-                logger.log(action_type='verification_failed', status='error', description=f"Error: {result.get('error')}", category='system')
-            
-            db.session.commit()
-            
+    except SessionNotConfiguredError:
+        flash("Cannot verify: No session data configured. Please configure TData or login.", "error")
+    except AccountNotFoundError:
+        flash("Account not found", "error")
     except Exception as e:
         flash(f"System Error: {str(e)}", "error")
-        logger.log(action_type='verification_error', status='error', description=f"System Error: {str(e)}", category='system')
-    finally:
-        loop.run_until_complete(bot.stop())
-        loop.close()
         
     return redirect(url_for('accounts.detail', account_id=account_id))
     
@@ -489,78 +169,26 @@ def verify(account_id):
 @login_required
 def sync_from_telegram(account_id):
     """Sync profile data from Telegram (with rate limiting)"""
-    from utils.telethon_helper import get_telethon_client
-    from datetime import datetime, timedelta
-    import asyncio
-    
-    account = Account.query.get_or_404(account_id)
-    
-    # Check cooldown (5 minutes)
-    COOLDOWN_MINUTES = 5
-    if account.last_sync_at:
-        time_since_sync = datetime.utcnow() - account.last_sync_at
-        if time_since_sync < timedelta(minutes=COOLDOWN_MINUTES):
-            remaining = COOLDOWN_MINUTES - int(time_since_sync.total_seconds() / 60)
-            flash(f"⏱️ Please wait {remaining} more minute(s) before syncing again (cooldown: {COOLDOWN_MINUTES} min)", "warning")
-            return redirect(url_for("accounts.detail", account_id=account_id))
-    
-    # Session Orchestrator Refactor
-    from utils.session_orchestrator import SessionOrchestrator
-    
-    # Anti-Lock
-    db.session.close()
-
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    
-    bot = SessionOrchestrator(account_id)
-    
-    async def task_sync_profile(client):
-        # reuse the robust verify_session logic which handles bio, photo, etc.
-        from utils.telethon_helper import verify_session
-        return await verify_session(account_id, force_full=True, client=client)
-    
     try:
-        result = loop.run_until_complete(bot.execute(task_sync_profile))
+        result = VerificationService.sync_profile(account_id)
         
-        # Re-fetch account
-        account_ref = Account.query.get(account_id)
-        if not account_ref:
-             return redirect(url_for('accounts.detail', account_id=account_id))
-        
-        if result['success']:
-             # verify_session returns 'user' dict with all details
-             user = result.get('user', {})
-             
-             if user.get('id'): account_ref.telegram_id = user.get('id')
-             if user.get('first_name'): account_ref.first_name = user['first_name']
-             if user.get('last_name'): account_ref.last_name = user['last_name']
-             if user.get('username'): account_ref.username = user['username']
-             
-             # Photo update
-             if user.get('photo_path'):
-                 account_ref.photo_url = user['photo_path']
-             elif user.get('photo'):
-                 account_ref.photo_url = "photo_available"
-                 
-             # Update sync timestamp
-             account_ref.last_sync_at = datetime.utcnow()
-             db.session.commit()
-             flash("✅ Profile synced successfully via Orchestrator", "success")
-             
-             if request.is_json:
-                 return jsonify({'success': True})
+        if result.success:
+            flash("✅ Profile synced successfully", "success")
+            if request.is_json:
+                return jsonify({'success': True, 'data': result.data})
         else:
-             error = result.get('error', 'Unknown error')
-             flash(f"❌ Sync failed: {error}", "error")
-             if request.is_json:
-                 return jsonify({'success': False, 'error': error})
-            
+            flash(f"❌ Sync failed: {result.error}", "error")
+            if request.is_json:
+                return jsonify({'success': False, 'error': result.error})
+                
+    except CooldownError as e:
+        flash(f"⏱️ {str(e)}", "warning")
+        if request.is_json:
+            return jsonify({'success': False, 'error': str(e)})
+    except AccountNotFoundError:
+        flash("Account not found", "error")
     except Exception as e:
         flash(f"Error: {str(e)}", "error")
-    finally:
-        loop.run_until_complete(bot.stop())
-        loop.close()
     
     return redirect(url_for("accounts.detail", account_id=account_id))
 
@@ -570,67 +198,11 @@ def sync_from_telegram(account_id):
 @login_required
 def delete(account_id):
     """Delete account"""
-    account = Account.query.get_or_404(account_id)
-    
     try:
-        # Delete related records first to avoid constraint errors
-        from models.dm_campaign import DMCampaignAccount
-        from models.campaign import CampaignAccount
-        
-        # Delete DM campaign associations
-        DMCampaignAccount.query.filter_by(account_id=account_id).delete()
-        
-        # Delete invite campaign associations
-        CampaignAccount.query.filter_by(account_id=account_id).delete()
-        
-        # Delete invite logs
-        db.session.execute(db.text("DELETE FROM invite_logs WHERE account_id = :aid"), {"aid": account_id})
-        
-        # Delete DM messages
-        db.session.execute(db.text("DELETE FROM dm_messages WHERE account_id = :aid"), {"aid": account_id})
-        
-        # Delete warmup-related records
-        try:
-            db.session.execute(db.text("DELETE FROM account_warmup_channels WHERE account_id = :aid"), {"aid": account_id})
-        except Exception:
-            # Ignore if table doesn't exist (legacy/migration issue)
-            pass
-        db.session.execute(db.text("DELETE FROM warmup_activities WHERE account_id = :aid"), {"aid": account_id})
-        db.session.execute(db.text("DELETE FROM conversation_pairs WHERE account_a_id = :aid OR account_b_id = :aid"), {"aid": account_id})
-        
-        # Delete channel candidates (fix for NotNullViolation)
-        db.session.execute(db.text("DELETE FROM channel_candidates WHERE account_id = :aid"), {"aid": account_id})
-
-        # Delete warmup logs (fix for NotNullViolation)
-        db.session.execute(db.text("DELETE FROM warmup_logs WHERE account_id = :aid"), {"aid": account_id})
-        
-        # Delete other dependencies to be safe
-        db.session.execute(db.text("DELETE FROM warmup_settings WHERE account_id = :aid"), {"aid": account_id})
-        db.session.execute(db.text("DELETE FROM tdata_metadata WHERE account_id = :aid"), {"aid": account_id})
-        db.session.execute(db.text("DELETE FROM warmup_channels WHERE account_id = :aid"), {"aid": account_id})
-        db.session.execute(db.text("DELETE FROM warmup_stages WHERE account_id = :aid"), {"aid": account_id})
-        db.session.execute(db.text("DELETE FROM warmup_schedules WHERE account_id = :aid"), {"aid": account_id})
-        
-        # Delete session file and journal if exist
-        if os.path.exists(account.session_file_path):
-            os.remove(account.session_file_path)
-        
-        # Also delete .session-journal file
-        journal_path = account.session_file_path + "-journal"
-        if os.path.exists(journal_path):
-            os.remove(journal_path)
-        
-        # Delete profile photo if exists
-        if account.photo_url:
-            photo_path = account.photo_url.replace("/uploads/", "uploads/")
-            if os.path.exists(photo_path):
-                os.remove(photo_path)
-        
-        # Delete from database (cascade will handle subscriptions and device_profile)
-        db.session.delete(account)
-        db.session.commit()
-        
+        CrudService.delete_account(account_id)
         flash("Account deleted successfully", "success")
+    except AccountNotFoundError:
+        flash("Account not found", "error")
     except Exception as e:
         db.session.rollback()
         flash(f"Error deleting account: {str(e)}", "error")
@@ -642,62 +214,20 @@ def delete(account_id):
 @login_required
 def assign_proxy(account_id):
     """Assign proxy (individual or network) to account"""
-    from utils.activity_logger import ActivityLogger
-    from models.proxy import Proxy
-    from models.proxy_network import ProxyNetwork
-    from utils.proxy_manager import assign_dynamic_port, release_dynamic_port
-    
-    account = Account.query.get_or_404(account_id)
-    logger = ActivityLogger(account_id)
-    
-    # Form value format: "proxy_{id}" or "network_{id}" or ""
     selection = request.form.get("proxy_selection")
     
-    # 1. Clear existing assignment (WITHOUT commit)
-    if account.proxy_id:
-        account.proxy_id = None
-    
-    if account.proxy_network_id:
-        release_dynamic_port(account, commit=False)
-        account.proxy_network_id = None
-        account.assigned_port = None
-
-    if not selection:
-        db.session.commit()
-        flash("Proxy removed", "info")
-        logger.log(action_type='remove_proxy', status='success', description='Proxy removed', category='system')
-        return redirect(url_for("accounts.detail", account_id=account_id))
-        
     try:
-        if selection.startswith("proxy_"):
-            p_id = int(selection.replace("proxy_", ""))
-            proxy = Proxy.query.get(p_id)
-            if proxy:
-                account.proxy_id = proxy.id
-                db.session.commit()
-                flash(f"Assigned Individual Proxy: {proxy.host}:{proxy.port}", "success")
-                logger.log(action_type='assign_proxy', status='success', description=f"Assigned: {proxy.host}", category='system')
-            else:
-                flash("Proxy not found", "error")
-
-        elif selection.startswith("network_"):
-            n_id = int(selection.replace("network_", ""))
-            network = ProxyNetwork.query.get(n_id)
-            if network:
-                # Assign with commit=False, then commit once here
-                port = assign_dynamic_port(account, n_id, commit=False)
-                db.session.commit()
-                flash(f"Assigned Network: {network.name} (Port {port})", "success")
-                logger.log(action_type='assign_proxy', status='success', description=f"Network: {network.name} Port {port}", category='system')
-            else:
-                flash("Network not found", "error")
-        else:
-            flash("Invalid selection", "error")
-            
+        result = ProxyService.assign_proxy_from_selection(account_id, selection)
+        flash(result.message, "success" if result.success else "error")
+    except AccountNotFoundError:
+        flash("Account not found", "error")
+    except (ProxyNotFoundError, ProxyNetworkNotFoundError):
+        flash("Proxy or network not found", "error")
+    except ProxyAssignmentError as e:
+        flash(str(e), "error")
     except Exception as e:
         db.session.rollback()
         flash(f"Error assigning proxy: {str(e)}", "error")
-        logger.log(action_type='assign_proxy', status='failed', description=f"Error: {e}", category='system')
     
     return redirect(url_for("accounts.detail", account_id=account_id))
 
@@ -706,22 +236,15 @@ def assign_proxy(account_id):
 @login_required
 def add_tag(account_id):
     """Add a single tag to account"""
-    account = Account.query.get_or_404(account_id)
     new_tag = request.form.get('new_tag', '').strip()
     
     if new_tag:
-        # Initialize list if None
-        if account.tags is None:
-            account.tags = []
-        
-        # Create a copy of the list to ensure SQLAlchemy detects change (for JSON mutable tracking)
-        current_tags = list(account.tags)
-        
-        if new_tag not in current_tags:
-            current_tags.append(new_tag)
-            account.tags = current_tags
-            db.session.commit()
-            flash(f"Added tag: {new_tag}", 'success')
+        try:
+            added = MetadataService.add_tag(account_id, new_tag)
+            if added:
+                flash(f"Added tag: {new_tag}", 'success')
+        except AccountNotFoundError:
+            flash("Account not found", "error")
             
     return redirect(url_for('accounts.detail', account_id=account_id))
 
@@ -730,16 +253,15 @@ def add_tag(account_id):
 @login_required
 def remove_tag(account_id):
     """Remove a single tag from account"""
-    account = Account.query.get_or_404(account_id)
     tag_to_remove = request.form.get('tag')
     
-    if tag_to_remove and account.tags:
-        current_tags = list(account.tags)
-        if tag_to_remove in current_tags:
-            current_tags.remove(tag_to_remove)
-            account.tags = current_tags
-            db.session.commit()
-            flash(f"Removed tag: {tag_to_remove}", 'success')
+    if tag_to_remove:
+        try:
+            removed = MetadataService.remove_tag(account_id, tag_to_remove)
+            if removed:
+                flash(f"Removed tag: {tag_to_remove}", 'success')
+        except AccountNotFoundError:
+            flash("Account not found", "error")
             
     return redirect(url_for('accounts.detail', account_id=account_id))
 
@@ -748,14 +270,14 @@ def remove_tag(account_id):
 @login_required
 def update_source(account_id):
     """Update account source inline"""
-    account = Account.query.get_or_404(account_id)
     new_source = request.form.get('source', '').strip()
     
-    # Update if changed
-    if new_source != (account.source or ''):
-        account.source = new_source
-        db.session.commit()
-        flash("Source updated", "success")
+    try:
+        changed = MetadataService.update_source(account_id, new_source)
+        if changed:
+            flash("Source updated", "success")
+    except AccountNotFoundError:
+        flash("Account not found", "error")
             
     return redirect(url_for('accounts.detail', account_id=account_id))
 
@@ -1423,126 +945,38 @@ def delete_channel_candidate(candidate_id):
 @accounts_bp.route('/<int:account_id>/human_check', methods=['POST'])
 @login_required
 def human_check(account_id):
-    """
-    Run Immersive Human-Like SpamBlock Check using SessionOrchestrator.
-    This manages the session lifecycle (Cold/Hot start) automatically.
-    """
-    import asyncio
-    from utils.session_orchestrator import SessionOrchestrator
-    from tasks.basic import task_check_spamblock
-    from utils.activity_logger import ActivityLogger
-    
-    # Anti-Lock: Release DB session during long operation
-    db.session.close()
-    
-    # Run in ephemeral loop (Orchestrator handles its own state mostly, but we need an event loop for the async execution)
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    
-    bot = SessionOrchestrator(account_id)
-    
+    """Run Immersive Human-Like SpamBlock Check"""
     try:
-        # EXECUTE TASK via Orchestrator
-        # This will handles: Cold Start (if offline) -> Hot Start (if idle) -> Task -> Idle Timer
-        # Note: We are not starting the background monitor here because this is a short-lived HTTP request context.
-        # But the state transitions will still work for the execution duration.
+        result = VerificationService.human_check(account_id)
         
-        result = loop.run_until_complete(bot.execute(task_check_spamblock))
-        
-        # Determine status
-        status = result.get('status', 'unknown')
-        log_msgs = result.get('log', [])
-        
-        # Log to DB (Re-fetch account)
-        try:
-            account_ref = Account.query.get(account_id)
-            
-            if status == 'clean':
-                if account_ref.status != 'active':
-                    account_ref.status = 'active'
-                # Update health if needed
-            elif status == 'restricted':
-                # User policy: Restricted = Banned
-                account_ref.status = 'banned'
-                account_ref.health_score = 0
-            
-            db.session.commit()
-        except Exception as e:
-            db.session.rollback()
-            print(f"Failed to update account status: {e}")
-
-        logger = ActivityLogger(account_id)
-        
-        if status == 'clean':
-            logger.log(
-                action_type='human_check_success',
-                status='success',
-                description='Human Check (Orchestrator): 🟢 CLEAN. Status -> Active',
-                category='system'
-            )
-            return jsonify({'success': True, 'status': 'clean', 'logs': log_msgs})
-            
-        elif status == 'restricted':
-            reason = result.get('reason', 'Unknown restriction')
-            logger.log(
-                action_type='human_check_failed',
-                status='failed', 
-                description=f'Human Check (Orchestrator): 🔴 RESTRICTED. Reason: {reason}',
-                category='security'
-            )
-            return jsonify({'success': True, 'status': 'restricted', 'reason': reason, 'logs': log_msgs})
-            
+        if result.success:
+            return jsonify({'success': True, 'status': 'clean', 'message': result.message})
         else:
-            error_msg = result.get('error', 'Unknown error')
-            logger.log(
-                action_type='human_check_error',
-                status='error',
-                description=f'Human Check Error: {error_msg}',
-                category='system'
-            )
-            return jsonify({'success': False, 'error': error_msg, 'logs': log_msgs})
-
+            if result.error_type == 'restricted':
+                return jsonify({'success': True, 'status': 'restricted', 'reason': result.message})
+            return jsonify({'success': False, 'error': result.message})
+            
+    except AccountNotFoundError:
+        return jsonify({'success': False, 'error': 'Account not found'}), 404
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
-        
-    finally:
-        # Graceful shutdown of the orchestrator (disconnects client)
-        loop.run_until_complete(bot.stop())
-        loop.close()
 
 @accounts_bp.route("/<int:account_id>/set-2fa", methods=["POST"])
 @login_required
 def set_2fa(account_id):
     """Set 2FA password with human emulation"""
-    from utils.telethon_helper import set_2fa_password
-    import string
-    import random
-    import asyncio
-    
-    account = Account.query.get_or_404(account_id)
-    
-    # Generate 10-char password (letters + numbers)
-    chars = string.ascii_letters + string.digits
-    password = ''.join(random.choice(chars) for _ in range(10))
-    
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    
     try:
-        result = loop.run_until_complete(set_2fa_password(account_id, password))
+        result = SecurityService.set_2fa(account_id)
         
-        if result['success']:
-            account.two_fa_password = password
-            db.session.commit()
-            
-            flash(f"✅ 2FA Password Set Successfully: {password}", "success")
+        if result.success:
+            flash(f"✅ 2FA Password Set Successfully: {result.password}", "success")
         else:
-            flash(f"❌ Failed to set 2FA: {result.get('error')}", "error")
+            flash(f"❌ Failed to set 2FA: {result.error}", "error")
             
+    except AccountNotFoundError:
+        flash("Account not found", "error")
     except Exception as e:
         flash(f"Error: {str(e)}", "error")
-    finally:
-        loop.close()
         
     return redirect(url_for('accounts.detail', account_id=account_id))
 
@@ -1551,83 +985,63 @@ def set_2fa(account_id):
 @login_required
 def get_sessions(account_id):
     """Get active sessions (JSON)"""
-    from utils.telethon_helper import get_active_sessions
-    import asyncio
-    
-    # Run async helper
-    # We use a new loop because Flask is synchronous here
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    
     try:
-        result = loop.run_until_complete(get_active_sessions(account_id))
-        return jsonify(result)
+        result = SecurityService.get_active_sessions(account_id)
+        return jsonify({
+            'success': result.success,
+            'sessions': result.sessions,
+            'error': result.error
+        })
+    except AccountNotFoundError:
+        return jsonify({'success': False, 'error': 'Account not found'}), 404
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)})
-    finally:
-        loop.close()
+        return jsonify({'success': False, 'error': str(e)})
 
 
 @accounts_bp.route("/<int:account_id>/sessions/terminate", methods=["POST"])
 @login_required
 def terminate_sessions_route(account_id):
     """Terminate session(s)"""
-    from utils.telethon_helper import terminate_session, terminate_all_sessions
-    import asyncio
-    
     session_hash = request.form.get('session_hash')
     terminate_all = request.form.get('terminate_all') == 'true'
     
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    
     try:
         if terminate_all:
-            result = loop.run_until_complete(terminate_all_sessions(account_id))
+            result = SecurityService.terminate_all_sessions(account_id)
         elif session_hash:
-            result = loop.run_until_complete(terminate_session(account_id, session_hash))
+            result = SecurityService.terminate_session(account_id, session_hash)
         else:
-            return jsonify({"success": False, "error": "No session hash provided"})
+            return jsonify({'success': False, 'error': 'No session hash provided'})
             
-        return jsonify(result)
+        return jsonify({
+            'success': result.success,
+            'message': result.message,
+            'error': result.error
+        })
         
+    except AccountNotFoundError:
+        return jsonify({'success': False, 'error': 'Account not found'}), 404
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)})
-    finally:
-        loop.close()
+        return jsonify({'success': False, 'error': str(e)})
 
 @accounts_bp.route("/<int:account_id>/remove-2fa", methods=["POST"])
 @login_required
 def remove_2fa(account_id):
     """Remove 2FA password with human emulation"""
-    from utils.telethon_helper import remove_2fa_password
-    import asyncio
-    
-    account = Account.query.get_or_404(account_id)
-    
-    current_password = account.two_fa_password
-    if not current_password:
-        flash("Local 2FA password record is missing. Cannot automatically remove.", "error")
-        return redirect(url_for('accounts.detail', account_id=account_id))
-    
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    
     try:
-        result = loop.run_until_complete(remove_2fa_password(account_id, current_password))
+        result = SecurityService.remove_2fa(account_id)
         
-        if result['success']:
-            account.two_fa_password = None
-            db.session.commit()
-            
+        if result.success:
             flash("✅ 2FA Password Removed Successfully", "success")
         else:
-            flash(f"❌ Failed to remove 2FA: {result.get('error')}", "error")
+            flash(f"❌ Failed to remove 2FA: {result.error}", "error")
             
+    except AccountNotFoundError:
+        flash("Account not found", "error")
+    except TwoFANotSetError:
+        flash("Local 2FA password record is missing. Cannot automatically remove.", "error")
     except Exception as e:
         flash(f"Error: {str(e)}", "error")
-    finally:
-        loop.close()
         
     return redirect(url_for('accounts.detail', account_id=account_id))
 
