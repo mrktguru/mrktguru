@@ -1,11 +1,9 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 from utils.decorators import login_required
 from models.automation import ScheduledTask, AutoAction
-from database import db
-from datetime import datetime
+from modules.settings.services.automation import AutomationManager
 
 automation_bp = Blueprint('automation', __name__)
-
 
 @automation_bp.route('/')
 @login_required
@@ -21,21 +19,7 @@ def index():
 def scheduled_tasks():
     """Manage scheduled tasks"""
     if request.method == 'POST':
-        task_type = request.form.get('task_type')
-        entity_type = request.form.get('entity_type')
-        entity_id = request.form.get('entity_id')
-        scheduled_for = request.form.get('scheduled_for')
-        
-        task = ScheduledTask(
-            task_type=task_type,
-            entity_type=entity_type,
-            entity_id=int(entity_id) if entity_id else None,
-            scheduled_for=datetime.fromisoformat(scheduled_for),
-            payload={}
-        )
-        db.session.add(task)
-        db.session.commit()
-        
+        AutomationManager.schedule_task(request.form)
         flash('Task scheduled', 'success')
         return redirect(url_for('automation.index'))
     
@@ -47,20 +31,7 @@ def scheduled_tasks():
 def auto_actions():
     """Manage auto-actions"""
     if request.method == 'POST':
-        name = request.form.get('name')
-        trigger_type = request.form.get('trigger_type')
-        action_type = request.form.get('action_type')
-        
-        action = AutoAction(
-            name=name,
-            trigger_type=trigger_type,
-            trigger_condition={},
-            action_type=action_type,
-            action_params={}
-        )
-        db.session.add(action)
-        db.session.commit()
-        
+        AutomationManager.create_auto_action(request.form)
         flash('Auto-action created', 'success')
         return redirect(url_for('automation.index'))
     
