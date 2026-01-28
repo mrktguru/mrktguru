@@ -148,13 +148,16 @@ function applyFormToNode() {
         return;
     }
 
-    const formData = new FormData(form);
     const node = state.currentNode;
 
-    node.is_random_time = formData.has('is_random_time');
-    node.execution_time = formData.get('execution_time') || '00:00';
+    // Use direct element access for critical fields
+    const randomCheck = form.querySelector('[name="is_random_time"]');
+    const timeInput = form.querySelector('[name="execution_time"]');
 
-    console.log(`[Scheduler] Updated node time: ${node.execution_time}, random: ${node.is_random_time}`);
+    if (randomCheck) node.is_random_time = randomCheck.checked;
+    if (timeInput) node.execution_time = timeInput.value || '00:00';
+
+    console.log(`[Scheduler] applyFormToNode result - time: ${node.execution_time}, random: ${node.is_random_time}`);
 
     node.config = node.config || {};
 
@@ -163,7 +166,7 @@ function applyFormToNode() {
         const inputs = dynamicContainer.querySelectorAll('input, select, textarea');
         inputs.forEach(input => {
             const name = input.name;
-            if (!name) return;
+            if (!name || name === 'execution_time' || name === 'is_random_time') return;
 
             if (input.type === 'checkbox') {
                 node.config[name] = input.checked;
@@ -178,7 +181,7 @@ function applyFormToNode() {
 
     if (node.status === 'draft') {
         node.status = 'pending';
-        console.log("[Scheduler] Node status changed to pending");
+        console.log("[Scheduler] Node status set to pending (draft -> pending)");
     }
 }
 

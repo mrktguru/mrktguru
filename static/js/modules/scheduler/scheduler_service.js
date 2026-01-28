@@ -30,8 +30,11 @@ export async function saveSchedule(silent = false) {
             await new Promise(r => setTimeout(r, 100));
             waited++;
         }
-        if (waited >= 50) console.error("[Scheduler] Save wait timeout!");
-        // Recurse to ensure we save with latest state
+        if (waited >= 50) {
+            console.error("[Scheduler] Save wait timeout! Forcing lock release.");
+            state.isSaving = false;
+        }
+        // Recurse or just continue? Let's recurse once more
         return await saveSchedule(silent);
     }
 
