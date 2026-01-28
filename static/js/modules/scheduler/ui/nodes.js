@@ -125,23 +125,16 @@ function createNodeElement(node, colIndex) {
     el.style.zIndex = 20;
 
     if (node.status === 'completed' || node.status === 'success') {
-        el.style.backgroundColor = '#e9ecef';
         el.classList.add('node-completed');
     } else if (node.status === 'running' || node.status === 'processing') {
-        el.style.backgroundColor = '#cfe2ff';
         el.classList.add('node-running');
-        el.style.animation = 'pulse 2s infinite';
     } else if (node.status === 'pending') {
-        el.style.backgroundColor = '#d1e7dd';
         el.classList.add('node-ready');
     } else if (node.status === 'failed') {
-        el.style.backgroundColor = '#f8d7da';
         el.classList.add('node-failed');
     } else if (node.status === 'skipped') {
-        el.style.backgroundColor = '#e2e3e5';
         el.classList.add('node-skipped');
     } else {
-        el.style.backgroundColor = '#fff3cd';
         el.classList.add('node-draft');
     }
     console.log(`[Scheduler] Rendering Node ${node.id}: status=${node.status}, color=${el.style.backgroundColor}`);

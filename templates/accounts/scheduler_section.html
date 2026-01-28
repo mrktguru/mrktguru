@@ -238,31 +238,48 @@
                     overflow-y: auto;
                 }
 
-                /* Executing state */
-                .scheduled-node.executing {
-                    background: #fff3cd !important;
-                    border-color: #ffc107 !important;
-                    animation: pulse 1.5s infinite;
+                /* Executing/Running state */
+                .scheduled-node.node-running {
+                    background-color: #cfe2ff !important;
+                    border-color: #0d6efd !important;
+                    animation: pulse 2s infinite;
+                }
+
+                /* Ready/Pending state */
+                .scheduled-node.node-ready {
+                    background-color: #d1e7dd !important;
+                    border-color: #198754 !important;
+                    color: #0f5132;
                 }
 
                 /* Completed/History state */
                 .scheduled-node.node-completed {
-                    background: #e9ecef !important;
-                    /* Gray */
+                    background-color: #e9ecef !important;
                     border-color: #dee2e6 !important;
                     color: #6c757d;
                     cursor: default !important;
                 }
 
-                /* Hide remove button for completed nodes */
-                .scheduled-node.node-completed .node-remove-btn {
-                    display: none !important;
+                /* Skipped state */
+                .scheduled-node.node-skipped {
+                    background-color: #f8f9fa !important;
+                    border-color: #adb5bd !important;
+                    color: #6c757d;
+                    opacity: 0.8;
                 }
 
-                /* Error state */
-                .scheduled-node.node-error {
-                    background: #f8d7da !important;
+                /* Failed/Error state */
+                .scheduled-node.node-failed {
+                    background-color: #f8d7da !important;
                     border-color: #dc3545 !important;
+                    color: #842029;
+                }
+
+                /* Draft state */
+                .scheduled-node.node-draft {
+                    background-color: #fff3cd !important;
+                    border-color: #ffc107 !important;
+                    color: #664d03;
                 }
 
                 @keyframes pulse {
