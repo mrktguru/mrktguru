@@ -23,7 +23,11 @@ from modules.accounts.services import (
     ProxyService,
     VerificationService,
     SecurityService,
-    UploadService
+    UploadService,
+    ProfileService,
+    SubscriptionService,
+    DeviceProfileService,
+    DeviceConfig
 )
 from modules.accounts.exceptions import (
     AccountNotFoundError,
@@ -281,18 +285,10 @@ def update_source(account_id):
             
     return redirect(url_for('accounts.detail', account_id=account_id))
 
-
 @accounts_bp.route("/<int:account_id>/add-subscription", methods=["POST"])
 @login_required
 def add_subscription(account_id):
     """Add channel subscription - actually joins the channel/group"""
-    from utils.telethon_helper import get_telethon_client
-    from telethon.tl.functions.channels import JoinChannelRequest
-    from utils.activity_logger import ActivityLogger
-    import asyncio
-    
-    account = Account.query.get_or_404(account_id)
-    logger = ActivityLogger(account_id)
     channel_input = request.form.get("channel_username", "").strip()
     notes = request.form.get("notes", "").strip()
     
@@ -300,99 +296,25 @@ def add_subscription(account_id):
         flash("Channel username is required", "error")
         return redirect(url_for("accounts.detail", account_id=account_id))
     
-    # Extract username from various formats
-    channel_username = channel_input.lstrip("@")
-    if "t.me/" in channel_username:
-        channel_username = channel_username.split("t.me/")[-1].split("/")[0].split("?")[0]
-    
-    # Check if account is spam-blocked
-    if account.status == "spam-block":
-        flash("⚠️ WARNING: This account has spam-block and cannot join channels. Please use a different account.", "error")
-        return redirect(url_for("accounts.detail", account_id=account_id))
-    
-    # Check if already exists
-    existing = AccountSubscription.query.filter_by(
-        account_id=account_id,
-        channel_username=channel_username
-    ).first()
-    
-    if existing:
-        flash(f"Already subscribed to @{channel_username}", "warning")
-        return redirect(url_for("accounts.detail", account_id=account_id))
-    
-    # Log join attempt
-    logger.log(
-        action_type='join_group_attempt',
-        status='pending',
-        target=f"@{channel_username}",
-        description=f"Attempting to join @{channel_username}",
-        category='manual'
-    )
-    
-    # Orchestrator Refactor
-    from utils.session_orchestrator import SessionOrchestrator
-    from tasks.warmup import task_join_channel
-    
-    db.session.close() # Anti-Lock
-    
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    
-    bot = SessionOrchestrator(account_id)
-    
     try:
-        result = loop.run_until_complete(bot.execute(task_join_channel, channel_username=channel_username))
-        
-        subscription_status = result['status']
-        message = result['message']
-        
-        # Log result
-        logger = ActivityLogger(account_id)
-        if subscription_status == "active":
-            logger.log(
-                action_type='join_group',
-                status='success',
-                target=f"@{channel_username}",
-                description=message,
-                category='manual'
-            )
-            flash(message, "success")
-        else:
-            logger.log(
-                action_type='join_group',
-                status='failed',
-                target=f"@{channel_username}",
-                description=f"Failed to join @{channel_username}",
-                error_message=message,
-                category='manual'
-            )
-            flash(message, "warning")
-            
-    except Exception as e:
-        subscription_status = "failed"
-        logger.log(
-            action_type='join_group',
-            status='failed',
-            target=f"@{channel_username}",
-            description=f"Error joining @{channel_username}",
-            error_message=str(e),
-            category='manual'
+        result = SubscriptionService.join_channel(
+            account_id=account_id,
+            channel_input=channel_input,
+            notes=notes,
+            source="manual"
         )
+        
+        if result.success:
+            flash(result.message, "success")
+        elif result.status == 'exists':
+            flash(result.message, "warning")
+        else:
+            flash(result.message, "error")
+            
+    except AccountNotFoundError:
+        flash("Account not found", "error")
+    except Exception as e:
         flash(f"Error: {str(e)}", "error")
-    finally:
-        loop.run_until_complete(bot.stop())
-        loop.close()
-    
-    # Save subscription
-    subscription = AccountSubscription(
-        account_id=account_id,
-        channel_username=channel_username,
-        subscription_source="manual",
-        status=subscription_status,
-        notes=notes
-    )
-    db.session.add(subscription)
-    db.session.commit()
     
     return redirect(url_for("accounts.detail", account_id=account_id))
 
@@ -401,16 +323,10 @@ def add_subscription(account_id):
 @login_required
 def remove_subscription(account_id, sub_id):
     """Remove subscription"""
-    subscription = AccountSubscription.query.get_or_404(sub_id)
-    
-    if subscription.account_id != account_id:
-        flash("Invalid subscription", "error")
-        return redirect(url_for("accounts.detail", account_id=account_id))
-    
-    db.session.delete(subscription)
-    db.session.commit()
-    
-    flash("Subscription removed", "info")
+    if SubscriptionService.remove_subscription(account_id, sub_id):
+        flash("Subscription removed", "info")
+    else:
+        flash("Subscription not found", "error")
     return redirect(url_for("accounts.detail", account_id=account_id))
 
 
@@ -418,125 +334,51 @@ def remove_subscription(account_id, sub_id):
 @login_required
 def update_profile(account_id):
     """Update editable profile fields"""
-    from utils.telethon_helper import update_telegram_profile, update_telegram_photo
-    import asyncio
-    
-    account = Account.query.get_or_404(account_id)
-    
-    # Collect updates
+    # Get form data
     username = request.form.get("username", "").strip().lstrip("@") if "username" in request.form else None
     bio = request.form.get("bio", "").strip() if "bio" in request.form else None
+    source = request.form.get("source", "").strip()
+    tags_str = request.form.get("tags", "")
+    tags = [t.strip() for t in tags_str.split(',') if t.strip()] if tags_str else None
     
-    # Handle photo upload first (save locally)
+    # Get photo file
     photo_file = None
     if "photo" in request.files:
         photo = request.files["photo"]
         if photo and photo.filename:
-            filename = secure_filename(f"{account.phone}_{photo.filename}")
-            photo_path = os.path.join("uploads/photos", filename)
-            os.makedirs("uploads/photos", exist_ok=True)
-            photo.save(photo_path)
-            photo_file = photo_path
-    
-    # Session Orchestrator Refactor
-    from utils.session_orchestrator import SessionOrchestrator
-    from tasks.profile import task_update_profile, task_update_photo, task_update_username
-    
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    
-    bot = SessionOrchestrator(account_id)
-    
-    # Anti-Lock? We need to keep DB open to read request.form, but for long tasks close it?
-    # Request form is already read above. 
-    db.session.close() # Close session for long op
+            photo_file = photo
     
     try:
-        # 1. Update Profile Info (Name/Bio)
-        # Note: Username update is separate in Telethon
-        if bio: # We can only update Bio via UpdateProfileRequest in some versions, or About.
-            # Our task_update_profile handles first_name, last_name, about
-            # We don't have first/last name in form? The view code only extracted username/bio.
-            # If we want to support name update, we need to add fields to form.
-            # Assuming 'bio' maps to 'about'.
+        # Update Telegram profile (async operations)
+        if username or bio or photo_file:
+            result = ProfileService.update_telegram_profile(
+                account_id=account_id,
+                username=username if username else None,
+                bio=bio if bio else None,
+                photo_file=photo_file
+            )
             
-            res = loop.run_until_complete(bot.execute(task_update_profile, about=bio))
-            if not res['success']:
-                flash(f"Failed to update bio: {res['error']}", "error")
-            else:
-                # Re-open session to update info
-                account = Account.query.get(account_id)
-                account.bio = bio
-                db.session.commit()
-                db.session.close()
-
-        if username:
-             res = loop.run_until_complete(bot.execute(task_update_username, username=username))
-             if not res['success']:
-                 flash(f"Failed to update username: {res['error']}", "error")
-             else:
-                 account = Account.query.get(account_id)
-                 account.username = username
-                 db.session.commit()
-                 db.session.close()
-                 
-        # 2. Update Photo
-        if photo_file:
-             res = loop.run_until_complete(bot.execute(task_update_photo, photo_path=photo_file))
-             if not res['success']:
-                 flash(f"Failed to update photo: {res['error']}", "error")
-             else:
-                 account = Account.query.get(account_id)
-                 account.photo_url = photo_file
-                 db.session.commit()
-                 db.session.close()
-                 
-        flash("Profile update sequence completed.", "info")
+            if result.updated_fields:
+                flash(f"✅ Updated: {', '.join(result.updated_fields)}", "success")
+            if result.errors:
+                for error in result.errors:
+                    flash(f"⚠️ {error}", "warning")
         
+        # Update local metadata (sync, no Telegram API)
+        if source is not None or tags is not None:
+            ProfileService.update_local_metadata(
+                account_id=account_id,
+                source=source,
+                tags=tags
+            )
+            flash("Metadata updated", "success")
+            
+    except AccountNotFoundError:
+        flash("Account not found", "error")
     except Exception as e:
         flash(f"Error updating profile: {str(e)}", "error")
-    finally:
-        loop.run_until_complete(bot.stop())
-        loop.close()
     
-    try:
-        data = request.form
-        
-        username = data.get('username', '').replace('@', '').strip()
-        bio = data.get('bio', '').strip()
-        
-        # New fields
-        source = data.get('source', '').strip()
-        tags_str = data.get('tags', '')
-        tags = [t.strip() for t in tags_str.split(',') if t.strip()]
-        
-        if username:
-            account.username = username
-        if bio:
-            account.bio = bio
-            
-        # Update metadata
-        # Only update if provided or if clearing? 
-        # Usually update_profile is explicitly for these fields so we can overwrite.
-        account.source = source
-        account.tags = tags
-            
-        # Handle Photo Upload
-        if 'photo' in request.files:
-            file = request.files['photo']
-            if file and file.filename != '':
-                # ... existing photo logic ...
-                pass
-
-        db.session.commit()
-        flash("Profile updated successfully", 'success')
-        return redirect(url_for('accounts.detail', account_id=account_id))
-        
-    except Exception as e:
-        db.session.rollback()
-        logger.error(f"Error updating profile: {e}")
-        flash(f"Error updating profile: {e}", 'danger')
-        return redirect(url_for('accounts.detail', account_id=account_id))
+    return redirect(url_for('accounts.detail', account_id=account_id))
 
 
 # ==================== WARMUP SETTINGS ROUTES ====================
@@ -1051,147 +893,65 @@ def remove_2fa(account_id):
 @login_required
 def update_device(account_id):
     """Update or create device profile"""
-    from utils.activity_logger import ActivityLogger
+    is_ajax = request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest'
     
-    account = Account.query.get_or_404(account_id)
-    logger = ActivityLogger(account_id)
-    
-    # Check if user wants to use original TData
-    use_original = request.form.get('use_original', '').lower() == 'true'
-    
-    if use_original:
-        # Delete device profile to use original TData
-        if account.device_profile:
-            old_model = account.device_profile.device_model
-            db.session.delete(account.device_profile)
-            db.session.commit()
-            
-            logger.log(
-                action_type='device_deleted',
-                status='success',
-                description=f"Switched to original TData device (was: {old_model})",
-                details="Device profile deleted, using original TData fingerprint",
-                category='system'
-            )
-            
-            # Check if AJAX request
-            if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                return jsonify({'success': True, 'message': 'Switched to original TData device'})
-            
-            flash("✅ Switched to original TData device", "success")
-            return redirect(url_for('accounts.detail', account_id=account_id))
-        else:
-            # Already using original
-            if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                return jsonify({'success': True, 'message': 'Already using original TData device'})
-            
-            flash("ℹ️ Already using original TData device", "info")
-            return redirect(url_for('accounts.detail', account_id=account_id))
-    
-    # Check if user wants to use JSON parameters
-    use_json = request.form.get('use_json', '').lower() == 'true'
-    
-    if use_json:
-        # Switch to JSON device source
-        if account.tdata_metadata:
-            # Delete device profile if exists
-            if account.device_profile:
-                db.session.delete(account.device_profile)
-            
-            # Set device_source to 'json'
-            account.tdata_metadata.device_source = 'json'
-            db.session.commit()
-            
-            logger.log(
-                action_type='device_source_changed',
-                status='success',
-                description="Switched to JSON device parameters",
-                details="Using JSON metadata for device fingerprint",
-                category='system'
-            )
-            
-            if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                return jsonify({'success': True, 'message': 'Switched to JSON parameters'})
-            
-            flash("✅ Switched to JSON parameters", "success")
-            return redirect(url_for('accounts.detail', account_id=account_id))
-        else:
-            error_msg = "No TData metadata or JSON data available"
-            if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                return jsonify({'success': False, 'error': error_msg}), 400
-            
-            flash(f"❌ {error_msg}", "error")
-            return redirect(url_for('accounts.detail', account_id=account_id))
-    
-    # Get form data for custom device
-    device_model = request.form.get('device_model', '').strip()
-    system_version = request.form.get('system_version', '').strip()
-    app_version = request.form.get('app_version', '').strip()
-    lang_code = request.form.get('lang_code', 'en').strip()
-    system_lang_code = request.form.get('system_lang_code', 'en-US').strip()
-    client_type = request.form.get('client_type', 'desktop')
-    
-    if not all([device_model, system_version, app_version]):
-        error_msg = "All device fields (model, system, app version) are required"
+    try:
+        # Check if user wants to use original TData
+        if request.form.get('use_original', '').lower() == 'true':
+            result = DeviceProfileService.use_original_tdata(account_id)
         
-        if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return jsonify({'success': False, 'error': error_msg}), 400
+        # Check if user wants to use JSON parameters
+        elif request.form.get('use_json', '').lower() == 'true':
+            result = DeviceProfileService.use_json_parameters(account_id)
         
-        flash(f"❌ {error_msg}", "error")
-        return redirect(url_for('accounts.detail', account_id=account_id))
-    
-    # Update or create device profile
-    if account.device_profile:
-        dp = account.device_profile
-        old_model = dp.device_model
-        dp.device_model = device_model
-        dp.system_version = system_version
-        dp.app_version = app_version
-        dp.lang_code = lang_code
-        dp.system_lang_code = system_lang_code
-        dp.client_type = client_type
-        action = 'device_updated'
-        msg = f"Device updated: {old_model} → {device_model}"
-    else:
-        dp = DeviceProfile(
-            account_id=account_id,
-            device_model=device_model,
-            system_version=system_version,
-            app_version=app_version,
-            lang_code=lang_code,
-            system_lang_code=system_lang_code,
-            client_type=client_type
-        )
-        db.session.add(dp)
-        account.device_profile = dp
-        action = 'device_created'
-        msg = f"Device created: {device_model}"
-    
-    db.session.commit()
-    
-    logger.log(
-        action_type=action,
-        status='success',
-        description=msg,
-        details=f"Model: {device_model}, System: {system_version}, App: {app_version}, Client: {client_type}",
-        category='system'
-    )
-    
-    # Check if AJAX request
-    if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-        return jsonify({
-            'success': True,
-            'message': msg,
-            'device': {
-                'model': device_model,
-                'system': system_version,
-                'app': app_version,
-                'lang': f"{lang_code} / {system_lang_code}"
-            }
-        })
-    
-    flash(f"✅ {msg}", "success")
-    return redirect(url_for('accounts.detail', account_id=account_id))
+        # Custom device profile
+        else:
+            device_model = request.form.get('device_model', '').strip()
+            system_version = request.form.get('system_version', '').strip()
+            app_version = request.form.get('app_version', '').strip()
+            
+            if not all([device_model, system_version, app_version]):
+                error_msg = "All device fields (model, system, app version) are required"
+                if is_ajax:
+                    return jsonify({'success': False, 'error': error_msg}), 400
+                flash(f"❌ {error_msg}", "error")
+                return redirect(url_for('accounts.detail', account_id=account_id))
+            
+            config = DeviceConfig(
+                device_model=device_model,
+                system_version=system_version,
+                app_version=app_version,
+                lang_code=request.form.get('lang_code', 'en').strip(),
+                system_lang_code=request.form.get('system_lang_code', 'en-US').strip(),
+                client_type=request.form.get('client_type', 'desktop')
+            )
+            result = DeviceProfileService.update_custom_device(account_id, config)
+        
+        # Return response
+        if is_ajax:
+            if result.success:
+                response = {'success': True, 'message': result.message}
+                if result.device:
+                    response['device'] = {
+                        'model': result.device.device_model,
+                        'system': result.device.system_version,
+                        'app': result.device.app_version
+                    }
+                return jsonify(response)
+            else:
+                return jsonify({'success': False, 'error': result.message}), 400
+        else:
+            if result.success:
+                flash(f"✅ {result.message}", "success")
+            else:
+                flash(f"❌ {result.message}", "error")
+            return redirect(url_for('accounts.detail', account_id=account_id))
+            
+    except AccountNotFoundError:
+        if is_ajax:
+            return jsonify({'success': False, 'error': 'Account not found'}), 404
+        flash("Account not found", "error")
+        return redirect(url_for('accounts.list_accounts'))
 
 
 # -------------------------------------------------------------------------

@@ -11,6 +11,9 @@ from .proxy import ProxyService
 from .verification import VerificationService
 from .security import SecurityService
 from .upload import UploadService
+from .profile import ProfileService
+from .subscription import SubscriptionService
+from .device import DeviceProfileService, DeviceConfig
 
 __all__ = [
     'MetadataService',
@@ -19,5 +22,11 @@ __all__ = [
     'VerificationService',
     'SecurityService',
     'UploadService',
+    'ProfileService',
+    'SubscriptionService',
+    'DeviceProfileService',
+    'DeviceConfig',
 ]
+
+
 
