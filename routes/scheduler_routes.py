@@ -185,24 +185,7 @@ def get_schedule_status(schedule_id):
 def get_account_schedule_status(account_id):
     """Get status by account_id"""
     try:
-        # We need to find schedule_id first.
-        # Service could provide get_schedule_by_account_id?
-        # Reusing get_full_schedule logic or simple query.
-        # But get_execution_status needs schedule_id.
-        # Or I can use SchedulerService to find it.
-        # I'll modify route to use get_full_schedule to find ID?
-        # Or simpler: query DB here? Thin controller shouldn't query DB.
-        # I'll rely on get_full_schedule/get_execution_status to handle lookup if passed 0?
-        # get_full_schedule uses: schedule = WarmupSchedule.query.filter_by(account...
-        # But get_execution_status takes schedule_id.
-        # I'll use `SchedulerService.get_full_schedule(account_id)['schedule']['id']`.
-        
-        full_schedule = SchedulerService.get_full_schedule(account_id)
-        schedule_id = full_schedule['schedule'].get('id')
-        if not schedule_id:
-             return jsonify({'schedule': None}), 200
-             
-        data = SchedulerService.get_execution_status(schedule_id, account_id=account_id)
+        data = SchedulerService.get_execution_status_by_account(account_id)
         return jsonify(data), 200
     except Exception as e:
         logger.error(f"Error getting account status: {e}")

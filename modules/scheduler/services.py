@@ -278,6 +278,15 @@ class SchedulerService:
         }
         
     @staticmethod
+    def get_execution_status_by_account(account_id: int) -> dict:
+        """Get execution status by account ID directly"""
+        schedule = WarmupSchedule.query.filter_by(account_id=account_id).first()
+        if not schedule:
+            return {'schedule': None}
+            
+        return SchedulerService.get_execution_status(schedule.id, account_id=account_id)
+
+    @staticmethod
     def upload_asset(file) -> dict:
         """Upload asset file"""
         import os
