@@ -51,6 +51,10 @@ class WarmupLog(db.Model):
                     message=message,
                     details=details
                 )
+                
+                # Echo to console for easy monitoring via journalctl
+                print(f"[{account_id}] {status.upper()}: {message} (Action: {action or 'n/a'})", flush=True)
+                
                 db.session.add(log)
                 db.session.commit()
                 return log

@@ -136,6 +136,12 @@ class SessionOrchestrator:
         while not self.shutdown_event.is_set():
             try:
                 if self.state == 'ACTIVE':
+                    # Safety: If a task is currently executing, do NOT go IDLE
+                    if self._execution_lock.locked():
+                        self.last_activity = datetime.now() # Heartbeat
+                        await asyncio.sleep(10)
+                        continue
+
                     idle_sec = (datetime.now() - self.last_activity).total_seconds()
                     
                     if idle_sec > self.IDLE_TIMEOUT:
