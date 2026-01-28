@@ -10,9 +10,15 @@ export function getMonday(d) {
     return mon;
 }
 
-export function getNodeLabel(type) {
+export function getNodeLabel(type, id = null) {
     if (!type) return 'Unknown';
-    return type.replace(/_/g, ' ').toUpperCase();
+    let label = type.replace(/_/g, ' ').toUpperCase();
+
+    // User requested IDs for these types
+    if (id && (type === 'passive_activity' || type === 'search_filter')) {
+        label += ` ${id}`;
+    }
+    return label;
 }
 
 export function getNodeColor(type) {

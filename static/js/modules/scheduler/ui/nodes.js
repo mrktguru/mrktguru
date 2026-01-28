@@ -162,7 +162,7 @@ function createNodeElement(node, colIndex) {
     const isReady = node.status === 'pending';
     el.innerHTML = `
         <div class="d-flex justify-content-between align-items-center">
-            <strong class="text-truncate">${getNodeLabel(node.node_type)}</strong>
+            <strong class="text-truncate">${getNodeLabel(node.node_type, node.id)}</strong>
             <div class="d-flex gap-1" style="background: rgba(255,255,255,0.5); border-radius: 4px; padding: 0 2px;">
                 ${isReady ? '<i class="bi bi-check-circle-fill text-success" title="Ready" style="font-size: 10px;"></i>' : ''}
                 <i class="bi bi-gear-fill node-config-btn" style="cursor:pointer; font-size: 10px;" title="View Details"></i>
