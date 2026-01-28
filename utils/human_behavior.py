@@ -305,3 +305,32 @@ class HumanBehavior:
         except Exception as e:
             logger.error(f"{self.log_prefix}   ❌ Failed to save discovered channel: {e}")
             # Don't raise, persistence failure shouldn't kill the worker
+
+
+# === TOP-LEVEL HELPER FUNCTIONS ===
+# (Used in modules.telethon.operations and elsewhere)
+
+async def random_sleep(min_s: float, max_s: float, reason: str = None):
+    """Wait for a random amount of time with logging"""
+    duration = random.uniform(min_s, max_s)
+    if reason:
+        logger.info(f"☕ Waiting {duration:.1f}s... (Reason: {reason})")
+    else:
+        logger.info(f"☕ Waiting {duration:.1f}s...")
+    await asyncio.sleep(duration)
+
+async def simulate_typing(length: int):
+    """Simulate typing delay based on text length"""
+    # Average 0.1s - 0.2s per character
+    delay = length * random.uniform(0.05, 0.15)
+    # Cap delay to avoid hanging too long
+    delay = min(delay, 5.0)
+    logger.info(f"⌨️ Simulating typing ({length} chars, {delay:.1f}s)...")
+    await asyncio.sleep(delay)
+
+async def simulate_scrolling(times: int = 1):
+    """Simulate scrolling delay"""
+    for i in range(times):
+        duration = random.uniform(1.0, 3.0)
+        logger.info(f"📜 Simulating scroll {i+1}/{times} ({duration:.1f}s)...")
+        await asyncio.sleep(duration)
