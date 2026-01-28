@@ -47,6 +47,28 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // 5. Setup Controls
+    const timeInput = document.querySelector('input[name="execution_time"]');
+    if (timeInput) {
+        timeInput.addEventListener('input', (e) => {
+            const input = e.target;
+            let cursor = input.selectionStart;
+            let oldLen = input.value.length;
+            let value = input.value.replace(/\D/g, '');
+
+            if (value.length > 4) value = value.slice(0, 4);
+
+            if (value.length > 2) {
+                input.value = value.slice(0, 2) + ':' + value.slice(2);
+            } else {
+                input.value = value;
+            }
+
+            // Simple cursor adjustment
+            if (input.value.length > oldLen && cursor === 3) cursor++;
+            input.setSelectionRange(cursor, cursor);
+        });
+    }
+
     setupPagination((delta) => {
         state.currentWeekOffset += delta;
         renderGridStructure();
