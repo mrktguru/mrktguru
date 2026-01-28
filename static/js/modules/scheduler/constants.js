@@ -7,6 +7,9 @@ export const CONFIG = {
     get GRID_HEIGHT() { return this.TOTAL_MINUTES * this.PIXELS_PER_MINUTE; }
 };
 
+export const DAYS_PER_VIEW = CONFIG.DAYS_PER_VIEW;
+export const SLOT_HEIGHT = CONFIG.SLOT_HEIGHT;
+
 export const COLORS = {
     'bio': '#e3f2fd', 'username': '#e3f2fd', 'photo': '#e3f2fd',
     'import_contacts': '#fff3cd', 'subscribe': '#d1e7dd', 'visit': '#d1e7dd',

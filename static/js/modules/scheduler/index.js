@@ -38,10 +38,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const currentMonday = getMonday(now);
     const creationMonday = getMonday(state.accountCreatedAtDate);
     const diffTime = currentMonday.getTime() - creationMonday.getTime();
-    state.currentWeekOffset = Math.floor(diffTime / (1000 * 60 * 60 * 24 * 7));
+    state.currentWeekOffset = Math.round(diffTime / (1000 * 60 * 60 * 24 * 7));
 
     // 4. Init Modal
-    state.configModal = new bootstrap.Modal(document.getElementById('nodeConfigModal'));
+    const modalEl = document.getElementById('nodeConfigModal');
+    if (modalEl && typeof bootstrap !== 'undefined') {
+        state.configModal = new bootstrap.Modal(modalEl);
+    }
 
     // 5. Setup Controls
     setupPagination((delta) => {
