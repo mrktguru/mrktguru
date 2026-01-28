@@ -24,6 +24,15 @@ class BaseNodeExecutor:
         
     def log(self, level, message, action=None):
         """Wrapper for WarmupLog"""
+        # Echo to standard python logger for visibility in celery/terminal
+        log_msg = f"[{self.account_id}] {message}"
+        if level == 'error' or level == 'critical':
+            logger.error(log_msg)
+        elif level == 'warning':
+            logger.warning(log_msg)
+        else:
+            logger.info(log_msg)
+            
         WarmupLog.log(self.account_id, level, message, action=action)
         
     def get_config(self, key, default=None):
