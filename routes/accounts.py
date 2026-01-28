@@ -29,7 +29,8 @@ from modules.accounts.services import (
     DeviceProfileService,
     DeviceConfig,
     ActivityService,
-    ActivityLogQuery
+    ActivityLogQuery,
+    WarmupService
 )
 from modules.accounts.exceptions import (
     AccountNotFoundError,
@@ -382,119 +383,7 @@ def update_profile(account_id):
     
     return redirect(url_for('accounts.detail', account_id=account_id))
 
-
-# ==================== WARMUP SETTINGS ROUTES ====================
-
-# WARMUP DISABLED: @accounts_bp.route("/<int:account_id>/warmup")
-# WARMUP DISABLED: @login_required
-# WARMUP DISABLED: def warmup_settings(account_id):
-# WARMUP DISABLED:     """View warmup settings for account"""
-# WARMUP DISABLED:     from models.warmup import ConversationPair, WarmupActivity, WarmupChannelTheme
-# WARMUP DISABLED:     from models.account import AccountSubscription
-# WARMUP DISABLED:     
-# WARMUP DISABLED:     account = Account.query.get_or_404(account_id)
-# WARMUP DISABLED:     
-# WARMUP DISABLED:     # Get subscriptions (these are used for warmup reading)
-# WARMUP DISABLED:     warmup_channels = AccountSubscription.query.filter_by(
-# WARMUP DISABLED:         account_id=account_id,
-# WARMUP DISABLED:         is_active=True
-# WARMUP DISABLED:     ).all()
-# WARMUP DISABLED:     
-# WARMUP DISABLED:     # Get conversation pairs
-# WARMUP DISABLED:     pairs = ConversationPair.query.filter(
-# WARMUP DISABLED:         db.or_(
-# WARMUP DISABLED:             ConversationPair.account_a_id == account_id,
-# WARMUP DISABLED:             ConversationPair.account_b_id == account_id
-# WARMUP DISABLED:         )
-# WARMUP DISABLED:     ).all()
-# WARMUP DISABLED:     
-# WARMUP DISABLED:     # Get partner accounts for each pair
-# WARMUP DISABLED:     conversation_partners = []
-# WARMUP DISABLED:     for pair in pairs:
-# WARMUP DISABLED:         partner_id = pair.account_b_id if pair.account_a_id == account_id else pair.account_a_id
-# WARMUP DISABLED:         partner = Account.query.get(partner_id)
-# WARMUP DISABLED:         if partner:
-# WARMUP DISABLED:             conversation_partners.append({
-# WARMUP DISABLED:                 "pair_id": pair.id,
-# WARMUP DISABLED:                 "partner": partner,
-# WARMUP DISABLED:                 "last_conversation": pair.last_conversation_at,
-# WARMUP DISABLED:                 "conversation_count": pair.conversation_count
-# WARMUP DISABLED:             })
-# WARMUP DISABLED:     
-# WARMUP DISABLED:     # Get recent warmup activities
-# WARMUP DISABLED:     recent_activities = WarmupActivity.query.filter_by(
-# WARMUP DISABLED:         account_id=account_id
-# WARMUP DISABLED:     ).order_by(WarmupActivity.timestamp.desc()).limit(20).all()
-# WARMUP DISABLED:     
-# WARMUP DISABLED:     # Get available themes
-# WARMUP DISABLED:     themes = WarmupChannelTheme.query.all()
-# WARMUP DISABLED:     
-# WARMUP DISABLED:     # Get other accounts for pairing
-# WARMUP DISABLED:     other_accounts = Account.query.filter(
-# WARMUP DISABLED:         Account.id != account_id,
-# WARMUP DISABLED:         Account.status.in_(['warming_up', 'active'])
-# WARMUP DISABLED:     ).all()
-# WARMUP DISABLED:     
-# WARMUP DISABLED:     return render_template(
-# WARMUP DISABLED:         "accounts/warmup_settings.html",
-# WARMUP DISABLED:         account=account,
-# WARMUP DISABLED:         warmup_channels=warmup_channels,
-# WARMUP DISABLED:         conversation_partners=conversation_partners,
-# WARMUP DISABLED:         recent_activities=recent_activities,
-# WARMUP DISABLED:         themes=themes,
-# WARMUP DISABLED:         other_accounts=other_accounts
-# WARMUP DISABLED:     )
-
-
-# DEPRECATED: Moved to warmup_routes.py
-# @accounts_bp.route("/<int:account_id>/warmup/add-channel", methods=["POST"])
-# @login_required
-# def add_warmup_channel(account_id):
-#     """Add a channel for warmup reading"""
-#     from models.warmup import AccountWarmupChannel
-#     
-#     account = Account.query.get_or_404(account_id)
-#     channel_username = request.form.get("channel_username", "").strip().lstrip("@")
-#     
-#     if not channel_username:
-#         flash("Channel username is required", "error")
-#         return redirect(url_for("accounts.warmup_settings", account_id=account_id))
-#     
-#     # Check if already exists
-#     existing = AccountWarmupChannel.query.filter_by(
-#         account_id=account_id,
-#         channel_username=channel_username
-#     ).first()
-#     
-#     if existing:
-#         flash(f"Channel @{channel_username} already added", "warning")
-#         return redirect(url_for("accounts.warmup_settings", account_id=account_id))
-#     
-#     # Add channel
-#     warmup_channel = AccountWarmupChannel(
-#         account_id=account_id,
-#         channel_username=channel_username,
-#         source="manual"
-#     )
-#     db.session.add(warmup_channel)
-#     db.session.commit()
-#     
-#     flash(f"Added @{channel_username} for warmup reading", "success")
-#     return redirect(url_for("accounts.warmup_settings", account_id=account_id))
-
-
-
-# Warmup theme route removed
-
-
-# Warmup remove channel route removed
-
-
-# Pair routes removed
-
-
-# Warmup control routes removed
-
+# ==================== ACTIVITY LOGS ====================
 
 
 @accounts_bp.route("/<int:account_id>/activity-logs")
@@ -599,27 +488,11 @@ def verify_safe(account_id):
 @accounts_bp.route('/channel_candidates/<int:candidate_id>', methods=['DELETE'])
 @login_required
 def delete_channel_candidate(candidate_id):
-    """Delete a channel candidate from the database"""
-    try:
-        from models.channel_candidate import ChannelCandidate
-        
-        candidate = ChannelCandidate.query.get(candidate_id)
-        
-        if not candidate:
-            return jsonify({'error': 'Channel candidate not found'}), 404
-        
-        channel_title = candidate.title
-        db.session.delete(candidate)
-        db.session.commit()
-        
-        return jsonify({
-            'success': True,
-            'message': f'Channel "{channel_title}" deleted successfully'
-        })
-        
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'error': str(e)}), 500
+    """Delete a channel candidate"""
+    if WarmupService.delete_candidate(candidate_id):
+        return jsonify({'success': True, 'message': 'Channel candidate deleted successfully'})
+    else:
+        return jsonify({'error': 'Channel candidate not found'}), 404
 
 
 # Human-Like Check Route
@@ -801,113 +674,39 @@ def update_device(account_id):
 @login_required
 def search_channels(account_id):
     """Search discovered channels (candidates)"""
-    try:
-        from models.channel_candidate import ChannelCandidate
-        
-        query = request.json.get('query', '').strip()
-        
-        base_query = ChannelCandidate.query.filter(ChannelCandidate.account_id == account_id)
-        
-        if query:
-            # Search by title or username
-            base_query = base_query.filter(
-                (ChannelCandidate.title.ilike(f"%{query}%")) | 
-                (ChannelCandidate.username.ilike(f"%{query}%"))
-            )
-            
-        candidates = base_query.order_by(ChannelCandidate.last_visit_ts.desc()).limit(50).all()
-        
-        results = [c.to_dict() for c in candidates]
-        return jsonify({'success': True, 'results': results})
-        
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
+    query = request.json.get('query', '').strip()
+    result = WarmupService.search_candidates(account_id, query)
+    
+    if result.success:
+        return jsonify({'success': True, 'results': result.results})
+    else:
+        return jsonify({'success': False, 'error': result.error})
 
 
 @accounts_bp.route("/<int:account_id>/warmup/add-channel", methods=["POST"])
 @login_required
 def add_channel_to_warmup(account_id):
     """Add a channel candidate to the warmup schedule"""
-    try:
-        from models.warmup_schedule import WarmupSchedule
-        from models.warmup_schedule_node import WarmupScheduleNode
-        from models.channel_candidate import ChannelCandidate
-        from datetime import datetime, timedelta
-        
-        data = request.json
-        channel_id = data.get('channel_id')
-        action = data.get('action', 'view_only') # view_only or subscribe
-        read_count = data.get('read_count', 5)
-        
-        # Verify candidate exists
-        candidate = ChannelCandidate.query.get(channel_id)
-        if not candidate or candidate.account_id != account_id:
-            return jsonify({'success': False, 'error': 'Channel candidate not found'})
-            
-        # Get or Create active schedule
-        schedule = WarmupSchedule.query.filter_by(account_id=account_id).first()
-        if not schedule:
-            # Create default schedule
-            schedule = WarmupSchedule(
-                account_id=account_id,
-                name=f"Default Schedule",
-                status='active',
-                start_date=datetime.now().date()
-            )
-            db.session.add(schedule)
-            db.session.commit()
-            
-        # Determine node type
-        node_type = 'subscribe' if action == 'subscribe' else 'visit'
-        
-        # Create Node (Pending)
-        # We set it for TODAY, NOW
-        
-        # Quick fix: Calculate current relative day
-        account = Account.query.get(account_id)
-        days_active = (datetime.now().date() - account.created_at.date()).days + 1
-        days_active = max(1, days_active)
-        
-        # Execution time: Now + 1 min
-        exec_time = (datetime.now() + timedelta(minutes=1)).strftime("%H:%M")
-        
-        node = WarmupScheduleNode(
-            schedule_id=schedule.id,
-            day_number=days_active,
-            execution_time=exec_time,
-            node_type=node_type,
-            status='pending',
-            config={
-                'target': f"@{candidate.username}" if candidate.username else f"https://t.me/c/{candidate.peer_id}", # Target identifier
-                'username': candidate.username,
-                'peer_id': candidate.peer_id,
-                'access_hash': candidate.access_hash,
-                'read_count': read_count, 
-                'origin': 'discovered_ui'
-            }
-        )
-        
-        db.session.add(node)
-        db.session.commit()
-        
-        return jsonify({'success': True, 'node_id': node.id})
+    data = request.json
+    result = WarmupService.schedule_channel_visit(
+        account_id=account_id,
+        channel_id=data.get('channel_id'),
+        action=data.get('action', 'view_only'),
+        read_count=data.get('read_count', 5)
+    )
+    
+    if result.success:
+        return jsonify({'success': True, 'node_id': result.node_id})
+    else:
+        return jsonify({'success': False, 'error': result.error})
 
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
 
 
 @accounts_bp.route("/<int:account_id>/warmup/execute-channels", methods=["POST"])
 @login_required
 def execute_channels_now(account_id):
     """Trigger execution of pending channel nodes"""
-    try:
-        # Trigger the worker check immediately
-        from workers.scheduler_worker import check_warmup_schedules
-        
-        # Asynchronously trigger the global check
-        check_warmup_schedules.delay()
-        
+    if WarmupService.trigger_execution():
         return jsonify({'success': True, 'message': 'Execution triggered'})
-        
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
+    else:
+        return jsonify({'success': False, 'error': 'Failed to trigger'})

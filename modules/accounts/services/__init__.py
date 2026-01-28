@@ -15,6 +15,7 @@ from .profile import ProfileService
 from .subscription import SubscriptionService
 from .device import DeviceProfileService, DeviceConfig
 from .activity import ActivityService, ActivityLogQuery
+from .warmup import WarmupService
 
 __all__ = [
     'MetadataService',
@@ -29,7 +30,9 @@ __all__ = [
     'DeviceConfig',
     'ActivityService',
     'ActivityLogQuery',
+    'WarmupService',
 ]
+
 
 
 
