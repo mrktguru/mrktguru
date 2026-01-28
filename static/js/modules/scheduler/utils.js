@@ -2,9 +2,12 @@ import { COLORS } from './constants.js';
 
 export function getMonday(d) {
     d = new Date(d);
+    d.setHours(0, 0, 0, 0); // Always standardize to midnight
     const day = d.getDay();
-    const diff = d.getDate() - day + (day === 0 ? -6 : 1); // adjust when day is sunday
-    return new Date(d.setDate(diff));
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+    const mon = new Date(d.setDate(diff));
+    mon.setHours(0, 0, 0, 0);
+    return mon;
 }
 
 export function getNodeLabel(type) {

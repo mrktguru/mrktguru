@@ -12,6 +12,7 @@ export function renderNodes() {
     const baseMonday = getMonday(accountCreatedAtDate);
     const viewStartMonday = new Date(baseMonday);
     viewStartMonday.setDate(baseMonday.getDate() + (currentWeekOffset * 7));
+    viewStartMonday.setHours(0, 0, 0, 0);
 
     const clusters = {};
 
@@ -28,6 +29,8 @@ export function renderNodes() {
         if (colIndex >= 0 && colIndex < DAYS_PER_VIEW) {
             const timeStr = node.execution_time || '00:00';
             const key = `${colIndex}_${timeStr}`;
+
+            console.log(`[Scheduler] Node ${node.id} cluster: dayIndex=${colIndex}, time=${timeStr}`);
 
             if (!clusters[key]) {
                 clusters[key] = {
