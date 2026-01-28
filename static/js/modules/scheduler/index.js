@@ -24,13 +24,20 @@ document.addEventListener('DOMContentLoaded', () => {
     state.schedulerAccountId = parseInt(state.elements.container.dataset.accountId);
 
     // 2. Dates
-    if (state.elements.container.dataset.createdAt) {
-        state.accountCreatedAtDate = new Date(state.elements.container.dataset.createdAt);
-        state.accountCreatedAtDate.setHours(0, 0, 0, 0);
+    // Prioritize schedule start date if available, fall back to account creation
+    const startDateRaw = state.elements.container.dataset.startDate;
+    const createdAtRaw = state.elements.container.dataset.createdAt;
+
+    if (startDateRaw) {
+        state.accountCreatedAtDate = new Date(startDateRaw);
+        console.log("[Scheduler] Using schedule start date as anchor:", startDateRaw);
+    } else if (createdAtRaw) {
+        state.accountCreatedAtDate = new Date(createdAtRaw);
+        console.log("[Scheduler] Using account creation date as anchor:", createdAtRaw);
     } else {
         state.accountCreatedAtDate = new Date();
-        state.accountCreatedAtDate.setHours(0, 0, 0, 0);
     }
+    state.accountCreatedAtDate.setHours(0, 0, 0, 0);
 
     // 3. Calc Offset (Show Current Week)
     const now = new Date();
