@@ -1,17 +1,11 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 from utils.decorators import login_required
-from models.account import Account, DeviceProfile, AccountSubscription
-from models.tdata_metadata import TDataMetadata
+from models.account import Account
 from models.proxy import Proxy
-from models.proxy_network import ProxyNetwork
+from models.account_session import AccountSession
 from database import db
-from utils.device_emulator import generate_device_profile
-from utils.telethon_helper import verify_session
-from utils.proxy_manager import assign_dynamic_port, release_dynamic_port
-import os
-from werkzeug.utils import secure_filename
-import asyncio
-import random
+from utils.debug_logger import debug_log
+from routes.tdata_routes import upload_tdata, configure_tdata, add_tdata_api_to_manager
 
 import nest_asyncio
 nest_asyncio.apply()
@@ -66,7 +60,6 @@ def list_accounts():
 @login_required
 def upload():
     """Upload and validate session files with safety checks"""
-    from models.proxy import Proxy
     
     if request.method == "POST":
         files = request.files.getlist("session_files")
@@ -115,8 +108,6 @@ def upload():
 @login_required
 def detail(account_id):
     """Account details"""
-    from models.account_session import AccountSession
-    from utils.debug_logger import debug_log
     
     try:
         # Use CrudService for business logic
@@ -419,8 +410,7 @@ def activity_logs(account_id):
 
 
 # ==================== TDATA ROUTES ====================
-# Import TData-specific routes
-from routes.tdata_routes import upload_tdata, configure_tdata, add_tdata_api_to_manager
+
 
 # Register TData routes
 accounts_bp.add_url_rule('/upload-tdata', view_func=upload_tdata, methods=['GET', 'POST'])
