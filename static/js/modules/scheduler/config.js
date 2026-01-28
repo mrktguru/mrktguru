@@ -1,0 +1,223 @@
+import { state } from './state.js';
+import { saveSchedule } from './scheduler_service.js';
+import { renderNodes } from './ui/nodes.js';
+import { API } from './api.js';
+
+export function openNodeConfig(node) {
+    state.currentNode = node;
+    const form = document.getElementById('nodeConfigForm');
+    form.reset();
+
+    const isReadOnly = (node.status === 'completed' || node.status === 'success' || node.is_ghost);
+
+    const saveBtn = document.getElementById('saveNodeConfigBtn');
+    const runBtn = document.getElementById('runNodeNowBtn');
+
+    if (isReadOnly) {
+        saveBtn.style.display = 'none';
+        runBtn.style.display = 'none';
+        document.querySelector('.modal-title').innerText = 'Node Details (History)';
+    } else {
+        saveBtn.style.display = 'inline-block';
+        runBtn.style.display = 'inline-block';
+        document.querySelector('.modal-title').innerText = 'Configure Node';
+    }
+
+    const timeInput = form.elements['execution_time'];
+    const randomCheck = form.elements['is_random_time'];
+
+    if (timeInput) timeInput.disabled = isReadOnly;
+    if (randomCheck) randomCheck.disabled = isReadOnly;
+
+    if (timeInput && randomCheck && !isReadOnly) {
+        if (node.is_random_time) {
+            randomCheck.checked = true;
+            timeInput.disabled = true;
+            timeInput.value = '';
+        } else {
+            randomCheck.checked = false;
+            timeInput.disabled = false;
+            timeInput.value = node.execution_time || '';
+        }
+    } else if (timeInput && isReadOnly) {
+        timeInput.value = node.execution_time || '';
+        if (randomCheck) randomCheck.checked = !!node.is_random_time;
+    }
+
+    renderDynamicFields(node.node_type, node.config);
+
+    if (isReadOnly) {
+        const dynamicContainer = document.getElementById('dynamicFields');
+        dynamicContainer.querySelectorAll('input, select, textarea').forEach(el => el.disabled = true);
+    }
+
+    state.configModal.show();
+}
+
+export async function saveConfig() {
+    if (state.currentNode) {
+        applyFormToNode();
+        state.configModal.hide();
+        renderNodes();
+        await saveSchedule(true);
+    }
+}
+
+export async function runNodeNow() {
+    if (!state.currentNode) return;
+    const node = state.currentNode;
+
+    applyFormToNode();
+
+    const now = new Date();
+    const startOfDay = new Date(now);
+    startOfDay.setHours(0, 0, 0, 0);
+
+    if (state.accountCreatedAtDate) {
+        const diffTime = startOfDay.getTime() - state.accountCreatedAtDate.getTime();
+        const dayIndex = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+        node.day_number = Math.max(1, dayIndex);
+    }
+
+    const hh = String(now.getHours()).padStart(2, '0');
+    const mm = String(now.getMinutes()).padStart(2, '0');
+    node.execution_time = `${hh}:${mm}`;
+    node.is_random_time = false;
+
+    renderNodes();
+    await saveSchedule(true);
+
+    if (!node.id) {
+        alert("Could not save node to database. Cannot run.");
+        return;
+    }
+
+    if (!confirm(`Run this node immediately? (Node moved to Today at ${node.execution_time})`)) return;
+
+    try {
+        const res = await fetch(`/scheduler/accounts/${state.schedulerAccountId}/run_node`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ node_id: node.id })
+        });
+        const data = await res.json();
+
+        if (res.ok) {
+            console.log("Started! Task ID: " + data.task_id);
+            state.configModal.hide();
+            window.location.reload();
+        } else {
+            alert("Error: " + data.error);
+        }
+    } catch (e) {
+        console.error(e);
+        alert("Network error running node");
+    }
+}
+
+function applyFormToNode() {
+    if (!state.currentNode) return;
+    const form = document.getElementById('nodeConfigForm');
+    const formData = new FormData(form);
+    const node = state.currentNode;
+
+    node.is_random_time = formData.has('is_random_time');
+    node.execution_time = formData.get('execution_time');
+    node.config = node.config || {};
+
+    const dynamicContainer = document.getElementById('dynamicFields');
+    const inputs = dynamicContainer.querySelectorAll('input, select, textarea');
+
+    inputs.forEach(input => {
+        const name = input.name;
+        if (!name) return;
+
+        if (input.type === 'checkbox') {
+            node.config[name] = input.checked;
+        } else if (input.type === 'number') {
+            if (input.value === '') node.config[name] = null;
+            else node.config[name] = parseFloat(input.value);
+        } else {
+            node.config[name] = input.value;
+        }
+    });
+
+    if (node.status === 'draft') {
+        node.status = 'pending';
+    }
+}
+
+function renderDynamicFields(type, config) {
+    const container = document.getElementById('dynamicFields');
+    container.innerHTML = '';
+    config = config || {};
+    let html = '';
+
+    if (type === 'passive_activity') {
+        html += `
+            <div class="alert alert-warning small mb-3">
+                <strong>🧘 Passive Activity:</strong> Simulates human behavior.
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Total Duration (minutes)</label>
+                <input type="number" class="form-control" name="duration_minutes" value="${config.duration_minutes || 60}">
+            </div>
+            <div class="form-check mb-3">
+                <input class="form-check-input" type="checkbox" name="enable_scroll" ${config.enable_scroll ? 'checked' : ''} id="enableScrollCheck">
+                <label class="form-check-label" for="enableScrollCheck">Enable Random Scrolling?</label>
+            </div>
+            <div id="scrollOptions" class="${config.enable_scroll ? '' : 'd-none'}">
+                    <div class="row mb-2">
+                    <div class="col-md-6"><label>Scroll Count (Min)</label><input type="number" class="form-control" name="scroll_count_min" value="${config.scroll_count_min || 3}"></div>
+                    <div class="col-md-6"><label>Scroll Count (Max)</label><input type="number" class="form-control" name="scroll_count_max" value="${config.scroll_count_max || 6}"></div>
+                    </div>
+                    <div class="row">
+                    <div class="col-md-6"><label>Duration Min (s)</label><input type="number" class="form-control" name="scroll_duration_min" value="${config.scroll_duration_min || 30}"></div>
+                    <div class="col-md-6"><label>Duration Max (s)</label><input type="number" class="form-control" name="scroll_duration_max" value="${config.scroll_duration_max || 120}"></div>
+                    </div>
+            </div>
+        `;
+    }
+    // ... Copy rest of logic essentially ...
+    else if (['send_message', 'import_contacts', 'invite'].includes(type)) {
+        html += `<div class="mb-3"><label>Count</label><input type="number" class="form-control" name="count" value="${config.count || 10}"></div>`;
+    }
+    else if (['subscribe', 'visit'].includes(type)) {
+        html += `<div class="mb-3"><label>Target Channels</label><textarea class="form-control" name="channels" rows="3">${config.channels || ''}</textarea></div>`;
+        html += `<div class="mb-3"><label>Count</label><input type="number" class="form-control" name="count" value="${config.count || 5}"></div>`;
+    }
+    else if (type === 'photo') {
+        html += `<div class="mb-3"><label>Photo</label><input type="file" id="photoInput" class="form-control"><input type="hidden" name="photo_path" value="${config.photo_path || ''}"></div>`;
+    }
+    else if (type === 'bio') {
+        html += `<div class="mb-3"><label class="form-label">Bio Text</label><textarea class="form-control" name="bio_text" rows="3" placeholder="About me">${config.bio_text || ''}</textarea></div>`;
+    }
+    else if (type === 'search_filter') {
+        html += `
+            <div class="mb-3"><label class="form-label">Keywords</label><textarea class="form-control" name="keywords" rows="3">${config.keywords || ''}</textarea></div>
+            <div class="mb-3"><label class="form-label">Mixed Source List</label><textarea class="form-control" name="links" rows="4">${config.links || ''}</textarea></div>
+        `;
+    }
+    else if (type === 'username') {
+        html += `<div class="mb-3"><label class="form-label">Set Username</label><div class="input-group"><span class="input-group-text">@</span><input type="text" class="form-control" name="username" value="${config.username || ''}"></div></div>`;
+    }
+    else if (type === 'sync_profile') {
+        html += `<div class="alert alert-info small">Syncs name/bio/photo from Telegram.</div>`;
+    }
+    else if (type === 'set_2fa') {
+        html += `<div class="form-check mb-3"><input class="form-check-input" type="checkbox" name="remove_password" ${config.remove_password ? 'checked' : ''}><label>Remove Password</label></div><div class="mb-3"><label>New Password</label><input type="text" class="form-control" name="password" value="${config.password || ''}"></div>`;
+    }
+    else if (type === 'smart_subscribe') {
+        html += `<div class="mb-3"><label>Target Entity</label><input type="text" class="form-control" name="target_entity" value="${config.target_entity || ''}"></div><div class="mb-3"><label>Random Count</label><input type="number" class="form-control" name="random_count" value="${config.random_count || 3}"></div>`;
+    }
+
+    container.innerHTML = html;
+
+    const scrollCheck = document.getElementById('enableScrollCheck');
+    if (scrollCheck) {
+        scrollCheck.addEventListener('change', (e) => {
+            const opts = document.getElementById('scrollOptions');
+            if (opts) opts.classList.toggle('d-none', !e.target.checked);
+        });
+    }
+}
