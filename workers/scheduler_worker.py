@@ -400,12 +400,11 @@ def execute_scheduled_node(node_id, is_adhoc=False):
             is_locked = redis_client.set(lock_key, "locked", nx=True, ex=1800)
             
             if not is_locked:
-                logger.warning(f"[{account_id}] ⚠️ Account is busy! Skipping overlapping task {node_id}.")
-                node.status = 'failed'
-                node.error_message = "Overlap: Account busy (Lock check failed)"
-                node.executed_at = datetime.now()
-                db.session.commit()
+                logger.warning(f"[{account_id}] ⚠️ Account is busy! Skipping overlapping task {node_id} (Race Condition).")
+                # Do NOT mark as failed. Likely another worker picked it up or just finished.
+                # If we mark failed, we might overwrite the actual running task's status or confuse user.
                 WarmupLog.log(account_id, 'warning', f"Skipped overlap task {node_id}", action='lock_overlap')
+                db.session.rollback() # Rollback status='running' change from this session
                 return
 
             try:
