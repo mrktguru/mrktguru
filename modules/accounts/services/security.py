@@ -54,7 +54,6 @@ class SecurityService:
         except RuntimeError as e:
             # Handle case where loop is already running
             if "already running" in str(e):
-                import asyncio
                 loop = asyncio.get_event_loop()
                 return loop.run_until_complete(coro)
             raise e
