@@ -291,11 +291,12 @@ function renderDynamicFields(type, config) {
             </div>
 
             <div id="sub-manual-fields" class="${mode === 'auto' ? 'd-none' : ''}">
-                <div class="alert alert-warning small">Enter candidate IDs comma separated (e.g. 12, 45). See "Discovered Channels" for IDs.</div>
-                <div class="mb-3">
-                    <label>Candidate IDs</label>
-                    <input type="text" class="form-control" name="candidate_ids" value="${config.candidate_ids || ''}" placeholder="12, 45, 99">
+                <label class="form-label">Select Candidates:</label>
+                <div id="manualRequestList" style="max-height: 250px; overflow-y: auto; border: 1px solid #dee2e6; padding: 10px; border-radius: 4px; background: #fff;">
+                     <div class="text-center text-muted p-2"><span class="spinner-border spinner-border-sm"></span> Loading candidates...</div>
                 </div>
+                <!-- Hidden Input to store comma-separated IDs -->
+                <input type="text" class="d-none" name="candidate_ids" id="hidden_candidate_ids" value="${config.candidate_ids || ''}">
             </div>
 
             <hr>
@@ -306,23 +307,96 @@ function renderDynamicFields(type, config) {
             </div>
             <div class="row g-2 mb-3">
                  <div class="col-6">
-                    <label>Delay Min (s)</label>
+                    <label>Cooldown Min (sec)</label>
                     <input type="number" class="form-control" name="delay_min" value="${config.delay_min || 180}">
                  </div>
                  <div class="col-6">
-                    <label>Delay Max (s)</label>
+                    <label>Cooldown Max (sec)</label>
                     <input type="number" class="form-control" name="delay_max" value="${config.delay_max || 600}">
                  </div>
             </div>
         `;
 
+        // Define Window Helpers if not exists
         if (!window.toggleSubscribeMode) {
             window.toggleSubscribeMode = (val) => {
                 const auto = document.getElementById('sub-auto-fields');
                 const man = document.getElementById('sub-manual-fields');
                 if (auto) auto.classList.toggle('d-none', val !== 'auto');
                 if (man) man.classList.toggle('d-none', val !== 'manual');
+
+                if (val === 'manual') {
+                    if (window.loadManualCandidates) window.loadManualCandidates();
+                }
             }
+        }
+
+        // Define Loader Function
+        // Redefine inside closure to capture 'state'
+        window.loadManualCandidates = async () => {
+            const list = document.getElementById('manualRequestList');
+            if (!list) return;
+            if (list.dataset.loaded === 'true') return;
+
+            const accountId = state.schedulerAccountId;
+            if (!accountId) {
+                list.innerHTML = '<div class="text-danger">Account ID missing</div>';
+                return;
+            }
+
+            try {
+                const res = await fetch(`/accounts/${accountId}/discovered-channels?per_page=100`);
+                const data = await res.json();
+
+                if (data.success) {
+                    list.innerHTML = '';
+                    const input = document.getElementById('hidden_candidate_ids');
+                    const existingIds = (input ? input.value : '').split(',').map(s => s.trim());
+
+                    if (data.channels.length === 0) {
+                        list.innerHTML = '<div class="text-muted small text-center">No discovered channels found. Run "Search & Filter" first.</div>';
+                        return;
+                    }
+
+                    data.channels.forEach(ch => {
+                        if (ch.status === 'SUBSCRIBED' || ch.status === 'BANNED' || ch.status === 'JOINED') return;
+
+                        const div = document.createElement('div');
+                        div.className = 'form-check';
+                        // Safe strings
+                        const label = (ch.title || ch.username || `ID: ${ch.peer_id}`).replace(/</g, "&lt;");
+                        const subText = ch.participants_count ? `${ch.participants_count.toLocaleString()} subs` : '';
+                        const info = subText ? `<small class="text-muted ms-1">(${subText})</small>` : '';
+
+                        const checked = existingIds.includes(String(ch.id)) ? 'checked' : '';
+
+                        div.innerHTML = `
+                            <input class="form-check-input candidate-check" type="checkbox" value="${ch.id}" id="chk_${ch.id}" ${checked} onchange="window.updateCandidateIds()">
+                            <label class="form-check-label text-truncate w-100" for="chk_${ch.id}">
+                                ${label} ${info}
+                            </label>
+                         `;
+                        list.appendChild(div);
+                    });
+                    list.dataset.loaded = 'true';
+                } else {
+                    list.innerHTML = `<div class=\"text-danger small\">${data.error}</div>`;
+                }
+            } catch (e) {
+                list.innerHTML = '<div class=\"text-danger small\">Connection error</div>';
+            }
+        };
+
+        window.updateCandidateIds = () => {
+            const checks = document.querySelectorAll('.candidate-check:checked');
+            const ids = Array.from(checks).map(c => c.value).join(',');
+            const input = document.getElementById('hidden_candidate_ids');
+            if (input) input.value = ids;
+        };
+
+        // Trigger load initial if manual
+        if (config.mode === 'manual') {
+            setTimeout(window.loadManualCandidates, 100);
         }
     }
 
