@@ -105,7 +105,6 @@ class PassiveActivityExecutor(BaseNodeExecutor):
                      while datetime.now() < scroll_end:
                          await asyncio.sleep(random.uniform(2.0, 5.0))
                          try:
-                         try:
                              # logger.debug(f"[{self.account_id}] GetDialogsRequest tick...")
                              await asyncio.wait_for(self.client(GetDialogsRequest(
                                  offset_date=None, offset_id=0,
