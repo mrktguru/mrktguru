@@ -62,7 +62,12 @@ class PassiveActivityExecutor(BaseNodeExecutor):
             next_ping_delay = random.randint(15, 40)
             
             logger.info(f"[{self.account_id}] ⚡ UpdateStatusRequest(offline=False) sent")
-            await self.client(UpdateStatusRequest(offline=False))
+            try:
+                await asyncio.wait_for(self.client(UpdateStatusRequest(offline=False)), timeout=20)
+            except asyncio.TimeoutError:
+                logger.warning(f"[{self.account_id}] Initial UpdateStatus timed out")
+            except Exception as e:
+                logger.warning(f"[{self.account_id}] Initial UpdateStatus failed: {e}")
             
             logger.info(f"[{self.account_id}] 🔄 Starting Passive Activity main loop...")
             while True:
@@ -82,27 +87,33 @@ class PassiveActivityExecutor(BaseNodeExecutor):
                 # Ping
                 if (now - last_network_activity).total_seconds() > next_ping_delay:
                     try:
-                        await self.client(UpdateStatusRequest(offline=False))
+                        await asyncio.wait_for(self.client(UpdateStatusRequest(offline=False)), timeout=15)
                         last_network_activity = now
                         next_ping_delay = random.randint(15, 40)
-                    except:
+                    except Exception as e:
+                        # logger.warning(f"Ping failed: {e}")
                         pass
                 
                 if current_scroll:
                      # logger.info(f"[{self.account_id}] 📜 Starting scroll event: {current_scroll['duration']}s")
                      self.log('info', f"👀 Waking up: Scrolling feed for {current_scroll['duration']}s", action='scroll_start')
-                     await self.client(UpdateStatusRequest(offline=False))
+                     try:
+                        await asyncio.wait_for(self.client(UpdateStatusRequest(offline=False)), timeout=15)
+                     except: pass
                      
                      scroll_end = datetime.now() + timedelta(seconds=current_scroll['duration'])
                      while datetime.now() < scroll_end:
                          await asyncio.sleep(random.uniform(2.0, 5.0))
                          try:
+                         try:
                              # logger.debug(f"[{self.account_id}] GetDialogsRequest tick...")
-                             await self.client(GetDialogsRequest(
+                             await asyncio.wait_for(self.client(GetDialogsRequest(
                                  offset_date=None, offset_id=0,
                                  offset_peer=InputPeerEmpty(), limit=10, hash=0
-                             ))
+                             )), timeout=20)
                              last_network_activity = datetime.now()
+                         except asyncio.TimeoutError:
+                             logger.warning(f"[{self.account_id}] GetDialogsRequest timed out")
                          except Exception as e:
                              logger.warning(f"[{self.account_id}] GetDialogsRequest error: {e}")
                              
