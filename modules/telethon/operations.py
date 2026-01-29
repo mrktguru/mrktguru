@@ -15,9 +15,9 @@ from telethon.tl.functions.channels import InviteToChannelRequest, JoinChannelRe
 from telethon.tl.functions.messages import SendReactionRequest, AddChatUserRequest
 from telethon.tl.functions.account import (
     UpdateProfileRequest, UpdateUsernameRequest, UpdatePasswordSettingsRequest,
-    GetPasswordRequest, GetAuthorizationsRequest, ResetAuthorizationRequest,
-    TerminateAllAuthorizationsRequest
+    GetPasswordRequest, GetAuthorizationsRequest, ResetAuthorizationRequest
 )
+from telethon.tl.functions.auth import ResetAuthorizationsRequest as ResetAllSessionsRequest
 from telethon.tl.functions.users import GetFullUserRequest
 from telethon.tl.functions.contacts import SearchRequest
 from telethon.tl.functions.photos import UploadProfilePhotoRequest
@@ -515,13 +515,14 @@ async def terminate_all_sessions(account_id: int, client=None):
             own_client = True
         await ensure_connected(client)
         
-        await client(TerminateAllAuthorizationsRequest())
+        await client(ResetAllSessionsRequest())
         return {"success": True, "error": None}
     except Exception as e:
         return {"success": False, "error": str(e)}
     finally:
         if own_client and client and client.is_connected():
             await client.disconnect()
+
 
 async def remove_2fa_password(account_id: int, current_password: str, client=None):
     own_client = False
