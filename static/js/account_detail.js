@@ -221,235 +221,110 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 
 
-// --- Discovered Channels / Subscriptions Logic ---
+// --- Discovered Channels Logic (Simple View) ---
 
-let selectedChannels = [];
+let currentDiscoveredPage = 1;
 
-// Search Channels
-async function searchChannels() {
-    const query = document.getElementById('channel-search-query').value;
+async function loadDiscoveredChannels(page = 1) {
+    const container = document.getElementById('discovered-channels-container');
+    const pagination = document.getElementById('discovered-pagination');
+    const prevBtn = document.getElementById('prev-page-btn');
+    const nextBtn = document.getElementById('next-page-btn');
+    const pageSpan = document.getElementById('current-page');
 
-    // if (!query) {
-    //    alert('Enter a search query');
-    //    return;
-    // }
-
-    const btn = document.querySelector('button[onclick="searchChannels()"]');
-    const originalText = btn.innerHTML;
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Searching...';
+    // Only show loader if first load or manual refresh
+    if (!container.innerHTML.trim() || page === 1) {
+        container.innerHTML = `
+            <div class="text-center p-3 text-muted">
+                <span class="spinner-border spinner-border-sm"></span> Loading...
+            </div>`;
+    }
 
     try {
-        const response = await fetch(`/accounts/${accountId}/warmup/search-channels`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ query })
-        });
-
+        const response = await fetch(`/accounts/${accountId}/discovered-channels?page=${page}&per_page=10`);
         const result = await response.json();
 
         if (result.success) {
-            displaySearchResults(result.results);
+            currentDiscoveredPage = page;
+            renderDiscoveredChannels(result.channels);
+
+            // Setup Pagination
+            if (result.total > 10) {
+                pagination.style.display = 'flex';
+                pagination.style.setProperty('display', 'flex', 'important'); // Force override
+                pageSpan.innerText = page;
+
+                prevBtn.disabled = page <= 1;
+                prevBtn.onclick = () => loadDiscoveredChannels(page - 1);
+
+                nextBtn.disabled = !result.has_more;
+                nextBtn.onclick = () => loadDiscoveredChannels(page + 1);
+            } else {
+                pagination.style.display = 'none';
+            }
         } else {
-            alert('❌ Error: ' + result.error);
+            container.innerHTML = `<div class="p-3 text-danger text-center">Failed to load channels</div>`;
         }
     } catch (e) {
-        alert('❌ Connection Error: ' + e.message);
-    } finally {
-        btn.disabled = false;
-        btn.innerHTML = originalText;
+        console.error(e);
+        container.innerHTML = `<div class="p-3 text-danger text-center">Connection error</div>`;
     }
 }
 
-function loadAllChannels() {
-    document.getElementById('channel-search-query').value = '';
-    searchChannels();
-}
-
-
-
-// Display Search Results
-function displaySearchResults(results) {
-    const container = document.getElementById('results-list');
+function renderDiscoveredChannels(channels) {
+    const container = document.getElementById('discovered-channels-container');
     container.innerHTML = '';
 
-    if (!results || results.length === 0) {
-        container.innerHTML = '<div class="list-group-item text-muted">No channels found</div>';
-        document.getElementById('search-results').style.display = 'block';
+    if (!channels || channels.length === 0) {
+        container.innerHTML = '<div class="p-3 text-muted text-center">No channels discovered yet. Run "Search & Filter" node.</div>';
         return;
     }
 
-    results.forEach(channel => {
+    channels.forEach(channel => {
         const item = document.createElement('div');
-        item.className = 'list-group-item d-flex justify-content-between align-items-center';
-        // Check if already selected to disable button
-        const isSelected = selectedChannels.some(sc => sc.username === channel.username);
+        item.className = 'list-group-item list-group-item-action d-flex justify-content-between align-items-center';
+
+        // Correctly handle missing/null titles
+        const safeTitle = channel.title ? channel.title : (channel.username ? channel.username : 'Unknown');
+        const safeUsername = channel.username ? `@${channel.username}` : `ID: ${channel.peer_id}`;
+
+        let icon = channel.type === 'CHANNEL' ? '📢' : '👥';
+        let visitTime = channel.last_visit_ts ? new Date(channel.last_visit_ts + 'Z').toLocaleString() : 'N/A'; // +Z assumes UTC from server
+
+        // Link logic
+        let linkHTML = '';
+        if (channel.username) {
+            linkHTML = `<a href="https://t.me/${channel.username}" target="_blank" class="fw-bold text-decoration-none">${safeTitle}</a>`;
+        } else {
+            linkHTML = `<span class="fw-bold">${safeTitle}</span>`;
+        }
 
         item.innerHTML = `
-        <div>
-            <strong>@${channel.username}</strong>
-            <br><small>${channel.title} • ${channel.participants_count.toLocaleString()} members</small>
-        </div>
-        <div class="d-flex gap-2">
-            <button class="btn btn-sm btn-outline-primary" 
-                onclick='addChannel(${JSON.stringify(channel)}, "view_only")' ${isSelected ? 'disabled' : ''}>
-                Visit
-            </button>
-            <button class="btn btn-sm btn-primary" 
-                onclick='addChannel(${JSON.stringify(channel)}, "subscribe")' ${isSelected ? 'disabled' : ''}>
-                Subscribe
-            </button>
-        </div>
-    `;
-        container.appendChild(item);
-    });
-
-    document.getElementById('search-results').style.display = 'block';
-}
-
-// Add Channel
-function addChannel(channel, action = 'view_only') {
-    channel.initialAction = action;
-    // Avoid duplicates
-    if (!selectedChannels.some(sc => sc.username === channel.username)) {
-        selectedChannels.push(channel);
-        updateChannelsList();
-
-        // Disable buttons in search results immediately
-        const buttons = document.querySelectorAll(`button[onclick*='${channel.username}']`);
-        buttons.forEach(b => b.disabled = true);
-    }
-}
-
-// Update Channels List
-function updateChannelsList() {
-    const container = document.getElementById('channels-list');
-    const executeBtn = document.getElementById('execute-channels-btn');
-    container.innerHTML = '';
-
-    if (selectedChannels.length === 0) {
-        container.innerHTML = '<div class="text-muted small">No channels selected</div>';
-        executeBtn.disabled = true;
-        document.getElementById('channel-count').textContent = '0';
-        return;
-    }
-
-    selectedChannels.forEach((channel, index) => {
-        const item = document.createElement('div');
-        item.className = 'card mb-2 bg-light border';
-        item.innerHTML = `
-        <div class="card-body p-2">
-            <div class="d-flex justify-content-between align-items-center">
-                <div class="overflow-hidden me-2">
-                    <div class="fw-bold text-truncate">@${channel.username}</div>
-                    <small class="text-muted text-truncate d-block">${channel.title}</small>
-                </div>
-                <div class="d-flex flex-column align-items-end" style="min-width: 140px;">
-                    <select class="form-select form-select-sm mb-1" id="action-${index}">
-                        <option value="view_only" ${channel.initialAction === 'view_only' ? 'selected' : ''}>Visit (View Only)</option>
-                        <option value="subscribe" ${channel.initialAction === 'subscribe' ? 'selected' : ''}>Subscribe</option>
-                    </select>
-                    <div class="input-group input-group-sm mb-1">
-                        <span class="input-group-text">Reads</span>
-                        <input type="number" class="form-control" id="read-count-${index}" value="5" min="1" max="20" style="max-width: 60px;">
+            <div class="d-flex align-items-center gap-2">
+                <span class="fs-4 text-secondary">${icon}</span>
+                <div>
+                    <div>${linkHTML}</div>
+                    <div class="small text-muted" style="font-size: 0.8rem">
+                        ${safeUsername} | ${channel.participants_count ? channel.participants_count.toLocaleString() + ' subs' : 'N/A'}
                     </div>
-                    <button class="btn btn-sm btn-outline-danger w-100" onclick="removeChannel(${index})">Remove</button>
                 </div>
             </div>
-        </div>
-    `;
+            <div class="text-end">
+                <span class="badge bg-secondary mb-1">${channel.origin || 'UNKNOWN'}</span>
+                <div class="small text-muted" style="font-size: 0.75rem">
+                    <i class="bi bi-clock"></i> ${visitTime}
+                </div>
+            </div>
+        `;
         container.appendChild(item);
     });
-
-    document.getElementById('channel-count').textContent = selectedChannels.length;
-    executeBtn.disabled = false;
 }
 
-// Remove Channel
-function removeChannel(index) {
-    selectedChannels.splice(index, 1);
-    updateChannelsList();
-}
-
-// Execute Channels
-async function executeChannels() {
-    const executeBtn = document.getElementById('execute-channels-btn');
-    const originalText = executeBtn.innerHTML;
-    executeBtn.disabled = true;
-    executeBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Processing...';
-
-    const progressDiv = document.getElementById('progress-channels');
-    progressDiv.style.display = 'block';
-
-    // 1. Add channels to backend
-    for (let i = 0; i < selectedChannels.length; i++) {
-        const channel = selectedChannels[i];
-        const action = document.getElementById(`action-${i}`).value;
-        const readCount = document.getElementById(`read-count-${i}`).value;
-
-        console.log(`Adding channel: ${channel.username}, action: ${action}, read_count: ${readCount}`);
-
-        try {
-            const response = await fetch(`/accounts/${accountId}/warmup/add-channel`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    channel_id: channel.id,
-                    username: channel.username,
-                    title: channel.title,
-                    action: action,
-                    read_count: parseInt(readCount)
-                })
-            });
-
-            const result = await response.json();
-            if (!result.success) {
-                console.error(`Failed to add channel ${channel.username}:`, result.error);
-                alert(`Error adding channel ${channel.username}: ${result.error}`);
-                executeBtn.disabled = false;
-                executeBtn.innerHTML = originalText;
-                return;
-            }
-        } catch (error) {
-            console.error(`Exception adding channel ${channel.username}:`, error);
-            alert(`Failed to add channel ${channel.username}: ${error.message}`);
-            executeBtn.disabled = false;
-            executeBtn.innerHTML = originalText;
-            return;
-        }
+// Initial Load
+document.addEventListener('DOMContentLoaded', () => {
+    // Only trigger if the container exists (detail page)
+    if (document.getElementById('discovered-channels-container')) {
+        loadDiscoveredChannels(1);
     }
-
-    // 2. Execute Batch
-    try {
-        const response = await fetch(`/accounts/${accountId}/warmup/execute-channels`, {
-            method: 'POST'
-        });
-
-        const result = await response.json();
-
-        if (result.success) {
-            alert('✅ Batch execution started! Check Activity Logs for progress.');
-            selectedChannels = [];
-            updateChannelsList();
-            document.getElementById('search-results').style.display = 'none';
-            document.getElementById('channel-search-query').value = '';
-        } else {
-            alert('❌ Failed to start: ' + result.error);
-        }
-    } catch (e) {
-        alert('❌ Connection Error: ' + e.message);
-    } finally {
-        executeBtn.disabled = false;
-        executeBtn.innerHTML = originalText;
-        progressDiv.style.display = 'none';
-        // Reload logs if possible, or reload page
-        if (typeof loadLogs === 'function') {
-            // If we had the logs loader on this page, but we probably don't have the full poller here.
-            // Just reload to be safe and simple for the user to see new state
-            setTimeout(() => location.reload(), 2000);
-        } else {
-            setTimeout(() => location.reload(), 2000);
-        }
-    }
-}
+});
 

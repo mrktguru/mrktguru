@@ -657,7 +657,35 @@ def update_device(account_id):
 
 
 # -------------------------------------------------------------------------
-# DISCOVERED CHANNELS ROUTES (Warmup V2)
+# DISCOVERED CHANNELS ROUTES
+# -------------------------------------------------------------------------
+
+@accounts_bp.route("/<int:account_id>/discovered-channels", methods=["GET"])
+@login_required
+def get_discovered_channels(account_id):
+    """Get all channels discovered by Search Filter node"""
+    from models.channel_candidate import ChannelCandidate
+    
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 20, type=int)
+    
+    query = ChannelCandidate.query.filter_by(account_id=account_id)\
+        .order_by(ChannelCandidate.last_visit_ts.desc())
+    
+    total = query.count()
+    channels = query.offset((page - 1) * per_page).limit(per_page).all()
+    
+    return jsonify({
+        'success': True,
+        'channels': [c.to_dict() for c in channels],
+        'total': total,
+        'page': page,
+        'per_page': per_page,
+        'has_more': total > page * per_page
+    })
+
+# -------------------------------------------------------------------------
+# LEGACY WARMUP ROUTES (To be removed)
 # -------------------------------------------------------------------------
 
 @accounts_bp.route("/<int:account_id>/warmup/search-channels", methods=["POST"])
