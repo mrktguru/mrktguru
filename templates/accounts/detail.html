@@ -44,12 +44,12 @@
                     </dd>
 
                     <dt class="col-sm-5">Created:</dt>
-                    <dd class="col-sm-7">{{ account.created_at.strftime('%Y-%m-%d') }}</dd>
+                    <dd class="col-sm-7">{{ account.created_at.strftime('%d-%m-%Y') }}</dd>
 
                     <dt class="col-sm-5">Last Activity:</dt>
                     <dd class="col-sm-7">
                         {% if account.last_activity %}
-                        {{ account.last_activity.strftime('%Y-%m-%d %H:%M') }}
+                        {{ account.last_activity.strftime('%H:%M %d-%m-%Y') }}
                         {% else %}
                         <span class="text-muted">Never</span>
                         {% endif %}
@@ -58,7 +58,7 @@
                     <dt class="col-sm-5">Cooldown Until:</dt>
                     <dd class="col-sm-7">
                         {% if account.cooldown_until %}
-                        {{ account.cooldown_until.strftime('%Y-%m-%d %H:%M') }}
+                        {{ account.cooldown_until.strftime('%H:%M %d-%m-%Y') }}
                         {% else %}
                         <span class="text-muted">-</span>
                         {% endif %}

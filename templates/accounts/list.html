@@ -176,7 +176,7 @@
                     <td>{{ account.days_age }} days</td>
                     <td>
                         {% if account.last_activity %}
-                        <small>{{ account.last_activity.strftime('%Y-%m-%d %H:%M') }}</small>
+                        <small>{{ account.last_activity.strftime('%H:%M %d-%m-%Y') }}</small>
                         {% else %}
                         <span class="text-muted">Never</span>
                         {% endif %}
