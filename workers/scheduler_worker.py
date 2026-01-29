@@ -322,7 +322,9 @@ def should_execute_now(node, current_time):
             # Log specific check details for debugging
             logger.info(f"Node {node.id} Check: Target={target_hour:02d}:{target_min:02d} ({target_total}m), Now={current_hour:02d}:{current_minute:02d} ({current_total}m), Diff={diff}")
             
-            if -1 <= diff <= 30: # Widened window to 30 mins to be safe
+            # Execute if time has arrived (diff >= -1).
+            # Remove upper bound to allow "Supernode" (sequential) catch-up regardless of delay.
+            if diff >= -1:
                  return True
                  
             return False
@@ -335,7 +337,7 @@ def should_execute_now(node, current_time):
             return False
 
 
-def is_node_expired(node, current_time, threshold_minutes=15):
+def is_node_expired(node, current_time, threshold_minutes=1440): # Default 24h (effectively disabled for same day)
     """Check if node execution time is passed by threshold"""
     if not node.execution_time or node.is_random_time:
         return False # Random/Immediate nodes don't expire simple way
