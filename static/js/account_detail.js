@@ -322,6 +322,17 @@ function renderDiscoveredChannels(channels) {
             linkHTML = `<span class="fw-bold">${safeTitle}</span>`;
         }
 
+        // Status Badge Logic
+        let statusBadge = '';
+        const status = channel.status || 'VISITED';
+        if (status === 'SUBSCRIBED' || status === 'JOINED') {
+            statusBadge = `<span class="badge bg-success me-1">${status}</span>`;
+        } else if (status === 'VISITED') {
+            statusBadge = `<span class="badge bg-info text-dark me-1">${status}</span>`;
+        } else {
+            statusBadge = `<span class="badge bg-secondary me-1">${status}</span>`;
+        }
+
         item.innerHTML = `
             <div class="d-flex align-items-center gap-2">
                 <span class="fs-4 text-secondary">${icon}</span>
@@ -334,7 +345,8 @@ function renderDiscoveredChannels(channels) {
             </div>
             <div class="text-end d-flex flex-column align-items-end">
                 <div class="mb-1">
-                     <span class="badge bg-secondary">${channel.origin || 'UNKNOWN'}</span>
+                     ${statusBadge}
+                     <span class="badge bg-light text-dark border">${channel.origin || 'UNKNOWN'}</span>
                      <button class="btn btn-sm text-danger border-0 p-0 ms-2" onclick="deleteDiscoveredChannel(${channel.id}, '${safeUsername}')" title="Remove from list">
                         <i class="bi bi-trash"></i>
                      </button>
