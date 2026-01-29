@@ -89,7 +89,7 @@ class PassiveActivityExecutor(BaseNodeExecutor):
                         pass
                 
                 if current_scroll:
-                     logger.info(f"[{self.account_id}] 📜 Starting scroll event: {current_scroll['duration']}s")
+                     # logger.info(f"[{self.account_id}] 📜 Starting scroll event: {current_scroll['duration']}s")
                      self.log('info', f"👀 Waking up: Scrolling feed for {current_scroll['duration']}s", action='scroll_start')
                      await self.client(UpdateStatusRequest(offline=False))
                      
@@ -106,7 +106,7 @@ class PassiveActivityExecutor(BaseNodeExecutor):
                          except Exception as e:
                              logger.warning(f"[{self.account_id}] GetDialogsRequest error: {e}")
                              
-                     logger.info(f"[{self.account_id}] ✅ Scroll event finished")
+                     # logger.info(f"[{self.account_id}] ✅ Scroll event finished")
                      current_scroll['done'] = True
                      self.log('info', "💤 Scroll finished. Going back to IDLE.", action='scroll_end')
                      last_network_activity = datetime.now()
