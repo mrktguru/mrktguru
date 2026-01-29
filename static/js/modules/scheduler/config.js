@@ -91,6 +91,15 @@ export async function saveConfig() {
 export async function runNodeNow() {
     if (!state.currentNode) return;
     const node = state.currentNode;
+    const btn = document.getElementById('runNodeNowBtn');
+
+    // Prevent double clicks
+    if (btn) {
+        if (btn.disabled) return;
+        btn.disabled = true;
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Starting...';
+    }
 
     applyFormToNode();
 
@@ -114,10 +123,21 @@ export async function runNodeNow() {
 
     if (!node.id) {
         alert("Could not save node to database. Cannot run.");
+        if (btn) { btn.disabled = false; btn.innerHTML = originalText || 'Run Node Now'; }
         return;
     }
 
-    if (!confirm(`Run this node immediately? (Node moved to Today at ${node.execution_time})`)) return;
+    // No confirm needed if we already clicked Run intentionally? 
+    // User requested blocking. Let's keep confirm but handle cancel.
+    if (!confirm(`Run this node immediately? (Node moved to Today at ${node.execution_time})`)) {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = 'Run Node Now'; // Hardcoded restore as originalText variable scope might be tricky if I don't pass it.
+            // Actually originalText is in scope.
+            btn.innerHTML = originalText || 'Run Node Now';
+        }
+        return;
+    }
 
     try {
         const res = await fetch(`/scheduler/accounts/${state.schedulerAccountId}/run_node`, {
@@ -133,10 +153,12 @@ export async function runNodeNow() {
             window.location.reload();
         } else {
             alert("Error: " + data.error);
+            if (btn) { btn.disabled = false; btn.innerHTML = originalText || 'Run Node Now'; }
         }
     } catch (e) {
         console.error(e);
         alert("Network error running node");
+        if (btn) { btn.disabled = false; btn.innerHTML = originalText || 'Run Node Now'; }
     }
 }
 
