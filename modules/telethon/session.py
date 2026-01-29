@@ -32,12 +32,24 @@ class SessionOrchestrator:
         self.last_activity = None
         
         self.monitoring_task = None
-        self.shutdown_event = asyncio.Event()
-        self._execution_lock = asyncio.Lock()
+        self._shutdown_event = None
+        self._execution_lock = None
         
         # State config
         self.IDLE_TIMEOUT = 180  # 3 minutes
         self.MAX_LIFESPAN = 900  # 15 minutes
+
+    @property
+    def shutdown_event(self) -> asyncio.Event:
+        if self._shutdown_event is None:
+            self._shutdown_event = asyncio.Event()
+        return self._shutdown_event
+
+    @property
+    def execution_lock(self) -> asyncio.Lock:
+        if self._execution_lock is None:
+            self._execution_lock = asyncio.Lock()
+        return self._execution_lock
 
     async def start_monitoring(self):
         if not self.monitoring_task or self.monitoring_task.done():
@@ -45,8 +57,9 @@ class SessionOrchestrator:
             self.monitoring_task = asyncio.create_task(self._lifecycle_monitor())
             logger.info(f"[{self.account_id}] 🟢 Session Monitor started")
 
+
     async def execute(self, task_func: Callable, *args, **kwargs) -> Any:
-        async with self._execution_lock:
+        async with self.execution_lock:
             try:
                 await self._ensure_ready_state()
                 self.last_activity = datetime.now()
@@ -137,10 +150,11 @@ class SessionOrchestrator:
             try:
                 if self.state == 'ACTIVE':
                     # Safety: If a task is currently executing, do NOT go IDLE
-                    if self._execution_lock.locked():
+                    if self.execution_lock.locked():
                         self.last_activity = datetime.now() # Heartbeat
                         await asyncio.sleep(10)
                         continue
+
 
                     idle_sec = (datetime.now() - self.last_activity).total_seconds()
                     
