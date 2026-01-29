@@ -3,6 +3,24 @@
 
 // accountId is initialized in the template inline script
 
+// Helper for date formatting: HH:MM DD-MM-YYYY
+function formatDateTime(isoString) {
+    if (!isoString) return 'N/A';
+    // Append Z if missing to force UTC parsing (backend usually sends UTC without Z)
+    if (!isoString.endsWith('Z') && !isoString.includes('+')) isoString += 'Z';
+
+    const d = new Date(isoString);
+    if (isNaN(d.getTime())) return 'Invalid Date';
+
+    const pad = (n) => n.toString().padStart(2, '0');
+
+    // Format: HH:MM DD-MM-YYYY
+    const time = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    const date = `${pad(d.getDate())}-${pad(d.getMonth() + 1)}-${d.getFullYear()}`;
+
+    return `${time} ${date}`;
+}
+
 // Proxy IP refresh functionality
 function refreshProxyIP(proxyId) {
     const btn = document.getElementById('refresh-ip-btn');
@@ -156,7 +174,7 @@ function renderSessions(sessions) {
                 <small class="text-muted">${s.ip}</small>
             </td>
             <td>
-                <small title="Created: ${s.date_created}">${s.date_active.split('T')[0]}</small>
+                <small title="Created: ${formatDateTime(s.date_created)}">${formatDateTime(s.date_active)}</small>
             </td>
             <td>
                 ${isCurrent ?
@@ -290,12 +308,10 @@ function renderDiscoveredChannels(channels) {
 
         let icon = channel.type === 'CHANNEL' ? '📢' : '👥';
 
-        // Date formatting 24h
+        // Date formatting: HH:MM DD-MM-YYYY
         let visitTime = 'N/A';
         if (channel.last_visit_ts) {
-            const date = new Date(channel.last_visit_ts + 'Z');
-            visitTime = date.toLocaleDateString('en-GB') + ' ' +
-                date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+            visitTime = formatDateTime(channel.last_visit_ts);
         }
 
         // Link logic
