@@ -64,13 +64,16 @@ class VerificationService:
     
     @staticmethod
     def _run_async(coro):
-        """Helper to run async coroutine in sync context"""
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
+        """Helper to run async coroutine in sync context using asyncio.run()"""
         try:
-            return loop.run_until_complete(coro)
-        finally:
-            loop.close()
+            return asyncio.run(coro)
+        except RuntimeError as e:
+            # Handle case where loop is already running (unlikely in worker, but possible in some dev setups)
+            if "already running" in str(e):
+                import asyncio
+                loop = asyncio.get_event_loop()
+                return loop.run_until_complete(coro)
+            raise e
     
     @staticmethod
     def verify_account(account_id: int, enable_anchor: bool = False) -> VerificationResult:

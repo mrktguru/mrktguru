@@ -77,12 +77,36 @@ class SessionOrchestrator:
         await self.stop()
 
     async def stop(self):
-        self.shutdown_event.set()
+        # 1. Signal shutdown safely
+        try:
+            self.shutdown_event.set()
+        except RuntimeError:
+            # Loop mismatch on event is rare but possible if created in different loop
+            pass
+
+        # 2. Handle monitoring task safely
         if self.monitoring_task:
+            # IMPORTANT: We can only await the task if we are in the same loop that created it
             try:
-                await asyncio.wait_for(self.monitoring_task, timeout=2.0)
-            except asyncio.TimeoutError:
-                pass
+                current_loop = asyncio.get_running_loop()
+                # Check if task belongs to this loop (Python 3.7+ task._loop or get_loop())
+                task_loop = getattr(self.monitoring_task, 'get_loop', lambda: getattr(self.monitoring_task, '_loop', None))()
+                
+                if task_loop == current_loop:
+                    if not self.monitoring_task.done():
+                        try:
+                            await asyncio.wait_for(self.monitoring_task, timeout=1.0)
+                        except asyncio.TimeoutError:
+                            self.monitoring_task.cancel()
+                else:
+                    # Task belongs to a different loop. We CANNOT await it here.
+                    # This happens when orchestrator is cached and accessed from a different thread/loop.
+                    # We just cancel it (it might fail if loop is dead, but it's the only way)
+                    self.monitoring_task.cancel()
+            except Exception as e:
+                logger.warning(f"[{self.account_id}] Could not safely stop monitoring task: {e}")
+            finally:
+                self.monitoring_task = None
         
         if self.client:
             if self.client.is_connected():
