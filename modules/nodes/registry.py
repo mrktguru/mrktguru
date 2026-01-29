@@ -3,8 +3,9 @@ from modules.nodes.profile import (
     SyncProfileExecutor, Set2FAExecutor
 )
 from modules.nodes.channels import (
-    SubscribeExecutor, VisitExecutor, SmartSubscribeExecutor
+    VisitExecutor, SmartSubscribeExecutor as OldSmartSubscribe
 )
+from modules.nodes.subscribe import SubscribeExecutor
 from modules.nodes.actions import (
     ImportContactsExecutor, SendMessageExecutor
 )
@@ -20,7 +21,7 @@ NODE_EXECUTORS = {
     'set_2fa': Set2FAExecutor,
     'subscribe': SubscribeExecutor,
     'visit': VisitExecutor,
-    'smart_subscribe': SmartSubscribeExecutor,
+    'smart_subscribe': SubscribeExecutor, # Now uses the new unified Logic
     'import_contacts': ImportContactsExecutor,
     'send_message': SendMessageExecutor,
     'idle': IdleExecutor,

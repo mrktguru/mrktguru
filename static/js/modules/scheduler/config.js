@@ -256,8 +256,74 @@ function renderDynamicFields(type, config) {
     else if (type === 'set_2fa') {
         html += `<div class="form-check mb-3"><input class="form-check-input" type="checkbox" name="remove_password" ${config.remove_password ? 'checked' : ''}><label>Remove Password</label></div><div class="mb-3"><label>New Password</label><input type="text" class="form-control" name="password" value="${config.password || ''}"></div>`;
     }
-    else if (type === 'smart_subscribe') {
-        html += `<div class="mb-3"><label>Target Entity</label><input type="text" class="form-control" name="target_entity" value="${config.target_entity || ''}"></div><div class="mb-3"><label>Random Count</label><input type="number" class="form-control" name="random_count" value="${config.random_count || 3}"></div>`;
+    else if (type === 'smart_subscribe' || type === 'subscribe') {
+        const mode = config.mode || 'auto';
+        html += `
+            <div class="mb-3">
+                <label class="form-label">Mode</label>
+                <select class="form-select" name="mode" onchange="window.toggleSubscribeMode(this.value)">
+                    <option value="auto" ${mode === 'auto' ? 'selected' : ''}>Auto (Smart Discovery)</option>
+                    <option value="manual" ${mode === 'manual' ? 'selected' : ''}>Manual (Select Channels)</option>
+                </select>
+            </div>
+            
+            <div id="sub-auto-fields" class="${mode === 'manual' ? 'd-none' : ''}">
+                <div class="row g-2 mb-3">
+                    <div class="col-6">
+                        <label>Count</label>
+                        <input type="number" class="form-control" name="count" value="${config.count || 1}" min="1">
+                    </div>
+                    <div class="col-6">
+                        <label>Ignore Old (Days)</label>
+                        <input type="number" class="form-control" name="exclude_dead_days" value="${config.exclude_dead_days || 30}" min="0">
+                    </div>
+                </div>
+                <div class="row g-2 mb-3">
+                    <div class="col-6">
+                        <label>Min Subs</label>
+                        <input type="number" class="form-control" name="min_subs" value="${config.min_subs || 0}">
+                    </div>
+                    <div class="col-6">
+                        <label>Max Subs</label>
+                        <input type="number" class="form-control" name="max_subs" value="${config.max_subs || 10000000}">
+                    </div>
+                </div>
+            </div>
+
+            <div id="sub-manual-fields" class="${mode === 'auto' ? 'd-none' : ''}">
+                <div class="alert alert-warning small">Enter candidate IDs comma separated (e.g. 12, 45). See "Discovered Channels" for IDs.</div>
+                <div class="mb-3">
+                    <label>Candidate IDs</label>
+                    <input type="text" class="form-control" name="candidate_ids" value="${config.candidate_ids || ''}" placeholder="12, 45, 99">
+                </div>
+            </div>
+
+            <hr>
+            <h6>Behavior</h6>
+            <div class="form-check mb-2">
+                <input class="form-check-input" type="checkbox" name="mute_notifications" ${config.mute_notifications !== false ? 'checked' : ''}>
+                <label class="form-check-label">Mute Notifications</label>
+            </div>
+            <div class="row g-2 mb-3">
+                 <div class="col-6">
+                    <label>Delay Min (s)</label>
+                    <input type="number" class="form-control" name="delay_min" value="${config.delay_min || 180}">
+                 </div>
+                 <div class="col-6">
+                    <label>Delay Max (s)</label>
+                    <input type="number" class="form-control" name="delay_max" value="${config.delay_max || 600}">
+                 </div>
+            </div>
+        `;
+
+        if (!window.toggleSubscribeMode) {
+            window.toggleSubscribeMode = (val) => {
+                const auto = document.getElementById('sub-auto-fields');
+                const man = document.getElementById('sub-manual-fields');
+                if (auto) auto.classList.toggle('d-none', val !== 'auto');
+                if (man) man.classList.toggle('d-none', val !== 'manual');
+            }
+        }
     }
 
     container.innerHTML = html;

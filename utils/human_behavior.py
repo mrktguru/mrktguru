@@ -312,6 +312,75 @@ class HumanBehavior:
             logger.error(f"{self.log_prefix}   ❌ Failed to save discovered channel: {e}")
             # Don't raise, persistence failure shouldn't kill the worker
 
+    async def join_channel_humanly(self, entity, mute_notifications=True):
+        """
+        Executes the complex human behavior of joining a channel:
+        1. View content (scroll/read).
+        2. Random pause (decision making).
+        3. Join action.
+        4. Post-join behavior (Muting).
+        
+        Returns:
+            str: 'JOINED', 'PENDING_APPROVAL', 'ALREADY_PARTICIPANT', 'REJECTED'
+        """
+        from telethon.tl.functions.account import UpdateNotifySettingsRequest
+        from telethon.tl.functions.channels import JoinChannelRequest
+        from telethon.tl.types import InputPeerNotifySettings
+        from telethon import functions
+        from telethon.errors import UserAlreadyParticipantError, LinkNotModifiedError
+        
+        # 1. PRE-JOIN INTERACTION (Look before you leap)
+        # Мы используем уже существующую логику просмотра
+        # Это создает "глазик" на постах и имитирует интерес
+        await self._view_channel_content(entity, short_visit=False, origin='SUBSCRIBE_NODE')
+
+        # 2. DECISION PAUSE
+        await self.random_sleep(2.0, 5.0, reason="Thinking about joining")
+
+        # 3. JOIN ACTION
+        result_status = 'JOINED'
+        try:
+            # Пытаемся вступить
+            updates = await self.client(JoinChannelRequest(channel=entity))
+            
+            # Если updates пустой, иногда это Pending, но не всегда.
+            if not getattr(updates, 'chats', None):
+                pass 
+
+        except UserAlreadyParticipantError:
+            logger.info(f"{self.log_prefix}   ℹ️ Already a participant")
+            result_status = 'ALREADY_PARTICIPANT'
+        except Exception as e:
+            # Если ошибка про "Invites" (заявка)
+            err_str = str(e).lower()
+            if "invite request sent" in err_str or "pending" in err_str:
+                logger.info(f"{self.log_prefix}   ⏳ Join Request sent (Pending Approval)")
+                return 'PENDING_APPROVAL'
+            raise e 
+
+        # 4. POST-JOIN BEHAVIOR (MUTE)
+        if mute_notifications and result_status == 'JOINED':
+            if random.random() < 0.8:
+                await self.random_sleep(1.0, 3.0, reason="Muting notifications")
+                try:
+                    await self.client(UpdateNotifySettingsRequest(
+                        peer=entity,
+                        settings=InputPeerNotifySettings(mute_until=2147483647) # Forever
+                    ))
+                    logger.info(f"{self.log_prefix}   🔕 Notifications muted")
+                except Exception as e:
+                    logger.warning(f"{self.log_prefix}   ⚠️ Failed to mute: {e}")
+
+        return result_status
+    
+    # Helper wrapper for internal use
+    async def random_sleep(self, min_s, max_s, reason=None):
+        duration = random.uniform(min_s, max_s)
+        msg = f"☕ Waiting {duration:.1f}s..."
+        if reason: msg += f" ({reason})"
+        logger.info(f"{self.log_prefix}{msg}")
+        await asyncio.sleep(duration)
+
 
 # === TOP-LEVEL HELPER FUNCTIONS ===
 # (Used in modules.telethon.operations and elsewhere)
