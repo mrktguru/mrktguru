@@ -289,7 +289,14 @@ function renderDiscoveredChannels(channels) {
         const safeUsername = channel.username ? `@${channel.username}` : `ID: ${channel.peer_id}`;
 
         let icon = channel.type === 'CHANNEL' ? '📢' : '👥';
-        let visitTime = channel.last_visit_ts ? new Date(channel.last_visit_ts + 'Z').toLocaleString() : 'N/A'; // +Z assumes UTC from server
+
+        // Date formatting 24h
+        let visitTime = 'N/A';
+        if (channel.last_visit_ts) {
+            const date = new Date(channel.last_visit_ts + 'Z');
+            visitTime = date.toLocaleDateString('en-GB') + ' ' +
+                date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+        }
 
         // Link logic
         let linkHTML = '';
@@ -309,8 +316,13 @@ function renderDiscoveredChannels(channels) {
                     </div>
                 </div>
             </div>
-            <div class="text-end">
-                <span class="badge bg-secondary mb-1">${channel.origin || 'UNKNOWN'}</span>
+            <div class="text-end d-flex flex-column align-items-end">
+                <div class="mb-1">
+                     <span class="badge bg-secondary">${channel.origin || 'UNKNOWN'}</span>
+                     <button class="btn btn-sm text-danger border-0 p-0 ms-2" onclick="deleteDiscoveredChannel(${channel.id}, '${safeUsername}')" title="Remove from list">
+                        <i class="bi bi-trash"></i>
+                     </button>
+                </div>
                 <div class="small text-muted" style="font-size: 0.75rem">
                     <i class="bi bi-clock"></i> ${visitTime}
                 </div>
@@ -318,6 +330,23 @@ function renderDiscoveredChannels(channels) {
         `;
         container.appendChild(item);
     });
+}
+
+async function deleteDiscoveredChannel(channelId, name) {
+    if (!confirm(`Delete ${name} from discovered list?`)) return;
+
+    try {
+        const response = await fetch(`/accounts/${accountId}/discovered-channels/${channelId}`, { method: 'DELETE' });
+        const res = await response.json();
+
+        if (res.success) {
+            loadDiscoveredChannels(currentDiscoveredPage); // Refresh current page
+        } else {
+            alert('Failed to delete: ' + res.error);
+        }
+    } catch (e) {
+        alert('Connection error');
+    }
 }
 
 // Initial Load

@@ -300,6 +300,12 @@ class HumanBehavior:
             candidate.last_visit_ts = datetime.utcnow()
             candidate.status = 'VISITED'
             
+            # Extract participants count if available
+            # Note: entity.participants_count might not be populated in all GetDialogs/GetFullChannel contexts
+            # but we try our best.
+            if hasattr(entity, 'participants_count') and entity.participants_count:
+                candidate.participants_count = entity.participants_count
+            
             db.session.commit()
             
         except Exception as e:

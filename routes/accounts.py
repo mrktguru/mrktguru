@@ -684,6 +684,21 @@ def get_discovered_channels(account_id):
         'has_more': total > page * per_page
     })
 
+@accounts_bp.route("/<int:account_id>/discovered-channels/<int:channel_id>", methods=["DELETE"])
+@login_required
+def delete_discovered_channel(account_id, channel_id):
+    """Delete a discovered channel"""
+    from models.channel_candidate import ChannelCandidate
+    
+    channel = ChannelCandidate.query.filter_by(account_id=account_id, id=channel_id).first()
+    if not channel:
+        return jsonify({'success': False, 'error': 'Channel not found'}), 404
+        
+    db.session.delete(channel)
+    db.session.commit()
+    
+    return jsonify({'success': True})
+
 # -------------------------------------------------------------------------
 # LEGACY WARMUP ROUTES (To be removed)
 # -------------------------------------------------------------------------
