@@ -53,12 +53,7 @@ class WarmupLog(db.Model):
                 )
                 
                 
-                # Use logger instead of print to avoid stdout capture duplication
-                # The Redis handler will pick this up if attached to root or module logger
-                import logging
-                logger = logging.getLogger(__name__)
-                logger.info(f"[{account_id}] {status.upper()}: {message} (Action: {action or 'n/a'})")
-                
+                # Database entry is enough here, console logging is handled by caller (e.g. BaseNodeExecutor)
                 db.session.add(log)
                 db.session.commit()
                 return log

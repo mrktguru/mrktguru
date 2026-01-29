@@ -21,7 +21,11 @@ from modules.telethon.operations import (
     search_public_channels,
     sync_official_profile,
     set_2fa_password,
-    join_channel
+    join_channel,
+    get_active_sessions,
+    terminate_session,
+    terminate_all_sessions,
+    remove_2fa_password
 )
 
 

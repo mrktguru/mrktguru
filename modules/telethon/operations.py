@@ -13,11 +13,15 @@ from telethon.errors import (
 )
 from telethon.tl.functions.channels import InviteToChannelRequest, JoinChannelRequest
 from telethon.tl.functions.messages import SendReactionRequest, AddChatUserRequest
-from telethon.tl.functions.account import UpdateProfileRequest, UpdateUsernameRequest, UpdatePasswordSettingsRequest
+from telethon.tl.functions.account import (
+    UpdateProfileRequest, UpdateUsernameRequest, UpdatePasswordSettingsRequest,
+    GetPasswordRequest, GetAuthorizationsRequest, ResetAuthorizationRequest,
+    TerminateAllAuthorizationsRequest
+)
 from telethon.tl.functions.users import GetFullUserRequest
 from telethon.tl.functions.contacts import SearchRequest
 from telethon.tl.functions.photos import UploadProfilePhotoRequest
-from telethon.tl.types import ReactionEmoji, Channel, Chat, InputCheckPasswordEmpty
+from telethon.tl.types import ReactionEmoji, Channel, Chat, InputCheckPasswordEmpty, InputPeerEmpty
 
 from modules.telethon.client import ClientFactory
 from utils.human_behavior import random_sleep, simulate_typing, simulate_scrolling
@@ -454,3 +458,85 @@ async def send_conversation_message(account_id, target_account_id, message_text,
     finally:
          if own_client and client and client.is_connected():
               await client.disconnect()
+
+async def get_active_sessions(account_id: int, client=None):
+    own_client = False
+    try:
+        if not client:
+            client = ClientFactory.create_client(account_id)
+            own_client = True
+        await ensure_connected(client)
+        
+        res = await client(GetAuthorizationsRequest())
+        sessions = []
+        for auth in res.authorizations:
+            sessions.append({
+                "hash": auth.hash,
+                "device_model": auth.device_model,
+                "platform": auth.platform,
+                "system_version": auth.system_version,
+                "api_id": auth.api_id,
+                "app_name": auth.app_name,
+                "app_version": auth.app_version,
+                "date_created": auth.date_created.isoformat() if auth.date_created else None,
+                "date_active": auth.date_active.isoformat() if auth.date_active else None,
+                "ip": auth.ip,
+                "country": auth.country,
+                "region": auth.region
+            })
+        return {"success": True, "sessions": sessions, "error": None}
+    except Exception as e:
+        return {"success": False, "sessions": [], "error": str(e)}
+    finally:
+        if own_client and client and client.is_connected():
+            await client.disconnect()
+
+async def terminate_session(account_id: int, session_hash: int, client=None):
+    own_client = False
+    try:
+        if not client:
+            client = ClientFactory.create_client(account_id)
+            own_client = True
+        await ensure_connected(client)
+        
+        await client(ResetAuthorizationRequest(hash=int(session_hash)))
+        return {"success": True, "error": None}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+    finally:
+        if own_client and client and client.is_connected():
+            await client.disconnect()
+
+async def terminate_all_sessions(account_id: int, client=None):
+    own_client = False
+    try:
+        if not client:
+            client = ClientFactory.create_client(account_id)
+            own_client = True
+        await ensure_connected(client)
+        
+        await client(TerminateAllAuthorizationsRequest())
+        return {"success": True, "error": None}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+    finally:
+        if own_client and client and client.is_connected():
+            await client.disconnect()
+
+async def remove_2fa_password(account_id: int, current_password: str, client=None):
+    own_client = False
+    try:
+        if not client:
+            client = ClientFactory.create_client(account_id)
+            own_client = True
+        await ensure_connected(client)
+        
+        # In Telethon, edit_2fa with new_password=None removes it
+        await client.edit_2fa(new_password=None, current_password=current_password)
+        return {"success": True, "error": None}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+    finally:
+        if own_client and client and client.is_connected():
+            await client.disconnect()
+
