@@ -12,7 +12,7 @@ class Config:
     DEBUG = os.getenv('FLASK_DEBUG', 'False').lower() == 'true'
     
     # Database
-    SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL', 'postgresql://postgres:password@localhost:5432/telegram_system')
+    SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL', 'postgresql://postgres:password@127.0.0.1:5432/telegram_system')
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ENGINE_OPTIONS = {
         'pool_size': 10,
@@ -29,9 +29,12 @@ class Config:
     CELERY_TASK_SERIALIZER = 'json'
     CELERY_RESULT_SERIALIZER = 'json'
     CELERY_ACCEPT_CONTENT = ['json']
-    CELERY_TIMEZONE = 'UTC'
+    CELERY_TIMEZONE = 'Europe/Helsinki'
     CELERY_ENABLE_UTC = True
     
+    # Timezone
+    TIMEZONE = 'Europe/Helsinki'
+
     # Telegram API
     TG_API_ID = os.getenv('TG_API_ID')
     TG_API_HASH = os.getenv('TG_API_HASH')

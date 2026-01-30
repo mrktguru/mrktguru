@@ -1,15 +1,37 @@
 """
 Celery Application Configuration
 """
+# 🔥 Monkey Patching for Gevent (Must be first)
+from gevent import monkey
+monkey.patch_all()
+
+import os
 from celery import Celery
 from celery.schedules import crontab
-import os
+import sys
+
+# Increase recursion limit for Gevent + Telethon
+sys.setrecursionlimit(5000)
+
+# Ensure project root is in python path
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+# List of modules that contain tasks
+TASK_MODULES = [
+    "workers.invite_worker",
+    "workers.dm_worker", 
+    "workers.parser_worker",
+    "workers.maintenance_workers",
+    "workers.campaign_scheduler",
+    "workers.scheduler_worker"
+]
 
 # Initialize Celery
 celery = Celery(
     "telegram_system",
     broker=os.getenv("REDIS_URL", "redis://localhost:6379/0"),
-    backend=os.getenv("REDIS_URL", "redis://localhost:6379/0")
+    backend=os.getenv("REDIS_URL", "redis://localhost:6379/0"),
+    include=TASK_MODULES
 )
 
 # Configuration
@@ -27,17 +49,17 @@ celery.conf.update(
 
 # Periodic Tasks Schedule
 celery.conf.beat_schedule = {
-    # Proxy rotation every 15 minutes
-    "rotate-mobile-proxies": {
-        "task": "workers.maintenance_workers.auto_rotate_mobile_proxies",
-        "schedule": crontab(minute="*/15"),
-    },
+    # Proxy rotation every 15 minutes (DISABLED)
+    # "rotate-mobile-proxies": {
+    #     "task": "workers.maintenance_workers.auto_rotate_mobile_proxies",
+    #     "schedule": crontab(minute="*/15"),
+    # },
     
-    # Account health check every hour
-    "check-account-health": {
-        "task": "workers.maintenance_workers.check_account_health",
-        "schedule": crontab(minute=0),
-    },
+    # Account health check every hour (DISABLED)
+    # "check-account-health": {
+    #     "task": "workers.maintenance_workers.check_account_health",
+    #     "schedule": crontab(minute=0),
+    # },
     
     # Reset cooldown accounts every 30 minutes
     "reset-cooldown-accounts": {
@@ -79,16 +101,13 @@ celery.conf.beat_schedule = {
         "task": "workers.parser_worker.cleanup_old_parse_jobs",
         "schedule": crontab(day_of_week=0, hour=3, minute=0),
     },
-}
 
-# Import tasks
-celery.autodiscover_tasks([
-    "workers.invite_worker",
-    "workers.dm_worker", 
-    "workers.parser_worker",
-    "workers.maintenance_workers",
-    "workers.campaign_scheduler"
-])
+    # Check warmup schedules (every minute)
+    "check-warmup-schedules": {
+        "task": "workers.scheduler_worker.check_warmup_schedules",
+        "schedule": crontab(),  # Every minute
+    },
+}
 
 if __name__ == "__main__":
     celery.start()

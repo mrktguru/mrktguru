@@ -147,3 +147,58 @@ def get_proxy_for_telethon(proxy):
         'username': proxy.username,
         'password': proxy.password,
     }
+
+
+def extract_country_from_username(username):
+    """
+    Extract country code directly from username (DataImpulse format)
+    Format: user__cr.XX (where XX is country code)
+    
+    Args:
+        username: Proxy username
+        
+    Returns:
+        str: Country code (uppercase) or None
+    """
+    if not username:
+        return None
+        
+    try:
+        # Check for DataImpulse format (__cr.XX)
+        if '__cr.' in username:
+            parts = username.split('__cr.')
+            if len(parts) > 1:
+                # Get the country code (first 2 chars after cr.)
+                code = parts[1][:2].upper()
+                return code
+                
+        # Fallback: Check for other common patterns if needed
+        # e.g., user-country-us
+        
+        return None
+    except Exception:
+        return None
+
+
+def get_country_flag(country_code):
+    """
+    Get emoji flag for country code
+    
+    Args:
+        country_code: 2-letter country code (ISO 3166-1 alpha-2)
+    
+    Returns:
+        str: Emoji flag or None
+    """
+    if not country_code or len(country_code) != 2:
+        return None
+        
+    # Convert to regional indicator symbols
+    try:
+        base = 127397
+        first = ord(country_code[0].upper()) + base
+        second = ord(country_code[1].upper()) + base
+        return chr(first) + chr(second)
+    except:
+        return None
+

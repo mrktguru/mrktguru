@@ -1,10 +1,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for, session, flash
-from models.user import User
-from database import db
-from datetime import datetime
+from modules.auth.services.authentication import AuthService
 
 auth_bp = Blueprint('auth', __name__)
-
 
 @auth_bp.route('/')
 @auth_bp.route('/login', methods=['GET', 'POST'])
@@ -21,25 +18,17 @@ def login():
             flash('Please provide both username and password', 'error')
             return render_template('login.html')
         
-        user = User.query.filter_by(username=username).first()
+        user, msg = AuthService.authenticate(username, password)
         
-        if user and user.check_password(password):
-            if not user.is_active:
-                flash('Account is deactivated', 'error')
-                return render_template('login.html')
-            
+        if user:
             # Set session
             session['user_id'] = user.id
             session['username'] = user.username
             
-            # Update last login
-            user.last_login = datetime.utcnow()
-            db.session.commit()
-            
-            flash(f'Welcome back, {user.username}!', 'success')
+            flash(f'{msg} {user.username}!', 'success')
             return redirect(url_for('dashboard.index'))
         else:
-            flash('Invalid username or password', 'error')
+            flash(msg, 'error')
     
     return render_template('login.html')
 

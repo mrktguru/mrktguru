@@ -1,40 +1,15 @@
 """
-Campaign Scheduler - автозапуск активных кампаний
+Campaign Scheduler - Facade (Refactored)
+Delegates logic to modules.campaigns.scheduler
 """
 from celery_app import celery
-from database import db
-from datetime import datetime
-
+from modules.campaigns.scheduler import check_and_start_campaigns
 
 @celery.task
 def start_active_campaigns():
     """
-    Проверяет активные кампании и запускает workers если нужно
-    Запускается каждую минуту через Celery Beat
+    Checks active campaigns and starts workers if needed.
     """
-    # Import here to avoid circular imports
+    # Import app here to avoid circular imports if any, though check_and_start_campaigns takes app
     from app import app
-    from models.campaign import InviteCampaign
-    from workers.invite_worker import run_invite_campaign
-    
-    with app.app_context():
-        # Найти все активные кампании
-        active_campaigns = InviteCampaign.query.filter_by(status='active').all()
-        
-        started = []
-        for campaign in active_campaigns:
-            # Запустить worker
-            task = run_invite_campaign.delay(campaign.id)
-            started.append({
-                'campaign_id': campaign.id,
-                'task_id': task.id,
-                'name': campaign.name
-            })
-            
-            print(f"Started worker for campaign {campaign.id}: {campaign.name}")
-        
-        return {
-            'checked_at': datetime.now().isoformat(),
-            'started_campaigns': started,
-            'count': len(started)
-        }
+    return check_and_start_campaigns(app)

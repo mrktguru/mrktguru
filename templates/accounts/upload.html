@@ -17,16 +17,17 @@
                         <li>Upload .session files from Telethon</li>
                         <li>Files should be named with phone number (e.g., +1234567890.session)</li>
                         <li>Device profiles will be automatically generated</li>
-                        <li>Warm-up subscriptions will be added automatically</li>
-                        <li>You can assign proxies during upload or later</li>
+                        <li><strong>⚠️ IMPORTANT: Assign proxy during upload for security</strong></li>
+                        <li>Warmup is disabled by default - enable manually when ready</li>
+                        <li>Wait 10-15 minutes after upload before verifying</li>
                     </ul>
                 </div>
 
                 <form method="POST" action="{{ url_for('accounts.upload') }}" enctype="multipart/form-data">
                     <div class="mb-3">
                         <label for="session_files" class="form-label">Session Files (.session)</label>
-                        <input type="file" class="form-control" id="session_files" name="session_files" 
-                               multiple accept=".session" required>
+                        <input type="file" class="form-control" id="session_files" name="session_files" multiple
+                            accept=".session" required>
                         <small class="form-text text-muted">You can select multiple files at once</small>
                     </div>
 
@@ -55,29 +56,11 @@
                             <option value="">-- Select Proxy --</option>
                             {% for proxy in proxies %}
                             <option value="{{ proxy.id }}">
-                                {{ proxy.type }}://{{ proxy.host }}:{{ proxy.port }}
+                                {{ proxy.flag }} {{ proxy.type }}://{{ proxy.host }}:{{ proxy.port }}
                                 {% if proxy.current_ip %} ({{ proxy.current_ip }}){% endif %}
                             </option>
                             {% endfor %}
                         </select>
-                    </div>
-
-                    <div class="mb-3">
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="auto_warmup" name="auto_warmup" checked>
-                            <label class="form-check-label" for="auto_warmup">
-                                Auto warm-up (subscribe to popular channels)
-                            </label>
-                        </div>
-                    </div>
-
-                    <div class="mb-3">
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="verify_sessions" name="verify_sessions">
-                            <label class="form-check-label" for="verify_sessions">
-                                Verify sessions after upload (slower)
-                            </label>
-                        </div>
                     </div>
 
                     <div class="d-grid gap-2">
@@ -137,14 +120,14 @@
 
 {% block extra_js %}
 <script>
-$(document).ready(function() {
-    $('#proxy_mode').on('change', function() {
-        if ($(this).val() === 'specific') {
-            $('#specific_proxy_div').show();
-        } else {
-            $('#specific_proxy_div').hide();
-        }
+    $(document).ready(function () {
+        $('#proxy_mode').on('change', function () {
+            if ($(this).val() === 'specific') {
+                $('#specific_proxy_div').show();
+            } else {
+                $('#specific_proxy_div').hide();
+            }
+        });
     });
-});
 </script>
 {% endblock %}

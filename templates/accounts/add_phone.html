@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block title %}Login with Phone - Telegram System{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h4 class="mb-0"><i class="bi bi-phone"></i> Add Account via Phone</h4>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i>
+                    Enter the phone number to receive a login code from Telegram.
+                </div>
+
+                <form method="POST" action="{{ url_for('phone_login.request_code') }}">
+                    <div class="mb-3">
+                        <label for="phone" class="form-label">Phone Number</label>
+                        <input type="tel" class="form-control" id="phone" name="phone" placeholder="+1234567890"
+                            required>
+                        <div class="form-text">Include country code (e.g. +1...)</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="proxy_selection" class="form-label">Proxy (Optional)</label>
+                        <select class="form-select" id="proxy_selection" name="proxy_selection">
+                            <option value="">-- No Proxy --</option>
+
+                            {% if proxy_networks %}
+                            <optgroup label="📡 Proxy Networks (Dynamic)">
+                                {% for net in proxy_networks %}
+                                <option value="network_{{ net.id }}">
+                                    {{ net.name }} (Ports {{ net.start_port }}-{{ net.end_port }})
+                                </option>
+                                {% endfor %}
+                            </optgroup>
+                            {% endif %}
+
+                            <optgroup label="🔒 Individual Proxies (Static)">
+                                {% for proxy in proxies %}
+                                <option value="proxy_{{ proxy.id }}">
+                                    {{ proxy.flag }} {{ proxy.type }}://{{ proxy.host }}:{{ proxy.port }}
+                                    ({{ proxy.accounts.count() }} accounts)
+                                </option>
+                                {% endfor %}
+                            </optgroup>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">API Credentials</label>
+                        <select class="form-select" name="api_cred_id" id="api_cred_id">
+                            <option value="" selected>Use Default (Generic)</option>
+                            {% for cred in credentials %}
+                            <option value="{{ cred.id }}">{{ cred.name }} ({{ cred.api_id }})</option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text text-muted">
+                            Advanced: Override default App ID/Hash.
+                        </div>
+                    </div>
+
+                    <!-- Hidden fields for manual override if needed, using JS to toggle if implemented -->
+                    <div id="manual_api" style="display:none;">
+                        <input type="text" name="api_id" value="2040">
+                        <input type="text" name="api_hash" value="b18441a1bb607e12738205e450b8ad6b">
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-send"></i> Send Code
+                        </button>
+                        <a href="{{ url_for('accounts.list_accounts') }}" class="btn btn-outline-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

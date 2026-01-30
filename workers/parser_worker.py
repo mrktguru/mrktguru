@@ -153,3 +153,58 @@ def cleanup_old_parse_jobs():
     db.session.commit()
     
     return {"deleted": deleted}
+
+
+@celery.task
+def parse_users_for_campaign(campaign_id, source_channel, limit=1000, filters=None):
+    """
+    Task to parse users from a channel and add them to a campaign.
+    """
+    from models.campaign import InviteCampaign, SourceUser
+    
+    # We import here to avoid circular dependencies
+    campaign = InviteCampaign.query.get(campaign_id)
+    if not campaign:
+        return {"status": "error", "error": f"Campaign {campaign_id} not found"}
+        
+    # Find an account to use for parsing
+    account = Account.query.filter_by(status='active').first()
+    if not account:
+        return {"status": "error", "error": "No active account found for parsing"}
+        
+    try:
+        # Use existing utility
+        users = asyncio.run(parse_channel_members(
+            account.id, 
+            source_channel, 
+            filters=filters
+        ))
+        
+        # Process and save
+        count = 0
+        for u in users:
+            if not u.get('username'): continue
+            
+            existing = SourceUser.query.filter_by(
+                campaign_id=campaign_id,
+                username=u['username']
+            ).first()
+            
+            if not existing:
+                source_user = SourceUser(
+                    campaign_id=campaign_id,
+                    username=u['username'],
+                    user_id=u['user_id'],
+                    first_name=u['first_name'],
+                    last_name=u['last_name'],
+                    source=f"parse:{source_channel}",
+                    status="pending"
+                )
+                db.session.add(source_user)
+                count += 1
+        
+        db.session.commit()
+        return {"status": "success", "parsed": len(users), "added": count}
+        
+    except Exception as e:
+        return {"status": "error", "error": str(e)}

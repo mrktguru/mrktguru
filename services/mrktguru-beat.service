@@ -1,0 +1,13 @@
+[Unit]
+Description=MrktGuru Celery Beat Scheduler
+After=network.target redis-server.service
+
+[Service]
+User=root
+WorkingDirectory=/root/mrktguru
+ExecStart=/usr/bin/python3 -m celery -A celery_app beat --loglevel=info
+Restart=always
+Environment="DATABASE_URL=postgresql://telegram_user:password@127.0.0.1:5432/telegram_system"
+
+[Install]
+WantedBy=multi-user.target

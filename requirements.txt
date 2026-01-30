@@ -12,10 +12,13 @@ SQLAlchemy==2.0.23
 # Task Queue
 celery==5.3.4
 redis==5.0.1
+gevent==23.9.1
+psycogreen==1.0.2
 
 # Telegram
 Telethon==1.33.1
 cryptg==0.4.0
+PySocks==1.7.1
 
 # Data Processing
 pandas==2.1.4
@@ -38,3 +41,6 @@ reportlab==4.0.7
 
 # Monitoring
 psutil==5.9.6
+cryptography==41.0.7
+opentele==1.15.1
+tgcrypto==1.2.5

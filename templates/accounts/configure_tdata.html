@@ -1,0 +1,341 @@
+{% extends "base.html" %}
+
+{% block title %}Configure TData - {{ account.phone }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <h2>⚙️ Configure TData Account: {{ account.phone }}</h2>
+            <p class="text-muted">Review extracted metadata and configure API credentials</p>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Left Column: Extracted Metadata (Read-Only) -->
+        <div class="col-md-6">
+            <div class="card mb-3">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">📊 Extracted TData Metadata</h5>
+                </div>
+                <div class="card-body">
+                    <!-- Auth Data -->
+                    <h6 class="border-bottom pb-2">🔐 Authorization Data</h6>
+                    <table class="table table-sm">
+                        <tr>
+                            <td><strong>Auth Key:</strong></td>
+                            <td>
+                                {% if tdata.auth_key %}
+                                <code class="text-success" style="font-size: 10px; word-break: break-all;">
+                                    {{ tdata.auth_key.hex()[:64] }}...<br>
+                                    <small class="text-muted">(256 bytes, encrypted in DB)</small>
+                                </code>
+                                {% else %}
+                                <code class="text-muted">Not found</code>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><strong>Auth Key ID:</strong></td>
+                            <td>
+                                {% if tdata.auth_key_id %}
+                                <code>{{ '%0x' % tdata.auth_key_id|int if tdata.auth_key_id else 'N/A' }}</code>
+                                <br><small class="text-muted">Decimal: {{ tdata.auth_key_id }}</small>
+                                {% else %}
+                                <code>N/A</code>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><strong>DC ID:</strong></td>
+                            <td><code>{{ tdata.dc_id or 'N/A' }}</code> {% if tdata.dc_id %}(DC{{ tdata.dc_id }}){%
+                                endif %}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Main DC ID:</strong></td>
+                            <td><code>{{ tdata.main_dc_id or 'N/A' }}</code></td>
+                        </tr>
+                        <tr>
+                            <td><strong>User ID:</strong></td>
+                            <td><code>{{ tdata.user_id or 'N/A' }}</code></td>
+                        </tr>
+                    </table>
+
+                    <!-- Device Fingerprint -->
+                    <h6 class="border-bottom pb-2 mt-3">📱 Original Device Fingerprint</h6>
+                    <table class="table table-sm">
+                        <tr>
+                            <td><strong>Device Model:</strong></td>
+                            <td><code>{{ tdata.device_model or 'N/A' }}</code></td>
+                        </tr>
+                        <tr>
+                            <td><strong>System Version:</strong></td>
+                            <td><code>{{ tdata.system_version or 'N/A' }}</code></td>
+                        </tr>
+                        <tr>
+                            <td><strong>App Version:</strong></td>
+                            <td><code>{{ tdata.app_version or 'N/A' }}</code></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Device Brand:</strong></td>
+                            <td><code>{{ tdata.device_brand or 'N/A' }}</code></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Language:</strong></td>
+                            <td><code>{{ tdata.lang_code or 'N/A' }}</code> /
+                                <code>{{ tdata.system_lang_code or 'N/A' }}</code>
+                            </td>
+                        </tr>
+                    </table>
+
+                    <!-- Original API -->
+                    <h6 class="border-bottom pb-2 mt-3">🔑 Original API Credentials</h6>
+                    <table class="table table-sm">
+                        <tr>
+                            <td><strong>Original API ID:</strong></td>
+                            <td>
+                                {% if tdata.original_api_id %}
+                                <code class="text-success">{{ tdata.original_api_id }}</code>
+                                <span class="badge bg-warning text-dark">RECOMMENDED TO MATCH</span>
+                                {% else %}
+                                <code class="text-muted">Not found in TData</code>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><strong>Original API Hash:</strong></td>
+                            <td>
+                                {% if tdata.original_api_hash %}
+                                <code class="text-success">{{ tdata.original_api_hash[:20] }}...</code>
+                                {% else %}
+                                <code class="text-muted">Not found in TData</code>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    </table>
+
+                    {% if tdata.original_api_id and tdata.original_api_hash %}
+                    <div class="alert alert-info">
+                        <strong>💡 Tip:</strong> You can add this API to your API Manager for reuse.
+                        <form method="POST"
+                            action="{{ url_for('accounts.add_tdata_api_to_manager', account_id=account.id) }}"
+                            style="display:inline;">
+                            <button type="submit" class="btn btn-sm btn-primary mt-2">
+                                ➕ Add to API Manager
+                            </button>
+                        </form>
+                    </div>
+                    {% endif %}
+
+                    <!-- Network Settings -->
+                    {% if tdata.proxy_settings or tdata.connection_type %}
+                    <h6 class="border-bottom pb-2 mt-3">🌐 Network Settings</h6>
+                    <table class="table table-sm">
+                        {% if tdata.connection_type %}
+                        <tr>
+                            <td><strong>Connection Type:</strong></td>
+                            <td><code>{{ tdata.connection_type }}</code></td>
+                        </tr>
+                        {% endif %}
+                        {% if tdata.proxy_settings %}
+                        <tr>
+                            <td><strong>Proxy Settings:</strong></td>
+                            <td><code>{{ tdata.proxy_settings }}</code></td>
+                        </tr>
+                        {% endif %}
+                    </table>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: Configuration Form -->
+        <div class="col-md-6">
+            <form method="POST" action="{{ url_for('accounts.configure_tdata', account_id=account.id) }}">
+                <!-- API Credentials Selection -->
+                <div class="card mb-3">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0">🔑 Select API Credentials</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label">API Credentials *</label>
+                            <select class="form-select" name="api_credential_id" required>
+                                <option value="">-- Select API Credential --</option>
+                                {% for cred in api_credentials %}
+                                <option value="{{ cred.id }}" {% if recommended_api_id and
+                                    cred.api_id==recommended_api_id %} selected class="bg-warning" {% elif
+                                    cred.is_default %} selected {% endif %}>
+                                    {{ cred.name }} (API ID: {{ cred.api_id }})
+                                    {% if recommended_api_id and cred.api_id == recommended_api_id %}
+                                    ⭐ RECOMMENDED
+                                    {% elif cred.is_default %}
+                                    [DEFAULT]
+                                    {% endif %}
+                                </option>
+                                {% endfor %}
+                            </select>
+                            {% if recommended_api_id %}
+                            <small class="text-warning">
+                                ⚠️ Recommended: Use API ID {{ recommended_api_id }} to match original TData
+                            </small>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Proxy Assignment -->
+                <div class="card mb-3">
+                    <div class="card-header">
+                        <h5 class="mb-0">🌐 Proxy Assignment</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label">Proxy (Optional)</label>
+                            <select class="form-select" name="proxy_selection">
+                                <option value="">No Proxy</option>
+
+                                {% if proxy_networks %}
+                                <optgroup label="📡 Proxy Networks (Dynamic)">
+                                    {% for net in proxy_networks %}
+                                    <option value="network_{{ net.id }}" {% if account.proxy_network_id==net.id
+                                        %}selected{% endif %}>
+                                        {{ net.name }} (Ports {{ net.start_port }}-{{ net.end_port }})
+                                    </option>
+                                    {% endfor %}
+                                </optgroup>
+                                {% endif %}
+
+                                <optgroup label="🔒 Individual Proxies (Static)">
+                                    {% for proxy in proxies %}
+                                    <option value="proxy_{{ proxy.id }}" {% if account.proxy_id==proxy.id %}selected{%
+                                        endif %}>
+                                        {{ proxy.flag }} {{ proxy.host }}:{{ proxy.port }} ({{ proxy.type }})
+                                        {% if proxy.account_count > 0 %}
+                                        - {{ proxy.account_count }} account{{ 's' if proxy.account_count != 1 else '' }}
+                                        {% endif %}
+                                    </option>
+                                    {% endfor %}
+                                </optgroup>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                {% if has_json %}
+                <!-- Device Parameters Source Selection -->
+                <div class="card mb-3">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0">📱 Device Parameters Source</h5>
+                    </div>
+                    <div class="card-body">
+                        {% if comparison %}
+                        <div class="alert alert-info mb-3">
+                            <strong>💡 Recommended:</strong> {{ comparison.recommended_source.upper() }}
+                            <br>
+                            <small>{{ comparison.reason }}</small>
+                        </div>
+
+                        <table class="table table-sm table-bordered mb-3">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Parameter</th>
+                                    <th>TData Value</th>
+                                    <th>JSON Value</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for field, tdata_val in comparison.tdata.items() %}
+                                <tr {% if tdata_val !=comparison.json[field] %}class="table-warning" {% endif %}>
+                                    <td><strong>{{ field.replace('_', ' ').title() }}</strong></td>
+                                    <td><code>{{ tdata_val or 'N/A' }}</code></td>
+                                    <td><code>{{ comparison.json[field] or 'N/A' }}</code></td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                        {% endif %}
+
+
+                        <!-- Source & Tags -->
+                        <div class="mb-3">
+                            <label class="form-label">Source / Origin</label>
+                            <input class="form-control" list="sourceOptions" name="source"
+                                placeholder="e.g. Seller Name, Shop URL...">
+                            <datalist id="sourceOptions">
+                                {% for s in existing_sources %}
+                                <option value="{{ s }}">
+                                    {% endfor %}
+                            </datalist>
+                            <small class="text-muted">Where did this account come from?</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Tags</label>
+                            <input type="text" class="form-control" name="tags" placeholder="e.g. #premium, #us, #old">
+                            <small class="text-muted">Comma separated tags for categorization</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label"><strong>Select device parameters source:</strong></label>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="device_source" id="source_tdata"
+                                    value="tdata" {% if not comparison or comparison.recommended_source=='tdata' or
+                                    tdata.device_source=='tdata' %}checked{% endif %}>
+                                <label class="form-check-label" for="source_tdata">
+                                    📦 Use TData parameters
+                                    {% if comparison and comparison.recommended_source == 'tdata' %}
+                                    <span class="badge bg-success">Recommended</span>
+                                    {% endif %}
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="device_source" id="source_json"
+                                    value="json" {% if comparison and comparison.recommended_source=='json' and
+                                    tdata.device_source !='tdata' %}checked{% endif %}>
+                                <label class="form-check-label" for="source_json">
+                                    📄 Use JSON parameters
+                                    {% if comparison and comparison.recommended_source == 'json' %}
+                                    <span class="badge bg-success">Recommended</span>
+                                    {% endif %}
+                                </label>
+                            </div>
+                            <small class="text-muted d-block mt-2">
+                                Selected source will be used during first verification handshake
+                            </small>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Digital Anchor Setting -->
+                <div class="card mb-3 border-success">
+                    <div class="card-body">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="anchorSwitch" name="enable_anchor"
+                                checked>
+                            <label class="form-check-label" for="anchorSwitch">
+                                <strong>Enable Digital Anchor</strong> (Safe Mode)
+                                <br>
+                                <small class="text-muted">Automatically starts 10-25m activity emulation after session
+                                    creation (Recommended)</small>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Submit -->
+                <div class="d-grid gap-2">
+                    <button type="submit" class="btn btn-success btn-lg">
+                        ✅ Save Configuration & Create Session
+                    </button>
+                    <a href="{{ url_for('accounts.list_accounts') }}" class="btn btn-outline-secondary">
+                        Cancel
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

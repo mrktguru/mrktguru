@@ -23,78 +23,175 @@
                     <dt class="col-sm-5">Status:</dt>
                     <dd class="col-sm-7">
                         {% if account.status == 'active' %}
-                            <span class="badge bg-success">{{ account.status }}</span>
+                        <span class="badge bg-success">{{ account.status }}</span>
                         {% elif account.status == 'warming_up' %}
-                            <span class="badge bg-warning">{{ account.status }}</span>
+                        <span class="badge bg-warning">{{ account.status }}</span>
                         {% elif account.status == 'cooldown' %}
-                            <span class="badge bg-info">{{ account.status }}</span>
+                        <span class="badge bg-info">{{ account.status }}</span>
                         {% else %}
-                            <span class="badge bg-danger">{{ account.status }}</span>
+                        <span class="badge bg-danger">{{ account.status }}</span>
                         {% endif %}
                     </dd>
 
                     <dt class="col-sm-5">Health:</dt>
                     <dd class="col-sm-7">
                         <div class="progress">
-                            <div class="progress-bar {% if account.health_score >= 70 %}bg-success{% elif account.health_score >= 40 %}bg-warning{% else %}bg-danger{% endif %}" 
-                                 style="width: {{ account.health_score }}%">
+                            <div class="progress-bar {% if account.health_score >= 70 %}bg-success{% elif account.health_score >= 40 %}bg-warning{% else %}bg-danger{% endif %}"
+                                style="width: {{ account.health_score }}%">
                                 {{ account.health_score }}%
                             </div>
                         </div>
                     </dd>
 
                     <dt class="col-sm-5">Created:</dt>
-                    <dd class="col-sm-7">{{ account.created_at.strftime('%Y-%m-%d') }}</dd>
+                    <dd class="col-sm-7">{{ account.created_at.strftime('%d-%m-%Y') }}</dd>
 
                     <dt class="col-sm-5">Last Activity:</dt>
                     <dd class="col-sm-7">
                         {% if account.last_activity %}
-                            {{ account.last_activity.strftime('%Y-%m-%d %H:%M') }}
+                        {{ account.last_activity.strftime('%H:%M %d-%m-%Y') }}
                         {% else %}
-                            <span class="text-muted">Never</span>
+                        <span class="text-muted">Never</span>
                         {% endif %}
                     </dd>
 
                     <dt class="col-sm-5">Cooldown Until:</dt>
                     <dd class="col-sm-7">
                         {% if account.cooldown_until %}
-                            {{ account.cooldown_until.strftime('%Y-%m-%d %H:%M') }}
+                        {{ account.cooldown_until.strftime('%H:%M %d-%m-%Y') }}
                         {% else %}
-                            <span class="text-muted">-</span>
+                        <span class="text-muted">-</span>
                         {% endif %}
+                    </dd>
+
+                    <dt class="col-sm-5">2FA Password:</dt>
+                    <dd class="col-sm-7">
+                        {% if account.two_fa_password %}
+                        <code>{{ account.two_fa_password }}</code>
+                        {% else %}
+                        <span class="text-muted">Not Set</span>
+                        {% endif %}
+                    </dd>
+
+                    <dt class="col-sm-5">Source:</dt>
+                    <dd class="col-sm-7">
+                        <div id="source-display-{{ account.id }}">
+                            {% if account.source %}
+                            {{ account.source }}
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                            <button class="btn btn-sm btn-link p-0 ms-1"
+                                onclick="document.getElementById('source-edit-{{ account.id }}').style.display='block'; document.getElementById('source-display-{{ account.id }}').style.display='none';">
+                                <i class="bi bi-pencil" style="font-size: 0.8rem;"></i>
+                            </button>
+                        </div>
+                        <form id="source-edit-{{ account.id }}"
+                            action="{{ url_for('accounts.update_source', account_id=account.id) }}" method="POST"
+                            style="display:none;">
+                            <div class="input-group input-group-sm">
+                                <input type="text" name="source" class="form-control" value="{{ account.source or '' }}"
+                                    placeholder="Source...">
+                                <button class="btn btn-primary" type="submit"><i class="bi bi-check"></i></button>
+                                <button class="btn btn-outline-secondary" type="button"
+                                    onclick="document.getElementById('source-edit-{{ account.id }}').style.display='none'; document.getElementById('source-display-{{ account.id }}').style.display='block';">
+                                    <i class="bi bi-x"></i>
+                                </button>
+                            </div>
+                        </form>
+                    </dd>
+
+                    <dt class="col-sm-5">Tags:</dt>
+                    <dd class="col-sm-7">
+                        <div class="mb-2">
+                            {% if account.tags %}
+                            {% for tag in account.tags %}
+                            <form action="{{ url_for('accounts.remove_tag', account_id=account.id) }}" method="POST"
+                                style="display:inline;">
+                                <input type="hidden" name="tag" value="{{ tag }}">
+                                <button type="submit" class="badge bg-secondary border-0" style="cursor:pointer;"
+                                    title="Click to remove">
+                                    {{ tag }} &times;
+                                </button>
+                            </form>
+                            {% endfor %}
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </div>
+
+                        <form action="{{ url_for('accounts.add_tag', account_id=account.id) }}" method="POST"
+                            class="input-group input-group-sm">
+                            <input type="text" name="new_tag" class="form-control" placeholder="Add tag..." required>
+                            <button class="btn btn-outline-secondary" type="submit"><i class="bi bi-plus"></i></button>
+                        </form>
                     </dd>
                 </dl>
 
                 <div class="d-grid gap-2 mt-3">
+                    <!-- 1. Verify Session Button (Initial Full Verify) -->
+                    {% if account.first_verified_at %}
+                    <!-- Blocked if already verified -->
+                    <button type="button" class="btn btn-secondary w-100" disabled>
+                        <i class="bi bi-check2-all"></i> Verified (Full Handshake)
+                    </button>
+
+                    <!-- 2. Light Verify Button (Check Status) - Only if verified -->
                     <form method="POST" action="{{ url_for('accounts.verify', account_id=account.id) }}">
-                        <button type="submit" class="btn btn-success w-100">
-                            <i class="bi bi-check-circle"></i> Verify Session
+
+                        <button type="submit" class="btn btn-outline-success w-100">
+                            <i class="bi bi-lightning-charge"></i> Check Status (Light Verify)
                         </button>
                     </form>
+                    {% else %}
+                    <!-- Active if NOT verified yet -->
+                    <form method="POST" action="{{ url_for('accounts.verify', account_id=account.id) }}">
+
+                        <button type="submit" class="btn btn-success w-100">
+                            <i class="bi bi-shield-check"></i> Verify Session
+                        </button>
+                    </form>
+                    {% endif %}
+
+                    <!-- 3. Self Check Button (Replaces Health Dropdown) -->
+                    <button type="button" class="btn btn-outline-info w-100"
+                        onclick="checkAccountHealth('self_check', {{ account.id }}, this)">
+                        <i class="bi bi-heart-pulse"></i> Self Check (Safe)
+                    </button>
+                    <!-- 4. Immersive Human Check -->
+                    <button type="button" class="mt-2 btn btn-outline-primary w-100"
+                        onclick="runHumanCheck({{ account.id }}, this)">
+                        <i class="bi bi-robot"></i> Human-Like SpamBlock Check (10s)
+                    </button>
+                    <!-- "Sync from Telegram" removed per request -->
+
+                    {% if account.two_fa_password %}
+                    <form method="POST" action="{{ url_for('accounts.remove_2fa', account_id=account.id) }}"
+                        onsubmit="return confirm('This will REMOVE the current 2FA password with human emulation (takes ~10s). Account will have NO password. Continue?');">
+                        <button type="submit" class="btn btn-outline-danger w-100">
+                            <i class="bi bi-unlock"></i> Remove 2FA Password
+                        </button>
+                    </form>
+                    {% else %}
+                    <form method="POST" action="{{ url_for('accounts.set_2fa', account_id=account.id) }}"
+                        onsubmit="return confirm('This will set a new randomized 2FA password with human emulation (takes ~10s). Continue?');">
+                        <button type="submit" class="btn btn-outline-dark w-100">
+                            <i class="bi bi-shield-lock"></i> Set 2FA Password
+                        </button>
+                    </form>
+                    {% endif %}
+
+                    <a href="{{ url_for('accounts.activity_logs', account_id=account.id) }}"
+                        class="btn btn-outline-info w-100">
+                        <i class="bi bi-list-ul"></i> View Activity Logs
+                    </a>
                 </div>
             </div>
         </div>
 
-        <div class="card mb-3">
-            <div class="card-header">
-                <h5 class="mb-0">Daily Stats</h5>
-            </div>
-            <div class="card-body">
-                <div class="row text-center">
-                    <div class="col-6">
-                        <h3>{{ account.messages_sent_today }}</h3>
-                        <small class="text-muted">Messages</small>
-                    </div>
-                    <div class="col-6">
-                        <h3>{{ account.invites_sent_today }}</h3>
-                        <small class="text-muted">Invites</small>
-                    </div>
-                </div>
-            </div>
-        </div>
 
-        <div class="card mb-3">
-            <div class="card-header">
+
+
         <!-- Telegram User Info Card - Insert after Account Status card -->
         <div class="card mb-3">
             <div class="card-header">
@@ -102,232 +199,574 @@
             </div>
             <div class="card-body">
                 {% if account.telegram_id %}
-                    <div class="row mb-3">
-                        <div class="col-md-4 text-center">
-                            {% if account.photo_url and account.photo_url != "photo_available" %}
-                                <img src="/{{ account.photo_url }}" 
-                                     class="rounded-circle mb-2" width="100" height="100" style="object-fit: cover;">
-                            {% else %}
-                                <div class="bg-secondary rounded-circle d-inline-flex align-items-center justify-content-center" 
-                                     style="width: 100px; height: 100px;">
-                                    <i class="bi bi-person-fill text-white" style="font-size: 3rem;"></i>
-                                </div>
-                            {% endif %}
+                <div class="row mb-3">
+                    <div class="col-md-4 text-center">
+                        {% if account.photo_url and account.photo_url != "photo_available" %}
+                        <img src="/{{ account.photo_url }}" class="rounded-circle mb-2" width="100" height="100"
+                            style="object-fit: cover;">
+                        {% else %}
+                        <div class="bg-secondary rounded-circle d-inline-flex align-items-center justify-content-center"
+                            style="width: 100px; height: 100px;">
+                            <i class="bi bi-person-fill text-white" style="font-size: 3rem;"></i>
                         </div>
-                        <div class="col-md-8">
-                            <dl class="row mb-0">
-                                <dt class="col-sm-4">ID:</dt>
-                                <dd class="col-sm-8"><code>{{ account.telegram_id }}</code></dd>
-                                
-                                <dt class="col-sm-4">Name:</dt>
-                                <dd class="col-sm-8">
-                                    {{ account.first_name }}
-                                    {% if account.last_name %}{{ account.last_name }}{% endif %}
-                                </dd>
-                                
-                                <dt class="col-sm-4">Username:</dt>
-                                <dd class="col-sm-8">
-                                    {% if account.username %}
-                                        @{{ account.username }}
-                                    {% else %}
-                                        <span class="text-muted">No username</span>
-                                    {% endif %}
-                                </dd>
-                                
-                                <dt class="col-sm-4">Bio:</dt>
-                                <dd class="col-sm-8">
-                                    {% if account.bio %}
-                                        {{ account.bio }}
-                                    {% else %}
-                                        <span class="text-muted">No bio</span>
-                                    {% endif %}
-                                </dd>
-                            </dl>
-                        </div>
+                        {% endif %}
                     </div>
-                    
-                    <!-- Edit Profile Form -->
-                    <button class="btn btn-sm btn-outline-primary" data-bs-toggle="collapse" data-bs-target="#editProfile">
+                    <div class="col-md-8">
+                        <dl class="row mb-0">
+                            <dt class="col-sm-4">ID:</dt>
+                            <dd class="col-sm-8"><code>{{ account.telegram_id }}</code></dd>
+
+                            <dt class="col-sm-4">Name:</dt>
+                            <dd class="col-sm-8">
+                                {{ account.first_name }}
+                                {% if account.last_name %}{{ account.last_name }}{% endif %}
+                            </dd>
+
+                            <dt class="col-sm-4">Username:</dt>
+                            <dd class="col-sm-8">
+                                {% if account.username %}
+                                @{{ account.username }}
+                                {% else %}
+                                <span class="text-muted">No username</span>
+                                {% endif %}
+                            </dd>
+
+                            <dt class="col-sm-4">Bio:</dt>
+                            <dd class="col-sm-8">
+                                {% if account.bio %}
+                                {{ account.bio }}
+                                {% else %}
+                                <span class="text-muted">No bio</span>
+                                {% endif %}
+                            </dd>
+                        </dl>
+                    </div>
+                </div>
+
+                <!-- Actions -->
+                <div class="d-flex justify-content-between align-items-center">
+                    <button class="btn btn-sm btn-outline-primary" data-bs-toggle="collapse"
+                        data-bs-target="#editProfile">
                         <i class="bi bi-pencil"></i> Edit Profile
                     </button>
-                    
-                    <div class="collapse mt-3" id="editProfile">
-                        <form method="POST" action="{{ url_for("accounts.update_profile", account_id=account.id) }}" enctype="multipart/form-data">
-                            <div class="mb-2">
-                                <label class="form-label">Username</label>
-                                <input type="text" name="username" class="form-control" value="{{ account.username or "" }}" placeholder="username (without @)">
-                                <small class="text-muted">Enter without @ symbol</small>
-                            </div>
-                            <div class="mb-2">
-                                <label class="form-label">Bio</label>
-                                <textarea name="bio" class="form-control" rows="3" placeholder="About me">{{ account.bio or "" }}</textarea>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Profile Photo</label>
-                                <input type="file" name="photo" class="form-control" accept="image/*">
-                            </div>
-                            <button type="submit" class="btn btn-primary">
-                                <i class="bi bi-save"></i> Save Changes
-                            </button>
-                        </form>
-                    </div>
+
+                    <!-- Sync Profile button removed (Passive Sync enabled) -->
+                </div>
+
+                <div class="collapse mt-3" id="editProfile">
+                    <form method="POST" action="{{ url_for('accounts.update_profile', account_id=account.id) }}"
+                        enctype="multipart/form-data">
+                        <div class="mb-2">
+                            <label class="form-label">Username</label>
+                            <input type="text" name="username" class="form-control" value="{{ account.username or "" }}"
+                                placeholder="username (without @)">
+                            <small class="text-muted">Enter without @ symbol</small>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label">Bio</label>
+                            <textarea name="bio" class="form-control" rows="3"
+                                placeholder="About me">{{ account.bio or "" }}</textarea>
+                        </div>
+
+                        <div class="mb-2">
+                            <label class="form-label">Source</label>
+                            <input type="text" name="source" class="form-control" value="{{ account.source or "" }}">
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label">Tags (comma separated)</label>
+                            <input type="text" name="tags" class="form-control"
+                                value="{{ account.tags|join(', ') if account.tags else '' }}">
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Profile Photo</label>
+                            <input type="file" name="photo" class="form-control" accept="image/*">
+                        </div>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-save"></i> Save Changes
+                        </button>
+                    </form>
+                </div>
                 {% else %}
-                    <div class="alert alert-info mb-0">
-                        <i class="bi bi-info-circle"></i> Click "Verify Session" button above to load Telegram user info
-                    </div>
+                <div class="alert alert-info mb-0">
+                    <i class="bi bi-info-circle"></i> Click "Verify Session" button above to load Telegram user
+                    info
+                </div>
                 {% endif %}
             </div>
         </div>
 
-                <h5 class="mb-0">Warm-up Progress</h5>
-            </div>
-            <div class="card-body">
-                <div class="progress mb-2" style="height: 25px;">
-                    <div class="progress-bar" style="width: {{ (account.warm_up_days_completed / 7 * 100)|int }}%">
-                        {{ account.warm_up_days_completed }}/7 days
-                    </div>
-                </div>
-                {% if account.warm_up_days_completed < 7 %}
-                    <small class="text-muted">
-                        {{ 7 - account.warm_up_days_completed }} days remaining
-                    </small>
-                {% else %}
-                    <small class="text-success">✓ Warm-up completed</small>
-                {% endif %}
-            </div>
-        </div>
     </div>
 
     <div class="col-md-8">
         <div class="card mb-3">
             <div class="card-header">
-                <h5 class="mb-0">Device Profile</h5>
+                <h5 class="mb-0"><i class="bi bi-phone"></i> Device Fingerprint Override</h5>
             </div>
             <div class="card-body">
-                {% if account.device_profile %}
-                <dl class="row mb-0">
-                    <dt class="col-sm-4">Device Model:</dt>
-                    <dd class="col-sm-8">{{ account.device_profile.device_model }}</dd>
-
-                    <dt class="col-sm-4">System Version:</dt>
-                    <dd class="col-sm-8">{{ account.device_profile.system_version }}</dd>
-
-                    <dt class="col-sm-4">App Version:</dt>
-                    <dd class="col-sm-8">{{ account.device_profile.app_version }}</dd>
-
-                    <dt class="col-sm-4">Language:</dt>
-                    <dd class="col-sm-8">{{ account.device_profile.lang_code }} / {{ account.device_profile.system_lang_code }}</dd>
-                </dl>
-                {% else %}
-                <p class="text-muted">No device profile</p>
+                <!-- Hidden JSON device params for JavaScript -->
+                {% if json_device_params %}
+                <script type="application/json" id="json-device-params">
+                    {{ json_device_params | tojson }}
+                </script>
                 {% endif %}
-            </div>
-        </div>
 
-        <div class="card mb-3">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">Proxy Assignment</h5>
+                <!-- Device Profile Dropdown -->
+                <div class="mb-4">
+                    <label class="form-label fw-bold">Device Profile</label>
+                    <select class="form-select form-select-lg" id="deviceProfileSelect"
+                        data-account-id="{{ account.id }}">
+                        <option value="original" {% if not account.device_profile and (not account.tdata_metadata or
+                            account.tdata_metadata.device_source !='json' ) %}selected{% endif %}>
+                            ✓ Use Original from TData
+                        </option>
+                        {% if account.tdata_metadata and account.tdata_metadata.json_raw_data %}
+                        <option value="json" {% if account.tdata_metadata.device_source=='json' %}selected{% endif %}>
+                            📄 Use JSON parameters
+                        </option>
+                        {% endif %}
+                        <optgroup label="📱 iOS Devices">
+                            <option value="iphone15_ios18" {% if account.device_profile and
+                                account.device_profile.device_model=='iPhone 15 Pro' %}selected{% endif %}>
+                                iPhone 15 Pro (iOS 18.2) - Latest
+                            </option>
+                            <option value="iphone14_ios17" {% if account.device_profile and
+                                account.device_profile.device_model=='iPhone 14 Pro' %}selected{% endif %}>
+                                iPhone 14 Pro (iOS 17.6)
+                            </option>
+                            <option value="iphone13_ios17" {% if account.device_profile and
+                                account.device_profile.device_model=='iPhone 13' %}selected{% endif %}>
+                                iPhone 13 (iOS 17.4)
+                            </option>
+                            <option value="iphone12_ios16" {% if account.device_profile and
+                                account.device_profile.device_model=='iPhone 12' %}selected{% endif %}>
+                                iPhone 12 (iOS 16.7)
+                            </option>
+                            <option value="iphone11_ios16" {% if account.device_profile and
+                                account.device_profile.device_model=='iPhone 11' %}selected{% endif %}>
+                                iPhone 11 (iOS 16.5)
+                            </option>
+                        </optgroup>
+                        <optgroup label="🤖 Android Devices">
+                            <option value="samsung_s24_android14" {% if account.device_profile and
+                                account.device_profile.device_model=='Samsung Galaxy S24 Ultra' %}selected{% endif %}>
+                                Samsung Galaxy S24 Ultra (Android 14)
+                            </option>
+                            <option value="samsung_s21_android13" {% if account.device_profile and
+                                account.device_profile.device_model=='Samsung Galaxy S21 Ultra' %}selected{% endif %}>
+                                Samsung Galaxy S21 Ultra (Android 13)
+                            </option>
+                            <option value="pixel8_android14" {% if account.device_profile and
+                                account.device_profile.device_model=='Google Pixel 8 Pro' %}selected{% endif %}>
+                                Google Pixel 8 Pro (Android 14)
+                            </option>
+                            <option value="xiaomi14_android14" {% if account.device_profile and
+                                account.device_profile.device_model=='Xiaomi 14 Pro' %}selected{% endif %}>
+                                Xiaomi 14 Pro (Android 14)
+                            </option>
+                        </optgroup>
+                        <optgroup label="💻 Desktop">
+                            <option value="windows11_desktop" {% if account.device_profile and
+                                account.device_profile.device_model=='Desktop' and 'Windows 11' in
+                                (account.device_profile.system_version or '' ) %}selected{% endif %}>
+                                Windows 11 Desktop
+                            </option>
+                            <option value="windows10_desktop" {% if account.device_profile and
+                                account.device_profile.device_model=='Desktop' and 'Windows 10' in
+                                (account.device_profile.system_version or '' ) %}selected{% endif %}>
+                                Windows 10 Desktop
+                            </option>
+                            <option value="macos_sonoma" {% if account.device_profile and
+                                account.device_profile.device_model=='Desktop' and 'macOS' in
+                                (account.device_profile.system_version or '' ) %}selected{% endif %}>
+                                macOS Sonoma
+                            </option>
+                        </optgroup>
+                    </select>
+                    <small class="form-text text-muted">Select a device preset to override the original TData
+                        fingerprint</small>
+                </div>
+
+                <!-- Selected Profile Display -->
+                <div class="bg-light p-3 rounded mb-3" id="selectedProfileDisplay">
+                    <h6 class="mb-3"><strong>Selected Profile:</strong></h6>
+                    <dl class="row mb-0">
+                        <dt class="col-sm-3">Device:</dt>
+                        <dd class="col-sm-9 text-primary" id="profile-device">
+                            {% if account.tdata_metadata and account.tdata_metadata.device_source == 'json' and
+                            json_device_params %}
+                            {{ json_device_params.device_model }}
+                            {% elif account.device_profile %}
+                            {{ account.device_profile.device_model }}
+                            {% elif account.tdata_metadata %}
+                            Original
+                            {% else %}
+                            N/A
+                            {% endif %}
+                        </dd>
+
+                        <dt class="col-sm-3">System:</dt>
+                        <dd class="col-sm-9 text-primary" id="profile-system">
+                            {% if account.tdata_metadata and account.tdata_metadata.device_source == 'json' and
+                            json_device_params %}
+                            {{ json_device_params.system_version }}
+                            {% elif account.device_profile %}
+                            {{ account.device_profile.system_version }}
+                            {% elif account.tdata_metadata %}
+                            Original
+                            {% else %}
+                            N/A
+                            {% endif %}
+                        </dd>
+
+                        <dt class="col-sm-3">App:</dt>
+                        <dd class="col-sm-9 text-primary" id="profile-app">
+                            {% if account.tdata_metadata and account.tdata_metadata.device_source == 'json' and
+                            json_device_params %}
+                            {{ json_device_params.app_version }}
+                            {% elif account.device_profile %}
+                            {{ account.device_profile.app_version }}
+                            {% elif account.tdata_metadata %}
+                            Original
+                            {% else %}
+                            N/A
+                            {% endif %}
+                        </dd>
+
+                        <dt class="col-sm-3">Language:</dt>
+                        <dd class="col-sm-9 text-primary" id="profile-language">
+                            {% if account.tdata_metadata and account.tdata_metadata.device_source == 'json' and
+                            json_device_params %}
+                            {{ json_device_params.lang_code }} / {{ json_device_params.system_lang_code }}
+                            {% elif account.device_profile %}
+                            {{ account.device_profile.lang_code }} / {{ account.device_profile.system_lang_code }}
+                            {% elif account.tdata_metadata %}
+                            {{ account.tdata_metadata.lang_code or 'en' }} / {{ account.tdata_metadata.system_lang_code
+                            or 'en-US' }}
+                            {% else %}
+                            N/A
+                            {% endif %}
+                        </dd>
+                    </dl>
+                </div>
+
+                <!-- Original Device Fingerprint -->
+                {% if account.tdata_metadata %}
+                <div class="border-top pt-3">
+                    <h6 class="mb-3"><i class="bi bi-phone"></i> <strong>Original Device Fingerprint</strong></h6>
+                    <dl class="row mb-0">
+                        <dt class="col-sm-4">Device Model:</dt>
+                        <dd class="col-sm-8 text-danger">{{ account.tdata_metadata.device_model or 'Desktop' }}</dd>
+
+                        <dt class="col-sm-4">System Version:</dt>
+                        <dd class="col-sm-8 text-danger">{{ account.tdata_metadata.system_version or 'N/A' }}</dd>
+
+                        <dt class="col-sm-4">App Version:</dt>
+                        <dd class="col-sm-8 text-danger">{{ account.tdata_metadata.app_version or 'N/A' }}</dd>
+
+                        <dt class="col-sm-4">Device Brand:</dt>
+                        <dd class="col-sm-8 text-danger">{{ account.tdata_metadata.device_brand or 'N/A' }}</dd>
+
+                        <dt class="col-sm-4">Language:</dt>
+                        <dd class="col-sm-8 text-danger">{{ account.tdata_metadata.lang_code or 'en' }} / {{
+                            account.tdata_metadata.system_lang_code or 'en-US' }}</dd>
+                    </dl>
+                </div>
+                {% endif %}
+
+
+
+                <hr class="my-3">
+                <h6 class="mb-3"><i class="bi bi-laptop"></i> Active Sessions</h6>
+
+                <div id="sessions-container">
+                    {% set active_sessions = account.active_sessions.all() %}
+                    <button class="btn btn-sm btn-outline-primary w-100" onclick="loadSessions()">
+                        {% if active_sessions %}
+                        <i class="bi bi-arrow-clockwise"></i> Refresh Active Sessions
+                        {% else %}
+                        <i class="bi bi-cloud-download"></i> Load Active Sessions
+                        {% endif %}
+                    </button>
+                    <div id="sessions-loading" class="text-center mt-3 d-none">
+                        <span class="spinner-border text-primary" role="status"></span>
+                        <p class="small text-muted mt-2">Fetching sessions (human emulation in progress)...</p>
+                    </div>
+                </div>
+
+                <div id="sessions-list" class="mt-3 {% if not active_sessions %}d-none{% endif %}">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover" style="font-size: 0.85rem;">
+                            <thead>
+                                <tr>
+                                    <th>Device</th>
+                                    <th>Location</th>
+                                    <th>Active</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="sessions-table-body">
+                                {% for s in active_sessions %}
+                                <tr class="{% if s.is_current %}table-success{% endif %}">
+                                    <td>
+                                        <div class="fw-bold">{{ s.device_model }}</div>
+                                        <small class="text-muted">{{ s.app_name }} {{ s.app_version }}</small>
+                                    </td>
+                                    <td>
+                                        <div>{{ s.country }}</div>
+                                        <small class="text-muted">{{ s.ip }}</small>
+                                    </td>
+                                    <td>
+                                        <small title="Created: {{ s.date_created }}">{{
+                                            s.date_active.strftime('%Y-%m-%d') if s.date_active else '-' }}</small>
+                                    </td>
+                                    <td>
+                                        {% if s.is_current %}
+                                        <span class="badge bg-success">Current</span>
+                                        {% else %}
+                                        <button class="btn btn-xs btn-outline-danger"
+                                            onclick="terminateSession('{{ s.session_hash }}')" title="Terminate">
+                                            <i class="bi bi-x"></i>
+                                        </button>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <button class="btn btn-sm btn-outline-danger w-100 mt-2" onclick="terminateAllSessions()">
+                        <i class="bi bi-x-circle"></i> Terminate All Other Sessions
+                    </button>
+                </div>
             </div>
-            <div class="card-body">
-                <form method="POST" action="{{ url_for('accounts.assign_proxy', account_id=account.id) }}">
-                    <div class="row">
-                        <div class="col-md-9">
-                            <select class="form-select" name="proxy_id">
-                                <option value="">No proxy</option>
+
+        </div>
+    </div>
+
+    <div class="card mb-3">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Proxy Assignment</h5>
+        </div>
+        <div class="card-body">
+            <form method="POST" action="{{ url_for('accounts.assign_proxy', account_id=account.id) }}">
+                <div class="row">
+                    <div class="col-md-9">
+                        <select class="form-select" name="proxy_selection">
+                            <option value="">No proxy</option>
+
+                            {% if proxy_networks %}
+                            <optgroup label="📡 Proxy Networks (Dynamic)">
+                                {% for net in proxy_networks %}
+                                <option value="network_{{ net.id }}" {% if account.proxy_network_id==net.id %}selected{%
+                                    endif %}>
+                                    {{ net.name }} (Ports {{ net.start_port }}-{{ net.end_port }})
+                                </option>
+                                {% endfor %}
+                            </optgroup>
+                            {% endif %}
+
+                            <optgroup label="🔒 Individual Proxies (Static)">
                                 {% for proxy in proxies %}
-                                <option value="{{ proxy.id }}" {% if account.proxy_id == proxy.id %}selected{% endif %}>
-                                    {{ proxy.type }}://{{ proxy.host }}:{{ proxy.port }}
+                                <option value="proxy_{{ proxy.id }}" {% if account.proxy_id==proxy.id %}selected{% endif
+                                    %}>
+                                    {{ proxy.flag }} {{ proxy.type }}://{{ proxy.host }}:{{ proxy.port }}
                                     {% if proxy.current_ip %}({{ proxy.current_ip }}){% endif %}
                                 </option>
                                 {% endfor %}
-                            </select>
-                        </div>
-                        <div class="col-md-3">
-                            <button type="submit" class="btn btn-primary w-100">Update</button>
-                        </div>
+                            </optgroup>
+                        </select>
                     </div>
-                </form>
-
-                {% if account.proxy %}
-                <div class="mt-3 p-3 bg-light rounded">
-                    <strong>Current Proxy:</strong><br>
-                    Type: {{ account.proxy.type }}<br>
-                    Host: {{ account.proxy.host }}:{{ account.proxy.port }}<br>
-                    IP: {{ account.proxy.current_ip or 'Unknown' }}<br>
-                    Status: <span class="badge bg-{{ 'success' if account.proxy.status == 'active' else 'danger' }}">
-                        {{ account.proxy.status }}
-                    </span>
+                    <div class="col-md-3">
+                        <button type="submit" class="btn btn-primary w-100">Update</button>
+                    </div>
                 </div>
-                {% endif %}
-            </div>
-        </div>
+            </form>
 
+            {% if account.proxy_network %}
+            <div class="mt-3 p-3 bg-light rounded border border-primary">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <strong class="text-primary">📡 Dynamics Proxy Network</strong><br>
+                        Network: <strong>{{ account.proxy_network.name }}</strong><br>
+                        Assigned Port: <code>{{ account.assigned_port }}</code><br>
+                        Connection: <code
+                            title="{{ account.proxy_connection_string }}">{{ account.proxy_connection_string }}</code>
+                    </div>
+                </div>
+            </div>
+            {% elif account.proxy %}
+            <div class="mt-3 p-3 bg-light rounded">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <strong>Current Proxy:</strong><br>
+                        {% if account.proxy.country %}<span class="badge bg-info">🌍 {{ account.proxy.country
+                            }}</span> {% endif %}
+                        Type: {{ account.proxy.type }}<br>
+                        Host: {{ account.proxy.host }}:{{ account.proxy.port }}<br>
+                        IP: <span id="proxy-ip">{{ account.proxy.current_ip or 'Unknown' }}</span>
+                        <button class="btn btn-sm btn-outline-primary ms-2" id="refresh-ip-btn"
+                            onclick="refreshProxyIP({{ account.proxy.id }})">
+                            <i class="bi bi-arrow-clockwise"></i> Refresh IP
+                        </button>
+                        <br>
+                        Status: <span
+                            class="badge bg-{{ 'success' if account.proxy.status == 'active' else 'danger' }}">
+                            {{ account.proxy.status }}
+                        </span>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+
+
+
+    <!-- WARMUP DISABLED - OLD SYSTEM
+        Conversation Pairs section hidden
+        Will be reimplemented in new balanced warmup system
+        
         <div class="card mb-3">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">Subscriptions ({{ account.subscriptions.count() }})</h5>
-                <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addSubscriptionModal">
-                    <i class="bi bi-plus"></i> Add
-                </button>
-            </div>
-            <div class="card-body">
-                {% if account.subscriptions.count() > 0 %}
-                <div class="table-responsive">
-                    <table class="table table-sm">
-                        <thead>
-                            <tr>
-                                <th>Channel</th>
-                                <th>Subscribed At</th>
-                                <th>Source</th>
-                                <th>Status</th>
-                                <th></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for sub in account.subscriptions %}
-                            <tr>
-                                <td>@{{ sub.channel_username }}</td>
-                                <td>{{ sub.subscribed_at.strftime('%Y-%m-%d') }}</td>
-                                <td><span class="badge bg-secondary">{{ sub.subscription_source }}</span></td>
-                                <td>
-                                    {% if sub.is_active %}
-                                        <span class="badge bg-success">Active</span>
-                                    {% else %}
-                                        <span class="badge bg-secondary">Inactive</span>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    <form method="POST" action="{{ url_for('accounts.remove_subscription', account_id=account.id, sub_id=sub.id) }}" style="display: inline;">
-                                        <button type="submit" class="btn btn-sm btn-outline-danger">
-                                            <i class="bi bi-trash"></i>
-                                        </button>
-                                    </form>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-                {% else %}
-                <p class="text-muted">No subscriptions yet</p>
-                {% endif %}
-            </div>
+            ...
         </div>
+        END WARMUP DISABLED -->
 
-        <div class="card">
-            <div class="card-header bg-danger text-white">
-                <h5 class="mb-0">Danger Zone</h5>
+
+    <!-- WARMUP DISABLED - OLD SYSTEM
+        Recent Warmup Activity section hidden
+        Will be reimplemented in new balanced warmup system
+        
+        {% if recent_activities %}
+        <div class="card mb-3">
+            ...
+        </div>
+        {% endif %}
+        END WARMUP DISABLED -->
+
+    <!-- Discovered Channels (Simple View) -->
+    <div class="card mb-3">
+        <div class="card-header bg-info text-dark d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="bi bi-eye"></i> Discovered Channels</h5>
+            <button class="btn btn-sm btn-dark" onclick="loadDiscoveredChannels(1)">
+                <i class="bi bi-arrow-clockwise"></i> Refresh
+            </button>
+        </div>
+        <div class="card-body p-0">
+            <div id="discovered-channels-container" class="list-group list-group-flush">
+                <!-- Channels will be loaded here -->
+                <div class="text-center p-3 text-muted">
+                    <span class="spinner-border spinner-border-sm"></span> Loading...
+                </div>
             </div>
-            <div class="card-body">
-                <p>Once you delete an account, there is no going back. The session file will also be removed.</p>
-                <form method="POST" action="{{ url_for('accounts.delete', account_id=account.id) }}" 
-                      onsubmit="return confirm('Are you sure you want to delete this account? This action cannot be undone.')">
-                    <button type="submit" class="btn btn-danger">
-                        <i class="bi bi-trash"></i> Delete Account
-                    </button>
-                </form>
+
+            <!-- Pagination -->
+            <div class="d-flex justify-content-center p-2" id="discovered-pagination" style="display:none !important">
+                <button class="btn btn-sm btn-outline-secondary me-2" id="prev-page-btn" disabled>Previous</button>
+                <span class="align-self-center small text-muted mx-2">Page <span id="current-page">1</span></span>
+                <button class="btn btn-sm btn-outline-secondary ms-2" id="next-page-btn" disabled>Next</button>
             </div>
         </div>
     </div>
+
+    <!-- NEW WARMUP SYSTEM -->
+    <!-- RECENT ACTIVITY LOGS -->
+    <!-- REAL-TIME ACTIVITY TERMINAL -->
+    <div class="card mb-3">
+        <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center py-2">
+            <div class="d-flex align-items-center gap-2">
+                <i class="bi bi-terminal-fill small"></i>
+                <span class="small fw-bold">Live Activity Log: Account {{ account.id }}</span>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-secondary" id="log-status-badge" style="font-size:0.6rem;">OFFLINE</span>
+                <div class="form-check form-switch mb-0" style="min-height:auto;">
+                    <input class="form-check-input" type="checkbox" id="autoscroll-switch" checked
+                        style="width: 2em; height: 1em; margin-top: 0.1em;">
+                    <label class="form-check-label text-white small ms-1" for="autoscroll-switch">Auto-scroll</label>
+                </div>
+            </div>
+        </div>
+
+        <div class="card-body p-0 bg-black">
+            <div id="terminal-content"
+                style="height: 300px; overflow-y: auto; font-family: 'Consolas', 'Monaco', monospace; font-size: 0.75rem; padding: 10px; color: #d4d4d4; background-color: #1e1e1e;">
+                <div class="text-muted fst-italic">Connecting to log stream...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const accountId = "{{ account.id }}";
+            const terminal = document.getElementById('terminal-content');
+            const badge = document.getElementById('log-status-badge');
+            let eventSource = null;
+
+            function connectLogs() {
+                if (eventSource) eventSource.close();
+
+                eventSource = new EventSource(`/scheduler/stream/logs/${accountId}`);
+
+                eventSource.onopen = () => {
+                    badge.className = 'badge bg-success';
+                    badge.innerText = 'LIVE';
+                    if (terminal.innerText.includes('Connecting')) terminal.innerHTML = '';
+                    appendLine({ timestamp: new Date().toLocaleTimeString(), level: 'SYSTEM', message: 'Connection established.' }, true);
+                };
+
+                eventSource.onmessage = (e) => {
+                    try {
+                        const data = JSON.parse(e.data);
+                        appendLine(data);
+                    } catch (err) {
+                        console.error('Log parse error', err);
+                    }
+                };
+
+                eventSource.onerror = () => {
+                    badge.className = 'badge bg-danger';
+                    badge.innerText = 'RECONNECTING';
+                };
+            }
+
+            function appendLine(log, isSystem = false) {
+                const row = document.createElement('div');
+                row.style.marginBottom = '2px';
+                row.style.lineHeight = '1.2';
+                row.style.wordWrap = 'break-word';
+
+                let color = '#d4d4d4';
+                let levelColor = '#808080';
+
+                if (log.level === 'INFO') { levelColor = '#569cd6'; }
+                else if (log.level === 'WARNING') { levelColor = '#ce9178'; color = '#ce9178'; }
+                else if (log.level === 'ERROR' || log.level === 'CRITICAL') { levelColor = '#f44747'; color = '#f44747'; }
+                else if (isSystem) { color = '#6a9955'; }
+
+                row.innerHTML = `
+                    <span style="color: #6a9955; margin-right: 5px; opacity:0.7;">[${log.timestamp}]</span>
+                    <span style="color: ${levelColor}; font-weight: bold; min-width: 50px; display: inline-block;">${log.level}</span>
+                    <span style="color: ${color};">${log.clean_message || log.message}</span>
+                `;
+
+                terminal.appendChild(row);
+
+                const autoscroll = document.getElementById('autoscroll-switch').checked;
+                if (autoscroll) {
+                    terminal.scrollTop = terminal.scrollHeight;
+                }
+            }
+
+            if (accountId) connectLogs();
+        });
+    </script>
+
+    <!-- SCHEDULER UI -->
+    {% include 'accounts/scheduler_section.html' %}
+</div>
 </div>
 
 <!-- Add Subscription Modal -->
@@ -342,8 +781,8 @@
                 <div class="modal-body">
                     <div class="mb-3">
                         <label for="channel_username" class="form-label">Channel Username</label>
-                        <input type="text" class="form-control" id="channel_username" name="channel_username" 
-                               placeholder="username or @username" required>
+                        <input type="text" class="form-control" id="channel_username" name="channel_username"
+                            placeholder="username or @username" required>
                     </div>
                     <div class="mb-3">
                         <label for="notes" class="form-label">Notes (optional)</label>
@@ -359,4 +798,56 @@
     </div>
 </div>
 
+<!-- Add Pair Modal -->
+<!-- Add Pair Modal Removed -->
+
+
+<script>
+    window.accountId = {{ account.id }};
+
+    async function runHumanCheck(accountId, btn) {
+        if (!confirm('This will simulate a REAL user behavior: open chat list, search SpamBot, open chat, read history. \n\nExpected duration: 8-15 seconds. \n\nContinue?')) return;
+
+        const originalText = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Running Simulation...';
+
+        try {
+            const response = await fetch(`/accounts/${accountId}/human_check`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                if (result.status === 'clean') {
+                    alert("✅ GREAT! Account is CLEAN (Green).\n\nBot said: 'Good news, no limits...'");
+                } else {
+                    alert("❄️ WARNING: Account is Restricted/Frozen.\n\nBot says you have limits.");
+                }
+            } else {
+                alert("❌ Error: " + (result.error || "Unknown error"));
+            }
+            // Reload page to show new logs
+            window.location.reload();
+
+        } catch (error) {
+            console.error(error);
+            alert("❌ Network Error");
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
+    }
+</script>
+<script src="{{ url_for('static', filename='js/account_health.js') }}"></script>
+<script src="{{ url_for('static', filename='js/account_detail.js') }}?v=fix_btn_v3"></script>
+
+{% endblock %}
+
+{% block modals %}
+<script src="{{ url_for('static', filename='js/device_profile.js') }}"></script>
 {% endblock %}
