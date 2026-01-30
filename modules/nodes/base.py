@@ -1,10 +1,15 @@
 import logging
 import json
 import datetime
+import hashlib
 from models.warmup_log import WarmupLog
 from utils.redis_logger import redis_client
 
 logger = logging.getLogger(__name__)
+
+# In-memory dedup cache for BaseNodeExecutor Redis publishing
+_recent_log_messages = {}
+_DEDUP_WINDOW_SECONDS = 2
 
 class BaseNodeExecutor:
     """
@@ -24,6 +29,29 @@ class BaseNodeExecutor:
             dict: {'success': bool, 'message': str, 'error': str (optional)}
         """
         raise NotImplementedError
+    
+    def _is_duplicate_redis_message(self, message):
+        """Check if this message was recently published for this account"""
+        global _recent_log_messages
+        
+        content_key = f"{self.account_id}:{message}"
+        msg_hash = hashlib.md5(content_key.encode()).hexdigest()
+        
+        now = datetime.datetime.now().timestamp()
+        
+        # Clean old entries (older than window)
+        _recent_log_messages = {
+            k: v for k, v in _recent_log_messages.items() 
+            if now - v < _DEDUP_WINDOW_SECONDS
+        }
+        
+        # Check if this is a duplicate
+        if msg_hash in _recent_log_messages:
+            return True
+        
+        # Record this message
+        _recent_log_messages[msg_hash] = now
+        return False
         
     def log(self, level, message, action=None):
         """
@@ -47,6 +75,10 @@ class BaseNodeExecutor:
             logger.error(f"[{self.account_id}] Failed to write to DB log: {e}")
 
         # 3. Redis Publish (For Live Terminal in Frontend)
+        # Skip if this message was recently published (dedup)
+        if self._is_duplicate_redis_message(message):
+            return
+            
         try:
             if redis_client:
                 channel = f"logs:account:{self.account_id}"

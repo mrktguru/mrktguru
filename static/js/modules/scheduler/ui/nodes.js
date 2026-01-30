@@ -14,7 +14,8 @@ export function renderNodes() {
     viewStartMonday.setDate(baseMonday.getDate() + (currentWeekOffset * 7));
     viewStartMonday.setHours(0, 0, 0, 0);
 
-    const clusters = {};
+    // Group nodes by day first
+    const nodesByDay = {};
 
     scheduleData.nodes.forEach(node => {
         if (!node.day_number) return;
@@ -27,24 +28,82 @@ export function renderNodes() {
         const colIndex = Math.round(diffTime / (1000 * 60 * 60 * 24));
 
         if (colIndex >= 0 && colIndex < DAYS_PER_VIEW) {
-            const timeStr = node.execution_time || '00:00';
-            const key = `${colIndex}_${timeStr}`;
-
-            console.log(`[Scheduler] Node ${node.id} cluster: dayIndex=${colIndex}, time=${timeStr}`);
-
-            if (!clusters[key]) {
-                clusters[key] = {
-                    colIndex: colIndex,
-                    timeStr: timeStr,
-                    nodes: []
-                };
+            if (!nodesByDay[colIndex]) {
+                nodesByDay[colIndex] = [];
             }
-            clusters[key].nodes.push(node);
+            nodesByDay[colIndex].push(node);
         }
     });
 
-    Object.values(clusters).forEach(cluster => {
-        cluster.nodes.sort((a, b) => a.id - b.id);
+    // For each day, build overlapping clusters (supernode chains)
+    const clusters = [];
+
+    Object.entries(nodesByDay).forEach(([colIndexStr, dayNodes]) => {
+        const colIndex = parseInt(colIndexStr);
+        
+        // Calculate start/end minutes for each node
+        const nodesWithInterval = dayNodes.map(node => {
+            const timeStr = node.execution_time || '00:00';
+            const [h, m] = timeStr.includes(':') ? timeStr.split(':').map(Number) : [0, 0];
+            const startMin = h * 60 + m;
+            
+            // Get duration from config, default 60 minutes
+            let durationMin = 60;
+            if (node.config && node.config.duration_minutes) {
+                durationMin = parseInt(node.config.duration_minutes);
+            }
+            const endMin = startMin + durationMin;
+            
+            return { node, startMin, endMin, timeStr };
+        });
+
+        // Sort by start time, then by id
+        nodesWithInterval.sort((a, b) => a.startMin - b.startMin || a.node.id - b.node.id);
+
+        // Build clusters using overlap detection
+        // A node overlaps with a cluster if its start time falls within the cluster's time range
+        const dayClusters = [];
+        
+        for (const item of nodesWithInterval) {
+            let addedToCluster = false;
+            
+            // Check if this node overlaps with any existing cluster
+            for (const cluster of dayClusters) {
+                // A node overlaps if its start time is before the cluster's end time
+                if (item.startMin < cluster.endMin) {
+                    cluster.nodes.push(item.node);
+                    // Extend cluster end time if this node ends later
+                    cluster.endMin = Math.max(cluster.endMin, item.endMin);
+                    addedToCluster = true;
+                    break;
+                }
+            }
+            
+            if (!addedToCluster) {
+                // Create new cluster
+                dayClusters.push({
+                    colIndex: colIndex,
+                    timeStr: item.timeStr,
+                    startMin: item.startMin,
+                    endMin: item.endMin,
+                    nodes: [item.node]
+                });
+            }
+        }
+        
+        clusters.push(...dayClusters);
+    });
+
+    // Render clusters
+    clusters.forEach(cluster => {
+        cluster.nodes.sort((a, b) => {
+            const timeA = a.execution_time || '00:00';
+            const timeB = b.execution_time || '00:00';
+            if (timeA !== timeB) return timeA.localeCompare(timeB);
+            return a.id - b.id;
+        });
+
+        console.log(`[Scheduler] Cluster: day=${cluster.colIndex}, startMin=${cluster.startMin}, endMin=${cluster.endMin}, nodes=${cluster.nodes.length}`);
 
         if (cluster.nodes.length > 1) {
             renderSuperNode(cluster);

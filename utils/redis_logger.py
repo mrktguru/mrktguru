@@ -3,6 +3,7 @@ import logging
 import redis
 import json
 import re
+import hashlib
 from datetime import datetime
 
 # Initialize Redis
@@ -13,6 +14,35 @@ class RedisPubSubHandler(logging.Handler):
     """
     Handler that intercepts logs, extracts [account_id], and publishes to Redis.
     """
+    
+    def __init__(self):
+        super().__init__()
+        # In-memory dedup cache: hash -> timestamp
+        self._recent_messages = {}
+        self._dedup_window_seconds = 2  # Skip duplicate messages within this window
+    
+    def _is_duplicate(self, account_id, msg):
+        """Check if this message was recently published for this account"""
+        # Create a hash of account_id + message content
+        content_key = f"{account_id}:{msg}"
+        msg_hash = hashlib.md5(content_key.encode()).hexdigest()
+        
+        now = datetime.now().timestamp()
+        
+        # Clean old entries (older than window)
+        self._recent_messages = {
+            k: v for k, v in self._recent_messages.items() 
+            if now - v < self._dedup_window_seconds
+        }
+        
+        # Check if this is a duplicate
+        if msg_hash in self._recent_messages:
+            return True
+        
+        # Record this message
+        self._recent_messages[msg_hash] = now
+        return False
+    
     def emit(self, record):
         try:
             # DEBUG PRINT
@@ -36,6 +66,10 @@ class RedisPubSubHandler(logging.Handler):
 
             # If ID found, publish to Redis
             if account_id:
+                # Check for duplicate message within short time window
+                if self._is_duplicate(account_id, record.getMessage()):
+                    return
+                
                 # print(f"RedisPubSubHandler: Found account_id {account_id}, publishing...", flush=True)
                 channel = f"logs:account:{account_id}"
                 
@@ -63,16 +97,25 @@ class RedisPubSubHandler(logging.Handler):
             # print(f"RedisPubSubHandler Error: {e}", flush=True)
             self.handleError(record)
 
+# Global flag to ensure handler is attached only once per process
+_redis_handler_attached = False
+
 def setup_redis_logging(target_logger=None):
     """Attaches Redis handler to the target logger or root, ensuring no duplicates"""
+    global _redis_handler_attached
+    
     if target_logger is None:
         target_logger = logging.getLogger()
+    
+    # Check if we already have the handler attached in this process
+    if _redis_handler_attached:
+        return
         
     target_logger.setLevel(logging.INFO) # Force INFO level
     
     # Remove any existing RedisPubSubHandler to avoid duplicates across reloads/reconfigs
     for h in list(target_logger.handlers):
-        if h.__class__.__name__ == 'RedisPubSubHandler':
+        if isinstance(h, RedisPubSubHandler):
             target_logger.removeHandler(h)
 
     redis_handler = RedisPubSubHandler()
@@ -82,4 +125,5 @@ def setup_redis_logging(target_logger=None):
     # redis_handler.setFormatter(formatter)
     
     target_logger.addHandler(redis_handler)
-    print(f"RedisPubSubHandler (re)attached to logger: {target_logger.name}", flush=True)
+    _redis_handler_attached = True
+    print(f"RedisPubSubHandler attached to logger: {target_logger.name}", flush=True)
