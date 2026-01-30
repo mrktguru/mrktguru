@@ -26,9 +26,9 @@ class ExtendedTelegramClient(OpenteleClient):
     because the constructor might not support it directly in some versions.
     """
     
-    def __init__(self, *args, lang_pack: str = None, **kwargs):
+    def __init__(self, *args, lang_pack: str = None, loop: Optional[asyncio.AbstractEventLoop] = None, **kwargs):
         self._custom_lang_pack = lang_pack
-        super().__init__(*args, **kwargs)
+        super().__init__(*args, loop=loop, **kwargs)
         
         if lang_pack:
             self._inject_lang_pack(lang_pack)
@@ -63,7 +63,7 @@ class ClientFactory:
     """
     
     @classmethod
-    def create_client(cls, account_id: int, proxy: Optional[Dict] = None) -> ExtendedTelegramClient:
+    def create_client(cls, account_id: int, proxy: Optional[Dict] = None, loop: Optional[asyncio.AbstractEventLoop] = None) -> ExtendedTelegramClient:
         # Local imports to avoid circular dependencies
         from models.account import Account
         from models.api_credential import ApiCredential
@@ -74,6 +74,15 @@ class ClientFactory:
         account = Account.query.get(account_id)
         if not account:
             raise ValueError(f"Account {account_id} not found")
+            
+        # IMPORTANT: If loop is not passed, get the current running loop
+        if loop is None:
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                # If no loop (e.g. synchronous call), create a new one
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
             
         # 1. API Credentials
         api_id, api_hash = cls._resolve_api_credentials(account, ApiCredential, decrypt_api_hash)
@@ -108,7 +117,8 @@ class ClientFactory:
             flood_sleep_threshold=60,
             request_retries=3,
             base_logger=None, # Disable internal logs to avoid noise
-            catch_up=False
+            catch_up=False,
+            loop=loop
         )
         
         # Disconnect Hook for Saving Session
@@ -287,5 +297,10 @@ class ClientFactory:
         client.disconnect = disconnect_and_save
 
 # Convenience alias
-def get_client(account_id):
-    return ClientFactory.create_client(account_id)
+def get_client(account_id, loop=None):
+    if loop is None:
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            pass
+    return ClientFactory.create_client(account_id, loop=loop)

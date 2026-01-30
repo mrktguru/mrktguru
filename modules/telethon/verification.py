@@ -22,6 +22,13 @@ async def verify_session(account_id, force_full=False, disable_anchor=False, cli
     verification_type = "light"
     created_locally = False
     
+    # EXPLICITLY GET CURRENT LOOP
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+    
     try:
         logger.info(f"🔍 Starting verification for account {account_id}...")
         
@@ -35,7 +42,7 @@ async def verify_session(account_id, force_full=False, disable_anchor=False, cli
             verification_type = "light"
             
         if not client:
-            client = ClientFactory.create_client(account_id)
+            client = ClientFactory.create_client(account_id, loop=loop)
             await client.connect()
             created_locally = True
             
@@ -141,5 +148,8 @@ async def verify_session(account_id, force_full=False, disable_anchor=False, cli
         return {"success": False, "error": str(e), "error_type": "unknown"}
     finally:
         if created_locally and client:
-            await client.disconnect()
+            try:
+                await client.disconnect()
+            except:
+                pass
 

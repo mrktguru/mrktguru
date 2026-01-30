@@ -128,7 +128,8 @@ class SessionOrchestrator:
     async def _perform_cold_start(self):
         logger.info(f"[{self.account_id}] 🧊 COLD START initiated...")
         
-        self.client = ClientFactory.create_client(self.account_id)
+        loop = asyncio.get_running_loop()
+        self.client = ClientFactory.create_client(self.account_id, loop=loop)
         await self.client.connect()
         
         if not await self.client.is_user_authorized():
