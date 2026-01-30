@@ -22,12 +22,15 @@ async def verify_session(account_id, force_full=False, disable_anchor=False, cli
     verification_type = "light"
     created_locally = False
     
-    # EXPLICITLY GET CURRENT LOOP
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
+    # Determine loop from client or environment
+    if client:
+        loop = client.loop
+    else:
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
     
     try:
         logger.info(f"🔍 Starting verification for account {account_id}...")
