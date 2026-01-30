@@ -44,13 +44,20 @@ export function renderNodes() {
         // Calculate start/end minutes for each node
         const nodesWithInterval = dayNodes.map(node => {
             const timeStr = node.execution_time || '00:00';
-            const [h, m] = timeStr.includes(':') ? timeStr.split(':').map(Number) : [0, 0];
+            // Parse time with validation - handle HH:MM format, default to 0:0 for invalid
+            let h = 0, m = 0;
+            if (timeStr.includes(':')) {
+                const parts = timeStr.split(':');
+                h = parseInt(parts[0]) || 0;
+                m = parseInt(parts[1]) || 0;
+            }
             const startMin = h * 60 + m;
             
-            // Get duration from config, default 60 minutes
+            // Get duration from config, default 60 minutes, with validation
             let durationMin = 60;
-            if (node.config && node.config.duration_minutes) {
-                durationMin = parseInt(node.config.duration_minutes);
+            if (node.config && node.config.duration_minutes != null) {
+                const parsed = parseInt(node.config.duration_minutes);
+                durationMin = isNaN(parsed) || parsed <= 0 ? 60 : parsed;
             }
             const endMin = startMin + durationMin;
             

@@ -4,6 +4,7 @@ import redis
 import json
 import re
 import hashlib
+import threading
 from datetime import datetime
 
 # Initialize Redis
@@ -20,28 +21,30 @@ class RedisPubSubHandler(logging.Handler):
         # In-memory dedup cache: hash -> timestamp
         self._recent_messages = {}
         self._dedup_window_seconds = 2  # Skip duplicate messages within this window
+        self._lock = threading.Lock()
     
     def _is_duplicate(self, account_id, msg):
-        """Check if this message was recently published for this account"""
+        """Check if this message was recently published for this account (thread-safe)"""
         # Create a hash of account_id + message content
         content_key = f"{account_id}:{msg}"
         msg_hash = hashlib.md5(content_key.encode()).hexdigest()
         
         now = datetime.now().timestamp()
         
-        # Clean old entries (older than window)
-        self._recent_messages = {
-            k: v for k, v in self._recent_messages.items() 
-            if now - v < self._dedup_window_seconds
-        }
-        
-        # Check if this is a duplicate
-        if msg_hash in self._recent_messages:
-            return True
-        
-        # Record this message
-        self._recent_messages[msg_hash] = now
-        return False
+        with self._lock:
+            # Clean old entries (older than window)
+            self._recent_messages = {
+                k: v for k, v in self._recent_messages.items() 
+                if now - v < self._dedup_window_seconds
+            }
+            
+            # Check if this is a duplicate
+            if msg_hash in self._recent_messages:
+                return True
+            
+            # Record this message
+            self._recent_messages[msg_hash] = now
+            return False
     
     def emit(self, record):
         try:
@@ -97,11 +100,18 @@ class RedisPubSubHandler(logging.Handler):
             # print(f"RedisPubSubHandler Error: {e}", flush=True)
             self.handleError(record)
 
-# Global flag to ensure handler is attached only once per process
+# Global flag to ensure handler is attached only once per process.
+# Note: In Celery with multiple worker processes, each worker will have its own
+# handler instance. This is intentional - each worker process needs its own handler.
+# The deduplication within each handler (_is_duplicate) prevents duplicate messages
+# from being published multiple times within the same worker.
 _redis_handler_attached = False
 
 def setup_redis_logging(target_logger=None):
-    """Attaches Redis handler to the target logger or root, ensuring no duplicates"""
+    """
+    Attaches Redis handler to the target logger or root, ensuring no duplicates.
+    This is safe to call multiple times - subsequent calls are no-ops after the first.
+    """
     global _redis_handler_attached
     
     if target_logger is None:

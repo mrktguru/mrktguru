@@ -2,6 +2,7 @@ import logging
 import json
 import datetime
 import hashlib
+import threading
 from models.warmup_log import WarmupLog
 from utils.redis_logger import redis_client
 
@@ -9,6 +10,7 @@ logger = logging.getLogger(__name__)
 
 # In-memory dedup cache for BaseNodeExecutor Redis publishing
 _recent_log_messages = {}
+_recent_log_messages_lock = threading.Lock()
 _DEDUP_WINDOW_SECONDS = 2
 
 class BaseNodeExecutor:
@@ -31,7 +33,7 @@ class BaseNodeExecutor:
         raise NotImplementedError
     
     def _is_duplicate_redis_message(self, message):
-        """Check if this message was recently published for this account"""
+        """Check if this message was recently published for this account (thread-safe)"""
         global _recent_log_messages
         
         content_key = f"{self.account_id}:{message}"
@@ -39,19 +41,20 @@ class BaseNodeExecutor:
         
         now = datetime.datetime.now().timestamp()
         
-        # Clean old entries (older than window)
-        _recent_log_messages = {
-            k: v for k, v in _recent_log_messages.items() 
-            if now - v < _DEDUP_WINDOW_SECONDS
-        }
-        
-        # Check if this is a duplicate
-        if msg_hash in _recent_log_messages:
-            return True
-        
-        # Record this message
-        _recent_log_messages[msg_hash] = now
-        return False
+        with _recent_log_messages_lock:
+            # Clean old entries (older than window)
+            _recent_log_messages = {
+                k: v for k, v in _recent_log_messages.items() 
+                if now - v < _DEDUP_WINDOW_SECONDS
+            }
+            
+            # Check if this is a duplicate
+            if msg_hash in _recent_log_messages:
+                return True
+            
+            # Record this message
+            _recent_log_messages[msg_hash] = now
+            return False
         
     def log(self, level, message, action=None):
         """
@@ -68,14 +71,14 @@ class BaseNodeExecutor:
         else:
             logger.info(log_msg, extra={'no_redis': True})
             
-        # 2. Database log (Persistent History)
+        # 2. Database log (Persistent History) - always log to DB
         try:
             WarmupLog.log(self.account_id, level.upper(), message, action=action)
         except Exception as e:
             logger.error(f"[{self.account_id}] Failed to write to DB log: {e}")
 
         # 3. Redis Publish (For Live Terminal in Frontend)
-        # Skip if this message was recently published (dedup)
+        # Skip Redis publishing if this message was recently published (dedup)
         if self._is_duplicate_redis_message(message):
             return
             
