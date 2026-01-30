@@ -185,11 +185,12 @@ def check_warmup_schedules():
                     if not executable_candidates:
                         continue
                          
-                    # 2. Sort by Date -> Time -> ID to match frontend Ordinal Logic
+                    # 2. Sort by Date -> ID (creation order)
+                    # Within overlapping time windows (supernode), nodes execute in the order they were added
+                    # Earlier added node (lower ID) executes first
                     def sort_key(n):
                          d_str = str(n.execution_date) if n.execution_date else '1970-01-01'
-                         t_str = n.execution_time or '00:00'
-                         return (d_str, t_str, n.id)
+                         return (d_str, n.id)
                     
                     executable_candidates.sort(key=sort_key)
                     
@@ -197,10 +198,7 @@ def check_warmup_schedules():
                     target_node = executable_candidates[0]
                     
                     # 3.1 Calculate Ordinal ID (Dynamic)
-                    # Count nodes with (date,time,id) < target
-                    # Efficient Sort Key tuple comparison in DB is hard, so we just sort all nodes in memory or query simple count
-                    # Optimisation: We already know this node's position relative to *pending* nodes, but we need Global Ordinal.
-                    # Let's do a quick query for Global Ordinal
+                    # Count nodes with (date, id) < target
                     try:
                         all_sch_nodes = WarmupScheduleNode.query.filter_by(schedule_id=schedule.id).all()
                         all_sch_nodes.sort(key=sort_key)

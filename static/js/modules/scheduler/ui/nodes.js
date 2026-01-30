@@ -103,12 +103,9 @@ export function renderNodes() {
 
     // Render clusters
     clusters.forEach(cluster => {
-        cluster.nodes.sort((a, b) => {
-            const timeA = a.execution_time || '00:00';
-            const timeB = b.execution_time || '00:00';
-            if (timeA !== timeB) return timeA.localeCompare(timeB);
-            return a.id - b.id;
-        });
+        // Within a supernode, nodes execute in the order they were added (by ID)
+        // Earlier added node (lower ID) executes first
+        cluster.nodes.sort((a, b) => a.id - b.id);
 
         console.log(`[Scheduler] Cluster: day=${cluster.colIndex}, startMin=${cluster.startMin}, endMin=${cluster.endMin}, nodes=${cluster.nodes.length}`);
 
