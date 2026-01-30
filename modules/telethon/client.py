@@ -30,6 +30,14 @@ class ExtendedTelegramClient(OpenteleClient):
         self._custom_lang_pack = lang_pack
         super().__init__(*args, loop=loop, **kwargs)
         
+        # FORCE LOOP assignment to handle potential Opentele/Inheritance issues
+        if loop:
+            self._loop = loop
+            self.loop = loop
+            logging.info(f"🔧 Forced client loop to {id(loop)} (Running: {id(asyncio.get_running_loop())})")
+        else:
+            logging.warning(f"⚠️ No loop passed to client! Internal loop: {id(self.loop)}")
+
         if lang_pack:
             self._inject_lang_pack(lang_pack)
     
@@ -82,7 +90,10 @@ class ClientFactory:
             except RuntimeError:
                 # If no loop (e.g. synchronous call), create a new one
                 loop = asyncio.new_event_loop()
+                loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
+        
+        logging.info(f"🏭 ClientFactory using loop: {id(loop)}")
             
         # 1. API Credentials
         api_id, api_hash = cls._resolve_api_credentials(account, ApiCredential, decrypt_api_hash)
