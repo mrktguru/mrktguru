@@ -83,7 +83,7 @@ async def verify_session(account_id, force_full=False, disable_anchor=False, cli
                 })
 
             try:
-                await perform_desktop_handshake(client, device_params)
+                await perform_desktop_handshake(client, device_params, account_id=account_id)
             except Exception as e:
                 logger.error(f"❌ Handshake failed: {e}")
                 return {"success": False, "error": f"Handshake failed: {str(e)}", "error_type": "handshake_failed"}
@@ -125,10 +125,8 @@ async def verify_session(account_id, force_full=False, disable_anchor=False, cli
             # Digital Anchor
             if not disable_anchor:
                 try:
-                    logging.info(f"🔍 [DEBUG] Pre-Anchor: Current Loop={id(asyncio.get_running_loop())} Client Loop={id(client.loop)}")
                     from utils.digital_anchor import run_digital_anchor_background
                     run_digital_anchor_background(account_id)
-                    logging.info(f"🔍 [DEBUG] Post-Anchor: Current Loop={id(asyncio.get_running_loop())} Client Loop={id(client.loop)}")
                 except Exception as e:
                     logger.warning(f"Failed to start Digital Anchor: {e}")
             

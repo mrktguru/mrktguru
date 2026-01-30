@@ -62,27 +62,33 @@ def get_lang_code_by_proxy_country(proxy_country: Optional[str]) -> tuple:
 
 async def perform_desktop_handshake(
     client: TelegramClient,
-    session_data: Dict
+    session_data: Dict,
+    account_id: Optional[int] = None
 ) -> bool:
     """
     Perform TDesktop-compatible handshake sequence
-    
-    IMPORTANT: Telethon already sends InitConnection during connect().
-    Sending a SECOND InitConnection is suspicious and was identified as a ban vector.
-    
-    This function now performs ONLY the additional requests that TDesktop makes
-    AFTER the initial connection is established.
-    
+    ...
     Args:
         client: Connected Telethon client
-        session_data: Dict with device parameters (device_model, app_version, etc.)
-    
-    Returns:
-        bool: True if handshake successful
-        
-    Raises:
-        Exception: If handshake fails
+        session_data: Dict with device parameters
+        account_id: Optional Account ID for Activity Logging
     """
+    from utils.activity_logger import ActivityLogger
+    
+    # Initialize logger if account_id provided
+    activity_logger = ActivityLogger(account_id) if account_id else None
+    
+    def log_activity(desc: str, status='info'):
+        if activity_logger:
+            activity_logger.log(
+                action_type='handshake_step',
+                status=status,
+                description=desc,
+                category='system',
+                visible_on_ui=True
+            )
+        logger.info(desc)
+    
     # Official TDesktop API ID
     OFFICIAL_TDESKTOP_API_ID = 2040
     
@@ -97,28 +103,24 @@ async def perform_desktop_handshake(
             return random.uniform(3.0, 7.0)   # Slow/distracted
     
     try:
-        logger.info("🔄 Starting TDesktop handshake sequence...")
+        log_activity("🔄 Starting TDesktop handshake sequence...")
         
         # Extract device parameters
         lang_code = session_data.get('lang_code', 'en')
         api_id = session_data.get('api_id', client.api_id)
         
         # ==================== STEP 1: Connect ====================
-        # NOTE: Telethon sends InitConnection automatically here!
-        # We do NOT send a second InitConnection - that was a ban vector.
         if not client.is_connected():
-            logger.info("📡 Connecting to Telegram...")
+            log_activity("📡 Connecting to Telegram...")
             await client.connect()
         
         # ==================== STEP 2: Initial Pause ====================
-        # Emulate network delay and socket initialization
         initial_delay = human_delay()
         logger.info(f"⏱️  Initial delay: {initial_delay:.2f}s")
         await asyncio.sleep(initial_delay)
         
         # ==================== STEP 3: GetConfig ====================
-        # FIX: Real TDesktop ALWAYS fetches config after connect
-        logger.info("⚙️  Fetching server config...")
+        log_activity("⚙️  Fetching server config...")
         try:
             await client(GetConfigRequest())
             logger.info("✅ Config received")
@@ -128,15 +130,13 @@ async def perform_desktop_handshake(
         await asyncio.sleep(human_delay())
         
         # ==================== STEP 4: GetState ====================
-        # Check for updates (standard behavior)
-        logger.info("🔄 Checking updates state...")
+        log_activity("🔄 Checking updates state...")
         await client(GetStateRequest())
         logger.info("✅ Updates checked")
         
         # ==================== STEP 5: GetStrings (LangPack) ====================
-        # Download language pack for UI rendering
         await asyncio.sleep(human_delay())
-        logger.info(f"🌐 Fetching language pack ({lang_code})...")
+        log_activity(f"🌐 Fetching language pack ({lang_code})...")
         try:
             await client(GetStringsRequest(
                 lang_pack='tdesktop',
@@ -145,22 +145,17 @@ async def perform_desktop_handshake(
             ))
             logger.info("✅ Language pack fetched")
         except Exception as e:
-            # Some custom APIs may not have tdesktop lang pack
             logger.warning(f"⚠️ GetStrings failed (non-fatal): {e}")
         
         # ==================== NOTE: WNS REMOVED ====================
-        # FIX: RegisterDevice with fake WNS tokens is detectable.
-        # Real users often have notifications disabled anyway.
-        # Skipping WNS registration entirely.
         logger.debug("⏭️  WNS registration skipped (anti-detection)")
         
         # ==================== STEP 6: Main Pause (UI Rendering) ====================
-        # Emulate time spent rendering interface and loading cache
         main_delay = random.uniform(2.0, 5.0)
         logger.info(f"⏱️  UI rendering delay: {main_delay:.2f}s")
         await asyncio.sleep(main_delay)
         
-        logger.info("✅ TDesktop handshake complete - ready for GetMe")
+        log_activity("✅ Handshake complete - ready for GetMe", status='success')
         return True
         
     except AuthKeyUnregisteredError:
