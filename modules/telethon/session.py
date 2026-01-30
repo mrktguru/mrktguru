@@ -85,26 +85,32 @@ class SessionOrchestrator:
             pass
 
         # 2. Handle monitoring task safely
+        # 2. Handle monitoring task safely
         if self.monitoring_task:
-            # IMPORTANT: We can only await the task if we are in the same loop that created it
             try:
+                # Loop safety check
+                # If we are in the same loop, we can await. If not, we just cancel.
                 current_loop = asyncio.get_running_loop()
-                # Check if task belongs to this loop (Python 3.7+ task._loop or get_loop())
                 task_loop = getattr(self.monitoring_task, 'get_loop', lambda: getattr(self.monitoring_task, '_loop', None))()
                 
-                if task_loop == current_loop:
+                if task_loop is current_loop:
                     if not self.monitoring_task.done():
+                        self.monitoring_task.cancel()
                         try:
-                            await asyncio.wait_for(self.monitoring_task, timeout=1.0)
-                        except asyncio.TimeoutError:
-                            self.monitoring_task.cancel()
+                            # Wait briefly to let it clean up
+                            await asyncio.wait_for(self.monitoring_task, timeout=0.1)
+                        except (asyncio.TimeoutError, asyncio.CancelledError):
+                            pass
                 else:
-                    # Task belongs to a different loop. We CANNOT await it here.
-                    # This happens when orchestrator is cached and accessed from a different thread/loop.
-                    # We just cancel it (it might fail if loop is dead, but it's the only way)
-                    self.monitoring_task.cancel()
+                    # Different loop! Just cancel and move on.
+                    # Awaiting here causes "Future attached to a different loop"
+                    if not self.monitoring_task.done():
+                        # We can call cancel() from another loop?
+                        # It's thread-safe in recent Python updates, but loop-safe?
+                        # Usually call_soon_threadsafe is better
+                        task_loop.call_soon_threadsafe(self.monitoring_task.cancel)
             except Exception as e:
-                logger.warning(f"[{self.account_id}] Could not safely stop monitoring task: {e}")
+                logger.warning(f"[{self.account_id}] Monitoring stop warning: {e}")
             finally:
                 self.monitoring_task = None
         
