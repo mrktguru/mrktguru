@@ -71,6 +71,7 @@ async function _internalSaveSchedule(silent) {
     }
 
     // 3. Process Upserts
+    let hasNewNodes = false;
     for (const node of state.scheduleData.nodes) {
         if (node.is_ghost) continue;
 
@@ -88,9 +89,17 @@ async function _internalSaveSchedule(silent) {
                 await API.updateNode(node.id, payload);
             } else {
                 const data = await API.createNode(state.scheduleData.schedule_id, payload);
-                if (data.node) node.id = data.node.id;
+                if (data.node) {
+                    node.id = data.node.id;
+                    hasNewNodes = true;
+                }
             }
         } catch (e) { console.error(e); }
+    }
+
+    // 4. Reload schedule to get updated ordinal_ids for new nodes
+    if (hasNewNodes) {
+        await loadSchedule();
     }
 
     if (!silent) console.log('Schedule saved');

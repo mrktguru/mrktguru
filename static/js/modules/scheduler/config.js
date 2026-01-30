@@ -258,7 +258,19 @@ function renderDynamicFields(type, config) {
         html += `<div class="mb-3"><label>Count</label><input type="number" class="form-control" name="count" value="${config.count || 5}"></div>`;
     }
     else if (type === 'photo') {
-        html += `<div class="mb-3"><label>Photo</label><input type="file" id="photoInput" class="form-control"><input type="hidden" name="photo_path" value="${config.photo_path || ''}"></div>`;
+        const currentPath = config.photo_path || '';
+        const hasPhoto = currentPath && currentPath.length > 0;
+        html += `
+            <div class="mb-3">
+                <label class="form-label">Profile Photo</label>
+                <input type="file" id="photoInput" class="form-control" accept="image/*">
+                <input type="hidden" name="photo_path" id="photoPathInput" value="${currentPath}">
+                <div id="photoUploadStatus" class="mt-2 small ${hasPhoto ? 'text-success' : 'text-muted'}">
+                    ${hasPhoto ? '✅ Photo selected: ' + currentPath.split('/').pop() : 'No photo selected'}
+                </div>
+                ${hasPhoto ? `<img src="/${currentPath}" class="mt-2 img-thumbnail" style="max-width: 100px; max-height: 100px;" onerror="this.style.display='none'">` : ''}
+            </div>
+        `;
     }
     else if (type === 'bio') {
         html += `<div class="mb-3"><label class="form-label">Bio Text</label><textarea class="form-control" name="bio_text" rows="3" placeholder="About me">${config.bio_text || ''}</textarea></div>`;
@@ -423,6 +435,49 @@ function renderDynamicFields(type, config) {
     }
 
     container.innerHTML = html;
+
+    // Photo upload handler
+    const photoInput = document.getElementById('photoInput');
+    if (photoInput) {
+        photoInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            const status = document.getElementById('photoUploadStatus');
+            const pathInput = document.getElementById('photoPathInput');
+            
+            status.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Uploading...';
+            status.className = 'mt-2 small text-info';
+            
+            try {
+                const formData = new FormData();
+                formData.append('file', file);
+                
+                const response = await fetch('/scheduler/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Upload failed');
+                }
+                
+                const result = await response.json();
+                
+                if (result.path) {
+                    pathInput.value = result.path;
+                    status.innerHTML = `✅ Photo uploaded: ${file.name}`;
+                    status.className = 'mt-2 small text-success';
+                } else {
+                    throw new Error(result.error || 'Unknown error');
+                }
+            } catch (err) {
+                console.error('Photo upload error:', err);
+                status.innerHTML = `❌ Upload failed: ${err.message}`;
+                status.className = 'mt-2 small text-danger';
+            }
+        });
+    }
 
     const scrollCheck = document.getElementById('enableScrollCheck');
     if (scrollCheck) {
