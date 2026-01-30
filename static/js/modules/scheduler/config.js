@@ -3,6 +3,13 @@ import { saveSchedule } from './scheduler_service.js';
 import { renderNodes } from './ui/nodes.js';
 import { API } from './api.js';
 
+// HTML escape function to prevent XSS
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
 export function openNodeConfig(node) {
     state.currentNode = node;
     const form = document.getElementById('nodeConfigForm');
@@ -260,20 +267,25 @@ function renderDynamicFields(type, config) {
     else if (type === 'photo') {
         const currentPath = config.photo_path || '';
         const hasPhoto = currentPath && currentPath.length > 0;
+        const safeFilename = hasPhoto ? escapeHtml(currentPath.split('/').pop()) : '';
+        const safePath = escapeHtml(currentPath);
         html += `
             <div class="mb-3">
                 <label class="form-label">Profile Photo</label>
-                <input type="file" id="photoInput" class="form-control" accept="image/*">
-                <input type="hidden" name="photo_path" id="photoPathInput" value="${currentPath}">
+                <input type="file" id="photoInput" class="form-control" accept="image/jpeg,image/png,image/gif,image/webp">
+                <small class="text-muted">Max file size: 5MB. Supported formats: JPEG, PNG, GIF, WebP</small>
+                <input type="hidden" name="photo_path" id="photoPathInput" value="${safePath}">
                 <div id="photoUploadStatus" class="mt-2 small ${hasPhoto ? 'text-success' : 'text-muted'}">
-                    ${hasPhoto ? '✅ Photo selected: ' + currentPath.split('/').pop() : 'No photo selected'}
+                    ${hasPhoto ? '✅ Photo selected: ' + safeFilename : 'No photo selected'}
                 </div>
-                ${hasPhoto ? `<img src="/${currentPath}" class="mt-2 img-thumbnail" style="max-width: 100px; max-height: 100px;" onerror="this.style.display='none'">` : ''}
+                <div id="photoPreview" class="mt-2">
+                    ${hasPhoto ? `<img src="/${safePath}" class="img-thumbnail" style="max-width: 100px; max-height: 100px;" onerror="this.style.display='none'">` : ''}
+                </div>
             </div>
         `;
     }
     else if (type === 'bio') {
-        html += `<div class="mb-3"><label class="form-label">Bio Text</label><textarea class="form-control" name="bio_text" rows="3" placeholder="About me">${config.bio_text || ''}</textarea></div>`;
+        html += `<div class="mb-3"><label class="form-label">Bio Text</label><textarea class="form-control" name="bio_text" rows="3" placeholder="About me">${escapeHtml(config.bio_text || '')}</textarea></div>`;
     }
     else if (type === 'search_filter') {
         html += `
@@ -445,6 +457,23 @@ function renderDynamicFields(type, config) {
             
             const status = document.getElementById('photoUploadStatus');
             const pathInput = document.getElementById('photoPathInput');
+            const preview = document.getElementById('photoPreview');
+            
+            // File validation
+            const maxSize = 5 * 1024 * 1024; // 5MB
+            const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+            
+            if (file.size > maxSize) {
+                status.textContent = '❌ File too large. Maximum size is 5MB.';
+                status.className = 'mt-2 small text-danger';
+                return;
+            }
+            
+            if (!allowedTypes.includes(file.type)) {
+                status.textContent = '❌ Invalid file type. Use JPEG, PNG, GIF, or WebP.';
+                status.className = 'mt-2 small text-danger';
+                return;
+            }
             
             status.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Uploading...';
             status.className = 'mt-2 small text-info';
@@ -466,14 +495,19 @@ function renderDynamicFields(type, config) {
                 
                 if (result.path) {
                     pathInput.value = result.path;
-                    status.innerHTML = `✅ Photo uploaded: ${file.name}`;
+                    // Use textContent to prevent XSS
+                    status.textContent = '✅ Photo uploaded: ' + file.name;
                     status.className = 'mt-2 small text-success';
+                    
+                    // Update preview with uploaded image
+                    preview.innerHTML = `<img src="/${escapeHtml(result.path)}" class="img-thumbnail" style="max-width: 100px; max-height: 100px;" onerror="this.style.display='none'">`;
                 } else {
                     throw new Error(result.error || 'Unknown error');
                 }
             } catch (err) {
                 console.error('Photo upload error:', err);
-                status.innerHTML = `❌ Upload failed: ${err.message}`;
+                // Use textContent to prevent XSS
+                status.textContent = '❌ Upload failed: ' + err.message;
                 status.className = 'mt-2 small text-danger';
             }
         });
