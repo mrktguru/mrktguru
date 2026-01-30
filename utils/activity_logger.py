@@ -26,7 +26,7 @@ class ActivityLogger:
     
     def log(self, action_type, status='success', target=None, description=None, 
             details=None, error_message=None, category='general', proxy_used=None,
-            duration_ms=None, commit=True):
+            duration_ms=None, commit=True, visible_on_ui=True):
         """
         Log an account activity
         
