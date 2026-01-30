@@ -116,7 +116,10 @@ class SessionOrchestrator:
         
         if self.client:
             if self.client.is_connected():
-                await self.client.disconnect()
+                try:
+                    await self.client.disconnect()
+                except Exception as e:
+                     logger.warning(f"[{self.account_id}] Disconnect warning: {e}")
             self.client = None
             
         self.state = 'OFFLINE'
