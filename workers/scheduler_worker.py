@@ -191,24 +191,30 @@ def check_warmup_schedules():
                     # Within a supernode, nodes execute in the order they were added (by ID, not scheduled time)
                     # This ensures: if Passive Activity (ID 10) was added before Photo (ID 15),
                     # Activity always executes first, then Photo runs immediately after
-                    def sort_key(n):
+                    def execution_sort_key(n):
                          d_str = str(n.execution_date) if n.execution_date else '1970-01-01'
                          return (d_str, n.id)
                     
-                    executable_candidates.sort(key=sort_key)
+                    executable_candidates.sort(key=execution_sort_key)
                     
                     # 3. Pick the Target Node (The first one)
                     target_node = executable_candidates[0]
                     
                     # 3.1 Calculate Ordinal ID and Display ID (telegram_id_ordinal)
+                    # Use (date, time, id) sort for ordinal to match UI display
+                    def ordinal_sort_key(n):
+                         d_str = str(n.execution_date) if n.execution_date else '1970-01-01'
+                         t_str = n.execution_time or '00:00'
+                         return (d_str, t_str, n.id)
+                    
                     try:
                         all_sch_nodes = WarmupScheduleNode.query.filter_by(schedule_id=schedule.id).all()
-                        all_sch_nodes.sort(key=sort_key)
+                        all_sch_nodes.sort(key=ordinal_sort_key)
                         target_ordinal = next((i for i, n in enumerate(all_sch_nodes, 1) if n.id == target_node.id), '?')
                         # Get telegram_id for display format
                         telegram_id = schedule.account.telegram_id if schedule.account else None
                         display_id = f"{telegram_id}_{target_ordinal}" if telegram_id else f"{schedule.account_id}_{target_ordinal}"
-                    except:
+                    except Exception:
                         target_ordinal = '?'
                         display_id = str(target_node.id)
 
