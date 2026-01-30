@@ -3,6 +3,7 @@ from utils.decorators import login_required
 from models.campaign import InviteCampaign, InviteLog
 from models.dm_campaign import DMCampaign, DMTarget
 from models.account import Account
+from database import db
 from sqlalchemy import func
 from datetime import datetime, timedelta
 

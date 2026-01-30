@@ -3,6 +3,7 @@ Warmup Execution Utilities
 Core functions for executing warmup actions with human-like behavior
 """
 import asyncio
+import os
 import random
 import time
 import logging

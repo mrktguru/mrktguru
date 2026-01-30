@@ -96,7 +96,6 @@ def start(campaign_id):
     # Start worker
     from workers.dm_worker import run_dm_campaign
     run_dm_campaign.delay(campaign_id)
-    run_dm_campaign.delay(campaign_id)
     
     flash('DM Campaign started', 'success')
     return redirect(url_for('dm_campaigns.detail', campaign_id=campaign_id))
@@ -251,7 +250,12 @@ def add_target(campaign_id):
     campaign = DMCampaign.query.get_or_404(campaign_id)
     
     if request.method == "POST":
-        username = request.form.get("username").lstrip("@")
+        username_raw = request.form.get("username")
+        if not username_raw:
+            flash("Username is required", "error")
+            return redirect(url_for("dm_campaigns.detail", campaign_id=campaign_id))
+        
+        username = username_raw.lstrip("@")
         first_name = request.form.get("first_name", "")
         last_name = request.form.get("last_name", "")
         
