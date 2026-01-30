@@ -276,3 +276,16 @@ def stream_logs(account_id):
              logger.error(f"Redis stream error: {e}")
 
     return Response(generate(), mimetype="text/event-stream")
+
+
+@scheduler_bp.route('/logs/<int:account_id>/clear', methods=['POST'])
+def clear_logs(account_id):
+    """Clear log history for an account"""
+    try:
+        channel = f"logs:account:{account_id}"
+        history_key = f"history:{channel}"
+        redis_client.delete(history_key)
+        return jsonify({'success': True, 'message': 'Log history cleared'})
+    except Exception as e:
+        logger.error(f"Error clearing logs: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500

@@ -86,7 +86,7 @@ class BaseNodeExecutor:
             if redis_client:
                 channel = f"logs:account:{self.account_id}"
                 payload = json.dumps({
-                    'timestamp': datetime.datetime.now().strftime('%H:%M:%S'),
+                    'timestamp': datetime.datetime.now().strftime('%d.%m.%Y %H:%M:%S'),
                     'level': level.upper(),
                     'message': message,
                     'clean_message': message

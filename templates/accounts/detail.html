@@ -681,6 +681,9 @@
                 <span class="small fw-bold">Live Activity Log: Account {{ account.id }}</span>
             </div>
             <div class="d-flex align-items-center gap-2">
+                <button class="btn btn-outline-secondary btn-sm" id="clear-logs-btn" style="font-size: 0.65rem; padding: 0.1rem 0.4rem;" title="Clear log history">
+                    <i class="bi bi-trash"></i> Clear
+                </button>
                 <span class="badge bg-secondary" id="log-status-badge" style="font-size:0.6rem;">OFFLINE</span>
                 <div class="form-check form-switch mb-0" style="min-height:auto;">
                     <input class="form-check-input" type="checkbox" id="autoscroll-switch" checked
@@ -759,6 +762,26 @@
                     terminal.scrollTop = terminal.scrollHeight;
                 }
             }
+
+            // Clear logs button handler
+            document.getElementById('clear-logs-btn').addEventListener('click', async function() {
+                if (!confirm('Clear all log history for this account?')) return;
+                
+                try {
+                    const response = await fetch(`/scheduler/logs/${accountId}/clear`, { method: 'POST' });
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        terminal.innerHTML = '';
+                        appendLine({ timestamp: new Date().toLocaleTimeString(), level: 'SYSTEM', message: 'Log history cleared.' }, true);
+                    } else {
+                        alert('Failed to clear logs: ' + (result.error || 'Unknown error'));
+                    }
+                } catch (err) {
+                    console.error('Clear logs error:', err);
+                    alert('Failed to clear logs');
+                }
+            });
 
             if (accountId) connectLogs();
         });
