@@ -59,16 +59,23 @@ class ExtendedTelegramClient(OpenteleClient):
         except Exception as e:
             logging.warning(f"⚠️ Failed to inject lang_pack: {e}")
     
-    async def connect(self):
-        result = await super().connect()
-        
-        if hasattr(self, '_pending_lang_pack') and self._pending_lang_pack:
-            if hasattr(self, '_init_request') and self._init_request:
-                self._init_request.lang_pack = self._pending_lang_pack
-                logging.info(f"✅ lang_pack='{self._pending_lang_pack}' injected after connect")
-                del self._pending_lang_pack
-        
         return result
+
+    async def disconnect(self):
+        """
+        🛡️ Robust Disconnect
+        Catches 'loop must not change' and 'run loop' errors during teardown.
+        Teardown crashes should not fail the main task.
+        """
+        try:
+            await super().disconnect()
+        except Exception as e:
+            msg = str(e)
+            if "loop" in msg.lower() or "attached to a different loop" in msg:
+                logging.warning(f"🛡️ Suppressed loop error during disconnect: {msg}")
+            else:
+                logging.warning(f"⚠️ Disconnect error: {msg}")
+        return
 
 
 class ClientFactory:

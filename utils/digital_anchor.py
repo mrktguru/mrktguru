@@ -142,7 +142,8 @@ def run_digital_anchor_background(account_id):
         
         with app.app_context():
             loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
+            # loop.run_until_complete sets the loop for the duration of the call automatically if needed
+            # avoiding set_event_loop stops it from polluting global state in gevent
             loop.run_until_complete(_run_anchor_logic(account_id))
             loop.close()
     
