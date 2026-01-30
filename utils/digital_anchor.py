@@ -138,6 +138,7 @@ def run_digital_anchor_background(account_id):
     Call this AFTER successful verification.
     """
     def thread_target():
+        from app import app
         with app.app_context():
             # Log start to UI
             from utils.activity_logger import ActivityLogger
