@@ -24,6 +24,10 @@ class RedisPubSubHandler(logging.Handler):
             # First check extra fields
             account_id = getattr(record, 'account_id', None)
             
+            # Skip if explicitly marked to ignore (e.g. handled by BaseNodeExecutor)
+            if getattr(record, 'no_redis', False):
+                return
+
             # If not found, look for pattern "[123]" in the message
             if not account_id:
                 match = re.search(r'\[(\d+)\]', msg)

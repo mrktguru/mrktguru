@@ -34,11 +34,11 @@ class BaseNodeExecutor:
         lvl = level.lower()
         
         if lvl in ['error', 'critical']:
-            logger.error(log_msg)
+            logger.error(log_msg, extra={'no_redis': True})
         elif lvl == 'warning':
-            logger.warning(log_msg)
+            logger.warning(log_msg, extra={'no_redis': True})
         else:
-            logger.info(log_msg)
+            logger.info(log_msg, extra={'no_redis': True})
             
         # 2. Database log (Persistent History)
         try:
