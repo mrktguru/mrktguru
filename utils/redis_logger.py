@@ -77,9 +77,9 @@ def setup_redis_logging(target_logger=None):
 
     redis_handler = RedisPubSubHandler()
     redis_handler.setLevel(logging.INFO) # Force INFO level
-    # We use a formatter for the 'message' field, but 'raw_message' remains clean
-    formatter = logging.Formatter('[%(asctime)s] %(levelname)s: %(message)s')
-    redis_handler.setFormatter(formatter)
+    # Removed explicit formatter to avoid double timestamping in frontend
+    # formatter = logging.Formatter('[%(asctime)s] %(levelname)s: %(message)s')
+    # redis_handler.setFormatter(formatter)
     
     target_logger.addHandler(redis_handler)
     print(f"RedisPubSubHandler (re)attached to logger: {target_logger.name}", flush=True)
