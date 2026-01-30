@@ -32,8 +32,8 @@ class ExtendedTelegramClient(OpenteleClient):
         
         # FORCE LOOP assignment to handle potential Opentele/Inheritance issues
         if loop:
+            # self.loop is a property, can't set it directly. Set internal _loop.
             self._loop = loop
-            self.loop = loop
             logging.info(f"🔧 Forced client loop to {id(loop)} (Running: {id(asyncio.get_running_loop())})")
         else:
             logging.warning(f"⚠️ No loop passed to client! Internal loop: {id(self.loop)}")
