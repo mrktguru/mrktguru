@@ -16,15 +16,6 @@ except ImportError:
 from telethon.sessions import StringSession
 from config import Config
 
-# ☢️ GLOBAL MONKEYPATCH: Disable Telethon's loop check entirely
-# This fixes "The asyncio event loop must not change after connection"
-# which happens due to Gevent/Asyncio/Flask interactions.
-import telethon.client.telegramclient
-def _no_op_check_loop(self):
-    pass
-telethon.client.telegramclient.TelegramClient._check_loop = _no_op_check_loop
-logging.warning("⚠️ MONKEYPATCH: Telethon loop check disabled globally")
-
 logger = logging.getLogger(__name__)
 
 class ExtendedTelegramClient(OpenteleClient):
@@ -37,16 +28,9 @@ class ExtendedTelegramClient(OpenteleClient):
     
     def __init__(self, *args, lang_pack: str = None, loop: Optional[asyncio.AbstractEventLoop] = None, **kwargs):
         self._custom_lang_pack = lang_pack
+        # Correctly pass loop to parent (Opentele -> Telethon)
         super().__init__(*args, loop=loop, **kwargs)
         
-        # FORCE LOOP assignment to handle potential Opentele/Inheritance issues
-        if loop:
-            # self.loop is a property, can't set it directly. Set internal _loop.
-            self._loop = loop
-            logging.info(f"🔧 Forced client loop to {id(loop)} (Running: {id(asyncio.get_running_loop())})")
-        else:
-            logging.warning(f"⚠️ No loop passed to client! Internal loop: {id(self.loop)}")
-
         if lang_pack:
             self._inject_lang_pack(lang_pack)
     
@@ -62,12 +46,6 @@ class ExtendedTelegramClient(OpenteleClient):
             logging.warning(f"⚠️ Failed to inject lang_pack: {e}")
     
     async def connect(self):
-        # Override _check_loop safety check
-        # Gevent/Asyncio/Flask interactions sometimes confuse Telethon's loop detection
-        # causing "The asyncio event loop must not change after connection"
-        # We trust that the caller provided the correct loop via __init__
-        self._loop = asyncio.get_running_loop()
-        
         result = await super().connect()
         
         if hasattr(self, '_pending_lang_pack') and self._pending_lang_pack:
@@ -77,12 +55,6 @@ class ExtendedTelegramClient(OpenteleClient):
                 del self._pending_lang_pack
         
         return result
-
-    def _check_loop(self):
-        # ⚠️ NUCLEAR FIX: Disable loop mismatch check
-        # In our environment, loop identity checks are too brittle.
-        # We manually ensure loop safety in ClientFactory.
-        pass
 
 
 class ClientFactory:
