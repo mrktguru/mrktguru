@@ -16,6 +16,15 @@ except ImportError:
 from telethon.sessions import StringSession
 from config import Config
 
+# ☢️ GLOBAL MONKEYPATCH: Disable Telethon's loop check entirely
+# This fixes "The asyncio event loop must not change after connection"
+# which happens due to Gevent/Asyncio/Flask interactions.
+import telethon.client.telegramclient
+def _no_op_check_loop(self):
+    pass
+telethon.client.telegramclient.TelegramClient._check_loop = _no_op_check_loop
+logging.warning("⚠️ MONKEYPATCH: Telethon loop check disabled globally")
+
 logger = logging.getLogger(__name__)
 
 class ExtendedTelegramClient(OpenteleClient):
