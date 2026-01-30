@@ -138,13 +138,26 @@ def run_digital_anchor_background(account_id):
     Call this AFTER successful verification.
     """
     def thread_target():
-        from app import app
-        
+        with app.app_context():
+            # Log start to UI
+            from utils.activity_logger import ActivityLogger
+            ActivityLogger(account_id).log(
+                action_type='anchor_start',
+                status='success', 
+                description='Digital Anchor started (Background)',
+                category='system',
+                visible_on_ui=True
+            )
+
             loop = asyncio.new_event_loop()
             # loop.run_until_complete sets the loop for the duration of the call automatically if needed
             # avoiding set_event_loop stops it from polluting global state in gevent
-            loop.run_until_complete(_run_anchor_logic(account_id))
-            loop.close()
+            try:
+                loop.run_until_complete(_run_anchor_logic(account_id))
+            except Exception as e:
+                logger.error(f"⚓ Anchor error for Account {account_id}: {e}")
+            finally:
+                loop.close()
     
     thread = threading.Thread(target=thread_target, name=f"Anchor-{account_id}", daemon=True)
     thread.start()
