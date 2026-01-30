@@ -28,9 +28,23 @@ class ExtendedTelegramClient(OpenteleClient):
     
     def __init__(self, *args, lang_pack: str = None, loop: Optional[asyncio.AbstractEventLoop] = None, **kwargs):
         self._custom_lang_pack = lang_pack
-        # Correctly pass loop to parent (Opentele -> Telethon)
+        # 1. Initialize parent (Opentele -> Telethon)
         super().__init__(*args, loop=loop, **kwargs)
         
+        # 2. 🔥 FORCE LOOP SYNCHRONIZATION 🔥
+        # If a loop was passed, we STRICTLY bind the client to it.
+        # This fixes cases where proper propagation fails in super().__init__
+        # or Telethon grabs a wrong global loop.
+        if loop:
+            self._loop = loop
+            # Try setting public property if setter exists (usually read-only but _loop is the key)
+            try:
+                self.loop = loop
+            except AttributeError:
+                pass # Expected if property is read-only
+            
+            logging.debug(f"🔧 Forced Telethon loop sync to: {id(loop)}")
+
         if lang_pack:
             self._inject_lang_pack(lang_pack)
     
