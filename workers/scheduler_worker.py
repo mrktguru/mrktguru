@@ -16,9 +16,8 @@ from models.warmup_log import WarmupLog
 from modules.nodes import execute_node
 from modules.telethon import ClientFactory
 from database import db
-from utils.proxy_manager import release_dynamic_port 
-from utils.proxy_manager import release_dynamic_port 
-from utils.redis_logger import setup_redis_logging, redis_client # Added redis_client
+from utils.proxy_manager import release_dynamic_port
+from utils.redis_logger import setup_redis_logging, redis_client
 
 logger = logging.getLogger(__name__)
 
@@ -184,10 +183,7 @@ def check_warmup_schedules():
                             pass
 
                     if not executable_candidates:
-                         continue
-                         
-                    if not executable_candidates:
-                         continue
+                        continue
                          
                     # 2. Sort by Date -> Time -> ID to match frontend Ordinal Logic
                     def sort_key(n):
@@ -446,9 +442,8 @@ def execute_scheduled_node(node_id, is_adhoc=False):
                             node.config or {}
                         )
                 
-                # 3. Execute
-                # ❌ WE REMOVED FINALLY WITH ORCH.STOP()
-                # Session stays in ACTIVE_SESSIONS
+                    # 3. Execute
+                    # Session stays in ACTIVE_SESSIONS (no orch.stop())
                     return await orch.execute(task_wrapper)
 
                 # Run on global background loop

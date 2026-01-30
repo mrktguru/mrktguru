@@ -113,7 +113,6 @@ class ClientFactory:
             except RuntimeError:
                 # If no loop (e.g. synchronous call), create a new one
                 loop = asyncio.new_event_loop()
-                loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
         
         logging.info(f"🏭 ClientFactory using loop: {id(loop)}")

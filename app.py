@@ -32,7 +32,6 @@ def create_app():
     os.makedirs(os.path.dirname(log_file), exist_ok=True)
     
     # Setup standard logging to file
-    # Setup standard logging to file
     if not app.debug:
         # Configure root logger to catch all logs (app and modules)
         logging.basicConfig(

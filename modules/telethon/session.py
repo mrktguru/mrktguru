@@ -85,7 +85,6 @@ class SessionOrchestrator:
             pass
 
         # 2. Handle monitoring task safely
-        # 2. Handle monitoring task safely
         if self.monitoring_task:
             try:
                 # Loop safety check
