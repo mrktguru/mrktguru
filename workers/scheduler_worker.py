@@ -186,8 +186,11 @@ def check_warmup_schedules():
                         continue
                          
                     # 2. Sort by Date -> ID (creation order)
-                    # Within overlapping time windows (supernode), nodes execute in the order they were added
-                    # Earlier added node (lower ID) executes first
+                    # executable_candidates contains nodes that are all ready NOW (their scheduled time has arrived)
+                    # These nodes form a "supernode" - overlapping execution windows
+                    # Within a supernode, nodes execute in the order they were added (by ID, not scheduled time)
+                    # This ensures: if Passive Activity (ID 10) was added before Photo (ID 15),
+                    # Activity always executes first, then Photo runs immediately after
                     def sort_key(n):
                          d_str = str(n.execution_date) if n.execution_date else '1970-01-01'
                          return (d_str, n.id)
