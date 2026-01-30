@@ -200,19 +200,22 @@ def check_warmup_schedules():
                     # 3. Pick the Target Node (The first one)
                     target_node = executable_candidates[0]
                     
-                    # 3.1 Calculate Ordinal ID (Dynamic)
-                    # Count nodes with (date, id) < target
+                    # 3.1 Calculate Ordinal ID and Display ID (telegram_id_ordinal)
                     try:
                         all_sch_nodes = WarmupScheduleNode.query.filter_by(schedule_id=schedule.id).all()
                         all_sch_nodes.sort(key=sort_key)
                         target_ordinal = next((i for i, n in enumerate(all_sch_nodes, 1) if n.id == target_node.id), '?')
+                        # Get telegram_id for display format
+                        telegram_id = schedule.account.telegram_id if schedule.account else None
+                        display_id = f"{telegram_id}_{target_ordinal}" if telegram_id else f"{schedule.account_id}_{target_ordinal}"
                     except:
                         target_ordinal = '?'
+                        display_id = str(target_node.id)
 
                     # 4. Check Distributed Lock (Is account busy?)
                     lock_key = f"lock:account:{schedule.account_id}"
                     if redis_client.get(lock_key):
-                         logger.info(f"[{schedule.account_id}] ⏳ Account is busy (Redis Lock). Queuing Node #{target_ordinal} ({target_node.id}).")
+                         logger.info(f"[{schedule.account_id}] ⏳ Account is busy (Redis Lock). Queuing Node {display_id}.")
                          # We do nothing. Node stays 'pending'. Worker will pick it up next tick when lock is free.
                          continue
                     
@@ -223,7 +226,7 @@ def check_warmup_schedules():
                          continue
 
                     # 6. Execute!
-                    logger.info(f"[{schedule.account_id}] 🚀 Smart Stack: Executing Node #{target_ordinal} (ID {target_node.id}, Type: {target_node.node_type})")
+                    logger.info(f"[{schedule.account_id}] 🚀 Smart Stack: Executing Node {display_id} ({target_node.node_type})")
                     execute_scheduled_node.delay(target_node.id)
                     
                     # Stop processing this schedule for this tick (only 1 execute per account per tick)
@@ -389,7 +392,8 @@ def execute_scheduled_node(node_id, is_adhoc=False):
                 db.session.commit()
             
             account_id = node.schedule.account_id
-            logger.info(f"▶️ Executing node {node_id}: {node.node_type} for account {account_id}")
+            display_id = node.get_display_id()  # Format: telegram_id_ordinal (e.g., 8524632170_3)
+            logger.info(f"▶️ Executing node {display_id}: {node.node_type} for account {account_id}")
 
             # --- DISTRIBUTED LOCK CHECK ---
             lock_key = f"lock:account:{account_id}"
@@ -397,10 +401,10 @@ def execute_scheduled_node(node_id, is_adhoc=False):
             is_locked = redis_client.set(lock_key, "locked", nx=True, ex=1800)
             
             if not is_locked:
-                logger.warning(f"[{account_id}] ⚠️ Account is busy! Skipping overlapping task {node_id} (Race Condition).")
+                logger.warning(f"[{account_id}] ⚠️ Account is busy! Skipping overlapping task {display_id} (Race Condition).")
                 # Do NOT mark as failed. Likely another worker picked it up or just finished.
                 # If we mark failed, we might overwrite the actual running task's status or confuse user.
-                WarmupLog.log(account_id, 'warning', f"Skipped overlap task {node_id}", action='lock_overlap')
+                WarmupLog.log(account_id, 'warning', f"Skipped overlap task {display_id}", action='lock_overlap')
                 db.session.rollback() # Rollback status='running' change from this session
                 return
 

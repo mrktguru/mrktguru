@@ -20,6 +20,10 @@ class SchedulerService:
         """Get full schedule with real and ghost nodes, sorted"""
         schedule = WarmupSchedule.query.filter_by(account_id=account_id).first()
         
+        # Get account's Telegram ID for custom_logic_id format
+        account = Account.query.get(account_id)
+        telegram_id = account.telegram_id if account else None
+        
         if not schedule:
             schedule_dict = {'id': 0, 'status': 'draft'}
             schedule_id = 0
@@ -47,9 +51,15 @@ class SchedulerService:
 
         node_dicts.sort(key=sort_key)
         
+        # Assign per-account ordinal IDs and custom_logic_id with Telegram ID
         for idx, node in enumerate(node_dicts, 1):
             node['ordinal_id'] = idx
-            node['custom_logic_id'] = f"{account_id}_{idx}"
+            # Format: {telegram_id}_{ordinal_id} (e.g., 8524632170_3)
+            # Falls back to account_id if telegram_id is not available
+            if telegram_id:
+                node['custom_logic_id'] = f"{telegram_id}_{idx}"
+            else:
+                node['custom_logic_id'] = f"{account_id}_{idx}"
             
         return {
             'schedule': schedule_dict,

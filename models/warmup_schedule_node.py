@@ -46,6 +46,7 @@ class WarmupScheduleNode(db.Model):
             'schedule_id': self.schedule_id,
             'node_type': self.node_type,
             'day_number': self.day_number,
+            'execution_date': self.execution_date.isoformat() if self.execution_date else None,
             'execution_time': self.execution_time,
             'is_random_time': self.is_random_time,
             'config': self.config,
@@ -55,6 +56,39 @@ class WarmupScheduleNode(db.Model):
             'created_at': self.created_at.isoformat(),
             'updated_at': self.updated_at.isoformat()
         }
+    
+    def get_display_id(self):
+        """
+        Get a display-friendly ID in format: telegram_id_ordinal_id
+        This requires computing the ordinal position within the schedule.
+        Falls back to database ID if computation fails.
+        """
+        try:
+            # Get account's telegram_id through schedule relationship
+            account = self.schedule.account if self.schedule else None
+            telegram_id = account.telegram_id if account else None
+            
+            if not telegram_id:
+                return str(self.id)
+            
+            # Compute ordinal position by counting nodes with same schedule
+            # sorted by (execution_date, execution_time, id) that come before this one
+            all_nodes = WarmupScheduleNode.query.filter_by(schedule_id=self.schedule_id).all()
+            
+            def sort_key(n):
+                d_str = str(n.execution_date) if n.execution_date else '1970-01-01'
+                t_str = n.execution_time or '00:00'
+                return (d_str, t_str, n.id)
+            
+            all_nodes.sort(key=sort_key)
+            
+            for idx, node in enumerate(all_nodes, 1):
+                if node.id == self.id:
+                    return f"{telegram_id}_{idx}"
+            
+            return str(self.id)
+        except Exception:
+            return str(self.id)
     
     def get_execution_time_range(self):
         """Parse execution time string into start/end times"""
