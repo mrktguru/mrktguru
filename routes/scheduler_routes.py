@@ -12,6 +12,7 @@ from modules.scheduler.exceptions import (
     SchedulerError
 )
 from utils.redis_logger import redis_client
+from utils.decorators import login_required
 import logging
 
 logger = logging.getLogger(__name__)
@@ -279,6 +280,7 @@ def stream_logs(account_id):
 
 
 @scheduler_bp.route('/logs/<int:account_id>/clear', methods=['POST'])
+@login_required
 def clear_logs(account_id):
     """Clear log history for an account"""
     try:
