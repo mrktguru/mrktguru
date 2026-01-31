@@ -12,7 +12,7 @@ from telethon.errors import PasswordHashInvalidError
 
 from modules.nodes.base import BaseNodeExecutor
 from models.account import Account
-from utils.warmup_executor import emulate_typing
+from utils.human_behavior import simulate_typing, random_sleep
 from database import db
 from app import app
 
@@ -29,32 +29,32 @@ class BioExecutor(BaseNodeExecutor):
             first_name = self.get_config('first_name')
             if first_name and first_name != account.first_name:
                 self.log('info', f"Setting first name: {first_name}", action='set_first_name')
-                await emulate_typing(first_name, 'normal', self.account_id)
+                await simulate_typing(len(first_name))
                 await self.client(UpdateProfileRequest(first_name=first_name))
                 account.first_name = first_name
-                await asyncio.sleep(random.uniform(3, 8))
+                await random_sleep(3, 8, reason="Processing profile update")
                 self.log('success', f"First name set: {first_name}", action='set_first_name')
             
             # Last name
             last_name = self.get_config('last_name')
             if last_name is not None and last_name != account.last_name:
-                await asyncio.sleep(random.uniform(10, 20))
+                await random_sleep(10, 20, reason="Pause before next field")
                 self.log('info', f"Setting last name: {last_name}", action='set_last_name')
-                await emulate_typing(last_name, 'normal', self.account_id)
+                await simulate_typing(len(last_name))
                 await self.client(UpdateProfileRequest(last_name=last_name))
                 account.last_name = last_name
-                await asyncio.sleep(random.uniform(3, 8))
+                await random_sleep(3, 8, reason="Processing profile update")
                 self.log('success', f"Last name set: {last_name}", action='set_last_name')
             
             # Bio
             bio = self.get_config('bio')
             if bio is not None and bio != account.bio:
-                await asyncio.sleep(random.uniform(10, 20))
+                await random_sleep(10, 20, reason="Pause before next field")
                 self.log('info', f"Setting bio", action='set_bio')
-                await emulate_typing(bio, 'normal', self.account_id)
+                await simulate_typing(len(bio))
                 await self.client(UpdateProfileRequest(about=bio))
                 account.bio = bio
-                await asyncio.sleep(random.uniform(2, 5))
+                await random_sleep(2, 5, reason="Processing bio update")
                 self.log('success', 'Bio updated', action='set_bio')
             
             # Sync back
@@ -92,11 +92,11 @@ class UsernameExecutor(BaseNodeExecutor):
                 return {'success': True, 'message': 'Username already set'}
             
             self.log('info', f"Setting username: @{username}", action='set_username')
-            await asyncio.sleep(random.uniform(10, 20))
-            await emulate_typing(username, 'normal', self.account_id)
+            await random_sleep(10, 20, reason="Opening settings")
+            await simulate_typing(len(username))
             await self.client(UpdateUsernameRequest(username=username))
             account.username = username
-            await asyncio.sleep(random.uniform(3, 8))
+            await random_sleep(3, 8, reason="Processing username update")
             
             db.session.commit()
             self.log('success', f"Username set: @{username}", action='set_username')
@@ -151,7 +151,7 @@ class PhotoExecutor(BaseNodeExecutor):
                 raise Exception(f"Failed to process image file: {copy_error}")
 
             self.log('info', '⏳ Waiting before upload (simulating human delay)...', action='upload_delay')
-            await asyncio.sleep(random.uniform(5, 10))
+            await random_sleep(5, 10, reason="Preparing to upload photo")
             
             self.log('info', '📤 Uploading photo to Telegram...', action='telegram_upload')
             uploaded_file = await self.client.upload_file(stable_path)
@@ -173,7 +173,7 @@ class PhotoExecutor(BaseNodeExecutor):
                 db.session.rollback()
                 logger.error(f"Failed to update DB photo_url: {db_e}")
             
-            await asyncio.sleep(random.uniform(2, 5))
+            await random_sleep(2, 5, reason="Processing photo update")
             self.log('success', '🎉 Photo uploaded and set successfully!', action='set_photo')
             
             return {'success': True, 'message': 'Profile photo uploaded'}

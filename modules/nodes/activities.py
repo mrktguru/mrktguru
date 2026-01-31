@@ -3,23 +3,48 @@ import random
 import logging
 from datetime import datetime, timedelta
 
-from telethon.tl.functions.messages import GetDialogsRequest
+from telethon.tl.functions.messages import GetDialogsRequest, ReadHistoryRequest
 from telethon.tl.functions.account import UpdateStatusRequest
+from telethon.tl.functions.messages import GetMessagesViewsRequest
 from telethon.tl.types import InputPeerEmpty
 
 from modules.nodes.base import BaseNodeExecutor
-from utils.human_behavior import HumanBehavior
+from utils.human_behavior import HumanBehavior, random_sleep
 
 logger = logging.getLogger(__name__)
 
 class IdleExecutor(BaseNodeExecutor):
+    """
+    Idle Node - realistic idle period with occasional status updates.
+    Uses HumanBehavior for natural timing.
+    """
     async def execute(self):
         try:
             duration = self.get_config('duration_minutes', 60)
             
-            self.log('info', f"Idle period: {duration} minutes", action='idle_start')
-            await asyncio.sleep(duration * 60)
-            self.log('success', f"Idle period completed", action='idle_complete')
+            self.log('info', f"💤 Idle period: {duration} minutes", action='idle_start')
+            
+            # Split idle into chunks with occasional "wake-ups"
+            total_seconds = duration * 60
+            elapsed = 0
+            
+            while elapsed < total_seconds:
+                # Sleep for 5-15 minutes at a time
+                chunk = min(random.randint(300, 900), total_seconds - elapsed)
+                await asyncio.sleep(chunk)
+                elapsed += chunk
+                
+                if elapsed < total_seconds:
+                    # Occasional status ping (like user checking phone briefly)
+                    try:
+                        from telethon.tl.functions.account import UpdateStatusRequest
+                        await self.client(UpdateStatusRequest(offline=False))
+                        await asyncio.sleep(random.uniform(1, 3))  # Brief "check"
+                        await self.client(UpdateStatusRequest(offline=True))
+                    except:
+                        pass
+            
+            self.log('success', f"✅ Idle period completed", action='idle_complete')
             
             return {'success': True, 'message': f'Idle for {duration} minutes'}
             
@@ -100,27 +125,16 @@ class PassiveActivityExecutor(BaseNodeExecutor):
                         pass
                 
                 if current_scroll:
-                     self.log('info', f"👀 Waking up: Scrolling feed for {current_scroll['duration']}s", action='scroll_start')
+                     self.log('info', f"👀 Waking up: Reading subscribed channels for {current_scroll['duration']}s", action='scroll_start')
                      try:
                         await asyncio.wait_for(self.client(UpdateStatusRequest(offline=False)), timeout=15)
                      except: pass
                      
-                     scroll_end = datetime.now() + timedelta(seconds=current_scroll['duration'])
-                     while datetime.now() < scroll_end:
-                         await asyncio.sleep(random.uniform(2.0, 5.0))
-                         try:
-                             await asyncio.wait_for(self.client(GetDialogsRequest(
-                                 offset_date=None, offset_id=0,
-                                 offset_peer=InputPeerEmpty(), limit=10, hash=0
-                             )), timeout=20)
-                             last_network_activity = datetime.now()
-                         except asyncio.TimeoutError:
-                             logger.warning(f"[{self.account_id}] GetDialogsRequest timed out")
-                         except Exception as e:
-                             logger.warning(f"[{self.account_id}] GetDialogsRequest error: {e}")
+                     # Use HumanBehavior for realistic channel reading
+                     await self._scroll_with_human_behavior(current_scroll['duration'])
                              
                      current_scroll['done'] = True
-                     self.log('info', "💤 Scroll finished. Going back to IDLE.", action='scroll_end')
+                     self.log('info', "💤 Reading finished. Going back to IDLE.", action='scroll_end')
                      last_network_activity = datetime.now()
                      next_ping_delay = random.randint(15, 40)
                 
@@ -134,6 +148,53 @@ class PassiveActivityExecutor(BaseNodeExecutor):
             logger.error(f"Passive Activity failed: {e}")
             self.log('error', f'❌ Passive Activity failed: {e}', action='passive_error')
             return {'success': False, 'error': str(e)}
+
+    async def _scroll_with_human_behavior(self, duration_seconds):
+        """
+        Human-like scrolling through subscribed channels.
+        Uses HumanBehavior deep inspection for realistic reading.
+        """
+        try:
+            from telethon.tl.types import Channel, Chat
+            
+            start_time = datetime.now()
+            hb = HumanBehavior(self.client, self.account_id)
+            
+            # Get dialogs (subscribed channels)
+            dialogs = await self.client.get_dialogs(limit=20)
+            channels = [d.entity for d in dialogs if isinstance(d.entity, (Channel, Chat))]
+            
+            if not channels:
+                self.log('info', "No subscribed channels to scroll", action='no_channels')
+                await asyncio.sleep(duration_seconds)
+                return
+            
+            # Randomly pick 1-3 channels to "check"
+            channels_to_read = random.sample(channels, min(random.randint(1, 3), len(channels)))
+            
+            for channel in channels_to_read:
+                elapsed = (datetime.now() - start_time).total_seconds()
+                if elapsed >= duration_seconds:
+                    break
+                
+                title = getattr(channel, 'title', 'Unknown')
+                self.log('info', f"📺 Checking: {title}", action='check_channel')
+                
+                # Use HumanBehavior for deep inspection
+                await hb._deep_inspection(channel, short_visit=False)
+                
+                # Short pause between channels
+                await asyncio.sleep(random.uniform(3, 8))
+            
+            # If time left, just idle
+            remaining = duration_seconds - (datetime.now() - start_time).total_seconds()
+            if remaining > 0:
+                await asyncio.sleep(remaining)
+                
+        except Exception as e:
+            logger.warning(f"[{self.account_id}] Scroll with HB failed: {e}")
+            # Fallback to simple wait
+            await asyncio.sleep(duration_seconds)
 
 
 class SearchFilterExecutor(BaseNodeExecutor):

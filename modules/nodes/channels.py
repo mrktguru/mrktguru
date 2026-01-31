@@ -92,12 +92,18 @@ class SubscribeExecutor(BaseNodeExecutor):
                      pass
 
 
-class VisitExecutor(SubscribeExecutor): # Inherit to reuse interaction logic
+class VisitExecutor(BaseNodeExecutor):
+    """
+    Visit Executor - uses HumanBehavior for full human emulation.
+    
+    Unlike SearchFilterExecutor (which filters by subscribers/activity),
+    VisitExecutor saves ALL channels (no filtering) - user provides specific channels.
+    """
     async def execute(self):
         try:
+            from utils.human_behavior import HumanBehavior
+            
             channels_raw = self.get_config('channels', [])
-            read_count = int(self.get_config('read_count', 5))
-            interaction = self.get_config('interaction_depth', {})
             
             # Parse channels - handle both list and newline-separated string
             if isinstance(channels_raw, str):
@@ -110,84 +116,39 @@ class VisitExecutor(SubscribeExecutor): # Inherit to reuse interaction logic
             if not channels:
                 return {'success': False, 'error': 'No channels provided'}
             
-            visited_count = 0
-            for channel_username in channels:
-                # Clean channel username - remove URL prefix, @ symbol, and whitespace
-                channel_username = channel_username.replace('https://t.me/', '').replace('http://t.me/', '').replace('@', '').strip()
-                
-                if not channel_username:
-                    continue
-                
-                self.log('info', f"Visiting {channel_username}", action='visit_start')
-                await asyncio.sleep(random.uniform(2, 5))
-                
-                # Get entity and save to discovered channels
-                try:
-                    entity = await self.client.get_entity(channel_username)
-                    await self._save_visited_channel(entity)
-                except Exception as e:
-                    logger.warning(f"Could not save visited channel {channel_username}: {e}")
-                
-                await self._interact_with_channel(channel_username, read_count, interaction)
-                
-                self.log('success', f"Visited {channel_username}", action='visit_success')
-                visited_count += 1
+            self.log('info', f'📺 Starting Visit Node: {len(channels)} channels', action='visit_start')
             
-            return {'success': True, 'message': f'Visited {visited_count} channel(s)'}
+            # Initialize HumanBehavior
+            hb = HumanBehavior(self.client, self.account_id)
+            
+            # Prepare config for HumanBehavior
+            # Visit node uses "channels" field, but HumanBehavior expects "links"
+            hb_config = {
+                'links': '\n'.join(channels),
+                # Visit node should NOT filter - all channels are intentionally provided
+                'min_subscribers': 0,
+                'max_inactive_days': 365 * 10,  # Effectively no filter
+                'cooldown_min': int(self.get_config('cooldown_min', 30)),
+                'cooldown_max': int(self.get_config('cooldown_max', 120))
+            }
+            
+            # Process with full human emulation
+            result = await hb.process_mixed_links(hb_config)
+            
+            saved = result.get('saved', 0)
+            processed = result.get('processed', 0)
+            
+            self.log('success', f'✅ Visit complete: {saved}/{processed} channels saved', action='visit_complete')
+            
+            return {
+                'success': True, 
+                'message': f'Visited {processed} channels, saved {saved} to Discovered'
+            }
             
         except Exception as e:
             logger.error(f"Visit channels node failed: {e}")
             self.log('error', f"Visit failed: {str(e)}", action='visit_error')
             return {'success': False, 'error': str(e)}
-
-    async def _save_visited_channel(self, entity):
-        """Save visited channel to channel_candidates table"""
-        from telethon.tl.types import Channel, Chat
-        
-        if not isinstance(entity, (Channel, Chat)):
-            return  # Only save channels/groups
-        
-        try:
-            peer_id = entity.id
-            access_hash = getattr(entity, 'access_hash', 0)
-            username = getattr(entity, 'username', None)
-            title = getattr(entity, 'title', 'Unknown')
-            type_str = 'CHANNEL' if isinstance(entity, Channel) else 'MEGAGROUP'
-            
-            # Find existing or create new
-            candidate = ChannelCandidate.query.filter_by(
-                account_id=self.account_id,
-                peer_id=peer_id
-            ).first()
-            
-            if not candidate:
-                candidate = ChannelCandidate(
-                    account_id=self.account_id,
-                    peer_id=peer_id,
-                    access_hash=access_hash,
-                    origin='VISIT_NODE'
-                )
-                db.session.add(candidate)
-                logger.info(f"[{self.account_id}] ✨ New channel discovered via Visit: {title}")
-            
-            # Update fields
-            candidate.username = username
-            candidate.title = title
-            candidate.type = type_str
-            candidate.last_visit_ts = datetime.utcnow()
-            candidate.status = 'VISITED'
-            
-            # Try to get participants count
-            try:
-                full_info = await self.client(GetFullChannelRequest(entity))
-                candidate.participants_count = full_info.full_chat.participants_count
-            except:
-                pass
-            
-            db.session.commit()
-            
-        except Exception as e:
-            logger.error(f"[{self.account_id}] Failed to save visited channel: {e}")
 
 
 class SmartSubscribeExecutor(BaseNodeExecutor):

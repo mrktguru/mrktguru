@@ -5,6 +5,7 @@ from telethon.tl.functions.contacts import ImportContactsRequest
 from telethon.tl.types import InputPhoneContact
 
 from modules.nodes.base import BaseNodeExecutor
+from utils.human_behavior import random_sleep, simulate_typing
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +21,9 @@ class ImportContactsExecutor(BaseNodeExecutor):
             contacts_data = contacts_data[:count]
             
             self.log('info', f"Importing {len(contacts_data)} contacts", action='import_start')
-            await asyncio.sleep(random.uniform(5, 10))
+            
+            # Human-like delay before action
+            await random_sleep(5, 10, reason="Preparing to import contacts")
             
             contacts = [
                 InputPhoneContact(
@@ -34,7 +37,7 @@ class ImportContactsExecutor(BaseNodeExecutor):
             
             await self.client(ImportContactsRequest(contacts))
             
-            await asyncio.sleep(random.uniform(3, 8))
+            await random_sleep(3, 8, reason="Processing import result")
             self.log('success', f"Imported {len(contacts_data)} contacts", action='import_success')
             
             return {'success': True, 'message': f'Imported {len(contacts_data)} contacts'}
@@ -54,9 +57,14 @@ class SendMessageExecutor(BaseNodeExecutor):
             self.log('info', f"Sending {count} message(s) to Saved Messages", action='send_start')
             
             for i in range(count):
-                await asyncio.sleep(random.uniform(5, 10))
+                # Human-like typing simulation
+                await simulate_typing(len(message))
+                
                 await self.client.send_message('me', message)
                 self.log('success', f"Message {i+1}/{count} sent", action='send_message')
+                
+                if i < count - 1:
+                    await random_sleep(5, 15, reason="Pause between messages")
             
             return {'success': True, 'message': f'Sent {count} message(s)'}
             
