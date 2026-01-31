@@ -134,12 +134,12 @@ export function moveNode(node, day, time) {
     saveSchedule(true);
 }
 
-export function removeNode(node) {
+export async function removeNode(node) {
     if (!confirm('Delete this node?')) return;
     if (node.id) {
         state.deletedNodeIds.push(node.id);
     }
     state.scheduleData.nodes = state.scheduleData.nodes.filter(n => n !== node);
     renderNodes();
-    saveSchedule(true);
+    await saveSchedule(true);  // Wait for deletion to complete
 }

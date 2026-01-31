@@ -304,21 +304,35 @@ class AISchedulerService:
             day_number = (execution_date - start_date).days + 1
             
             for session in day_data.get('sessions', []):
+                node_type = session.get('node_type', 'passive_activity')
+                duration = session.get('duration_minutes', 5)
+                
+                # Build config based on node type
+                config = {
+                    'ai_generated': True,
+                    'ai_reasoning': session.get('reasoning', ''),
+                    'duration_minutes': duration,
+                    'intensity': 'normal'
+                }
+                
+                # For passive_activity nodes, enable scrolling by default
+                if node_type == 'passive_activity':
+                    config['enable_scroll'] = True
+                    config['scroll_count_min'] = 3
+                    config['scroll_count_max'] = 6
+                    config['scroll_duration_min'] = 30
+                    config['scroll_duration_max'] = 120
+                
                 # Создаем ноду
                 node = WarmupScheduleNode(
                     schedule_id=schedule.id,
                     sequence_id=WarmupScheduleNode.get_next_sequence_id(schedule.id),
-                    node_type=session.get('node_type', 'passive_activity'),
+                    node_type=node_type,
                     day_number=day_number,
                     execution_date=execution_date,
                     execution_time=session.get('time'),
                     is_random_time=False,
-                    config={
-                        'ai_generated': True,
-                        'ai_reasoning': session.get('reasoning', ''),
-                        'duration_minutes': session.get('duration_minutes', 5),
-                        'intensity': 'normal'
-                    },
+                    config=config,
                     status='pending'
                 )
                 
