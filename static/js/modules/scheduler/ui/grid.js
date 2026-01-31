@@ -42,14 +42,15 @@ export function renderGridStructure() {
         const diffTime = colDate.getTime() - state.accountCreatedAtDate.getTime();
         const lifeDayIndex = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
 
-        if (lifeDayIndex < 1) {
+        // Past days (before today) - dimmed out
+        if (colDate < now) {
             col.style.backgroundColor = '#e9ecef';
-            col.classList.add('day-disabled');
+            col.classList.add('day-past');
+            col.style.opacity = '0.6';
         } else if (colDate.getTime() === now.getTime()) {
-            col.style.backgroundColor = 'rgba(13, 110, 253, 0.05)';
+            // Today - highlighted
+            col.style.backgroundColor = 'rgba(13, 110, 253, 0.1)';
             col.classList.add('day-today');
-        } else if (colDate < now) {
-            col.style.backgroundColor = '#f8f9fa';
         }
 
         // Slots

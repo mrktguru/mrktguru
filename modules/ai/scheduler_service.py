@@ -109,7 +109,7 @@ class AISchedulerService:
             if node_types is None:
                 node_types = ['passive_activity']
             if start_date is None:
-                start_date = date.today() + timedelta(days=1)
+                start_date = date.today()  # Start from today, not tomorrow
             
             # 1. Получаем Tier из БД
             tier = Tier.query.filter_by(slug=tier_slug, is_active=True).first()
