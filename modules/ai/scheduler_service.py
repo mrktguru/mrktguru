@@ -111,31 +111,46 @@ class AISchedulerService:
             if node_types is None:
                 node_types = ['passive_activity']
             
-            # Calculate proper start_date - must be today or later
-            now = datetime.now()
-            today = now.date()
-            
-            if start_date is None:
-                start_date = today
-            else:
-                # Ensure start_date is not in the past
-                if start_date < today:
-                    start_date = today
-            
             # Get persona for timezone info
             persona = self.persona_builder.get_or_create_persona()
             user_timezone = persona.get('timezone_offset', 'UTC+3')
+            user_tz_offset = persona.get('timezone_offset_hours', 3)  # Default Moscow
             
-            # Calculate minimum hour for today (current time + 1 hour)
+            # Server is in Helsinki (UTC+2)
+            SERVER_TZ_OFFSET = 2
+            
+            # Calculate proper start_date - must be today or later
+            now = datetime.now()  # Server time (Helsinki)
+            today = now.date()
+            
+            # Convert server time to user's local time
+            tz_diff = user_tz_offset - SERVER_TZ_OFFSET  # e.g., California: -8 - 2 = -10 hours
+            user_local_time = now + timedelta(hours=tz_diff)
+            user_local_date = user_local_time.date()
+            user_local_hour = user_local_time.hour
+            
+            logger.info(f"🌍 Server time: {now.strftime('%H:%M')} (UTC+2), User local time: {user_local_time.strftime('%H:%M')} ({user_timezone})")
+            
+            if start_date is None:
+                start_date = user_local_date
+            else:
+                # Ensure start_date is not in the past (user's local date)
+                if start_date < user_local_date:
+                    start_date = user_local_date
+            
+            # Calculate minimum hour for today in USER'S timezone (current local time + 1 hour)
             today_constraint = ""
-            if start_date == today:
-                min_hour = now.hour + 1
-                if min_hour < 23:  # Still time left today
-                    today_constraint = f"\n8. ВАЖНО: Сегодня ({today.isoformat()}) планируй активность ТОЛЬКО после {min_hour:02d}:00 (текущее серверное время: {now.strftime('%H:%M')}, нужен запас минимум 1 час)"
+            if start_date == user_local_date:
+                min_hour = user_local_hour + 1
+                if min_hour >= 7 and min_hour < 23:  # Still reasonable time left today
+                    today_constraint = f"\n8. ВАЖНО: Сегодня ({start_date.isoformat()}) планируй активность ТОЛЬКО после {min_hour:02d}:00 (текущее локальное время пользователя: {user_local_time.strftime('%H:%M')})"
+                elif min_hour < 7:
+                    # Very early morning in user's timezone - start from 7:00
+                    today_constraint = f"\n8. ВАЖНО: Сегодня ({start_date.isoformat()}) начинай с 07:00 или позже (пользователь только просыпается)"
                 else:
-                    # Too late today, start from tomorrow
-                    start_date = today + timedelta(days=1)
-                    logger.info(f"📅 Too late today, starting from tomorrow: {start_date}")
+                    # Too late today in user's timezone, start from tomorrow
+                    start_date = user_local_date + timedelta(days=1)
+                    logger.info(f"📅 Too late in user's timezone, starting from tomorrow: {start_date}")
             
             # 1. Получаем Tier из БД
             tier = Tier.query.filter_by(slug=tier_slug, is_active=True).first()
@@ -178,8 +193,8 @@ class AISchedulerService:
                 # Пробуем fallback
                 ai_response = self._generate_fallback_schedule(tier, days, node_types, start_date)
             
-            # 8. Создаем записи в БД
-            result = self._create_schedule_nodes(ai_response, node_types, start_date)
+            # 8. Создаем записи в БД (с конвертацией времени из user timezone в server timezone)
+            result = self._create_schedule_nodes(ai_response, node_types, start_date, user_tz_offset)
             
             logger.info(f"✅ AI schedule generated: {result['nodes_created']} nodes")
             
@@ -304,11 +319,22 @@ class AISchedulerService:
         self,
         ai_response: Dict,
         node_types: List[str],
-        start_date: date
+        start_date: date,
+        user_tz_offset: float = 3
     ) -> Dict[str, Any]:
         """
         Создает WarmupScheduleNode записи из AI ответа.
+        Конвертирует время из локального времени пользователя в серверное (Helsinki UTC+2).
+        
+        Args:
+            ai_response: Ответ от AI
+            node_types: Типы нод
+            start_date: Дата начала (в локальном времени пользователя)
+            user_tz_offset: Offset пользователя от UTC (e.g., -8 for California)
         """
+        SERVER_TZ_OFFSET = 2  # Helsinki UTC+2
+        tz_diff = SERVER_TZ_OFFSET - user_tz_offset  # How many hours to add to convert user time to server time
+        
         # Получаем или создаем WarmupSchedule
         schedule = self.account.active_schedule
         
@@ -326,21 +352,37 @@ class AISchedulerService:
         
         for day_data in ai_response.get('schedule', []):
             date_str = day_data.get('date')
-            execution_date = datetime.strptime(date_str, '%Y-%m-%d').date()
-            
-            # Вычисляем day_number относительно start_date
-            day_number = (execution_date - start_date).days + 1
+            user_date = datetime.strptime(date_str, '%Y-%m-%d').date()
             
             for session in day_data.get('sessions', []):
                 node_type = session.get('node_type', 'passive_activity')
                 duration = session.get('duration_minutes', 5)
+                user_time_str = session.get('time', '12:00')
+                
+                # Parse user's local time and convert to server time
+                hour, minute = map(int, user_time_str.split(':'))
+                user_datetime = datetime.combine(user_date, datetime.min.time().replace(hour=hour, minute=minute))
+                
+                # Convert to server time
+                server_datetime = user_datetime + timedelta(hours=tz_diff)
+                server_date = server_datetime.date()
+                server_time = server_datetime.strftime('%H:%M')
+                
+                # Вычисляем day_number относительно account creation
+                if self.account.created_at:
+                    account_start = self.account.created_at.date()
+                    day_number = (server_date - account_start).days + 1
+                else:
+                    day_number = (server_date - start_date).days + 1
                 
                 # Build config based on node type
                 config = {
                     'ai_generated': True,
                     'ai_reasoning': session.get('reasoning', ''),
                     'duration_minutes': duration,
-                    'intensity': 'normal'
+                    'intensity': 'normal',
+                    'user_local_time': user_time_str,  # Original time in user's timezone
+                    'user_timezone_offset': user_tz_offset
                 }
                 
                 # For passive_activity nodes, enable scrolling by default
@@ -351,14 +393,16 @@ class AISchedulerService:
                     config['scroll_duration_min'] = 30
                     config['scroll_duration_max'] = 120
                 
+                logger.debug(f"📅 Node: {user_time_str} ({user_date}) user → {server_time} ({server_date}) server")
+                
                 # Создаем ноду
                 node = WarmupScheduleNode(
                     schedule_id=schedule.id,
                     sequence_id=WarmupScheduleNode.get_next_sequence_id(schedule.id),
                     node_type=node_type,
                     day_number=day_number,
-                    execution_date=execution_date,
-                    execution_time=session.get('time'),
+                    execution_date=server_date,
+                    execution_time=server_time,
                     is_random_time=False,
                     config=config,
                     status='pending'

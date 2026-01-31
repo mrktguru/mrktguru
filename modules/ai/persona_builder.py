@@ -48,23 +48,27 @@ REGION_TIMEZONE_MAP = {
     'india': 'Asia/Kolkata',
 }
 
-# UTC offsets для основных timezones
+# UTC offsets для основных timezones (numeric hours from UTC)
 TIMEZONE_UTC_OFFSETS = {
-    'America/Los_Angeles': 'UTC-8',
-    'America/New_York': 'UTC-5',
-    'America/Chicago': 'UTC-6',
-    'Europe/London': 'UTC+0',
-    'Europe/Berlin': 'UTC+1',
-    'Europe/Paris': 'UTC+1',
-    'Europe/Amsterdam': 'UTC+1',
-    'Europe/Moscow': 'UTC+3',
-    'Europe/Kiev': 'UTC+2',
-    'Asia/Almaty': 'UTC+6',
-    'Asia/Singapore': 'UTC+8',
-    'Asia/Tokyo': 'UTC+9',
-    'Asia/Shanghai': 'UTC+8',
-    'Asia/Kolkata': 'UTC+5:30',
+    'America/Los_Angeles': ('UTC-8', -8),
+    'America/New_York': ('UTC-5', -5),
+    'America/Chicago': ('UTC-6', -6),
+    'Europe/London': ('UTC+0', 0),
+    'Europe/Berlin': ('UTC+1', 1),
+    'Europe/Paris': ('UTC+1', 1),
+    'Europe/Amsterdam': ('UTC+1', 1),
+    'Europe/Moscow': ('UTC+3', 3),
+    'Europe/Kiev': ('UTC+2', 2),
+    'Europe/Helsinki': ('UTC+2', 2),
+    'Asia/Almaty': ('UTC+6', 6),
+    'Asia/Singapore': ('UTC+8', 8),
+    'Asia/Tokyo': ('UTC+9', 9),
+    'Asia/Shanghai': ('UTC+8', 8),
+    'Asia/Kolkata': ('UTC+5:30', 5.5),
 }
+
+# Server timezone (Helsinki)
+SERVER_TIMEZONE_OFFSET = 2  # UTC+2
 
 
 class PersonaBuilder:
@@ -109,7 +113,7 @@ class PersonaBuilder:
         age = random.randint(25, 45)
         
         # 4. Timezone (из региона прокси)
-        timezone, timezone_offset = self._get_timezone_from_proxy()
+        timezone, timezone_offset, timezone_offset_hours = self._get_timezone_from_proxy()
         
         # 5. Topic (из настроек аккаунта или default)
         topic = self._get_topic()
@@ -121,6 +125,7 @@ class PersonaBuilder:
             "age": age,
             "timezone": timezone,
             "timezone_offset": timezone_offset,
+            "timezone_offset_hours": timezone_offset_hours,
             "topic_slug": topic.slug if topic else "general",
             "topic_name": topic.name if topic else "Универсальный",
             "interests": topic.interests_prompt if topic else "",
@@ -189,9 +194,9 @@ class PersonaBuilder:
         Определяет timezone на основе региона прокси.
         
         Returns:
-            tuple: (timezone_name, utc_offset)
+            tuple: (timezone_name, utc_offset_str, utc_offset_hours)
         """
-        default_tz = ("Europe/Moscow", "UTC+3")
+        default_tz = ("Europe/Moscow", "UTC+3", 3)
         
         try:
             # Ищем регион в названии ProxyNetwork
@@ -200,9 +205,10 @@ class PersonaBuilder:
                 
                 for region, tz in REGION_TIMEZONE_MAP.items():
                     if region in network_name:
-                        offset = TIMEZONE_UTC_OFFSETS.get(tz, "UTC")
-                        logger.debug(f"📍 Timezone from proxy network: {tz}")
-                        return (tz, offset)
+                        offset_data = TIMEZONE_UTC_OFFSETS.get(tz, ("UTC", 0))
+                        offset_str, offset_hours = offset_data
+                        logger.debug(f"📍 Timezone from proxy network: {tz} ({offset_str})")
+                        return (tz, offset_str, offset_hours)
             
             # Fallback: статический прокси
             if self.account.proxy:

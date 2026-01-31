@@ -23,21 +23,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
     state.schedulerAccountId = parseInt(state.elements.container.dataset.accountId);
 
-    // 2. Dates
-    // Prioritize schedule start date if available, fall back to account creation
-    const startDateRaw = state.elements.container.dataset.startDate;
+    // 2. Dates - ALWAYS use account creation date for Day calculations
     const createdAtRaw = state.elements.container.dataset.createdAt;
 
-    if (startDateRaw) {
-        state.accountCreatedAtDate = new Date(startDateRaw);
-        console.log("[Scheduler] Using schedule start date as anchor:", startDateRaw);
-    } else if (createdAtRaw) {
-        state.accountCreatedAtDate = new Date(createdAtRaw);
-        console.log("[Scheduler] Using account creation date as anchor:", createdAtRaw);
+    if (createdAtRaw) {
+        // Extract just the date part (YYYY-MM-DD) to avoid timezone issues
+        const datePart = createdAtRaw.substring(0, 10); // '2026-01-16T20:53:53' -> '2026-01-16'
+        const [year, month, day] = datePart.split('-').map(Number);
+        // Create date in local timezone at midnight (months are 0-indexed)
+        state.accountCreatedAtDate = new Date(year, month - 1, day, 0, 0, 0, 0);
+        console.log("[Scheduler] Using account creation date as anchor:", datePart, "->", state.accountCreatedAtDate);
     } else {
         state.accountCreatedAtDate = new Date();
+        state.accountCreatedAtDate.setHours(0, 0, 0, 0);
+        console.log("[Scheduler] No creation date, using today");
     }
-    state.accountCreatedAtDate.setHours(0, 0, 0, 0);
 
     // 3. Calc Offset (Show Current Week)
     const now = new Date();
