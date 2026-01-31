@@ -1,24 +1,24 @@
 """
-LLM Client - обертка над DeepSeek/OpenAI API
+LLM Client - обертка над DeepSeek/OpenAI API (использует OpenAI SDK)
 """
 import os
 import json
 import logging
-import requests
 from typing import Optional, Dict, Any
+from openai import OpenAI
 
 logger = logging.getLogger(__name__)
 
 
 class LLMClient:
     """
-    Клиент для работы с LLM API (DeepSeek, OpenAI)
+    Клиент для работы с LLM API (DeepSeek, OpenAI) через OpenAI SDK
     """
     
     # API endpoints
     PROVIDERS = {
         'deepseek': {
-            'base_url': 'https://api.deepseek.com/v1',
+            'base_url': 'https://api.deepseek.com',
             'default_model': 'deepseek-chat'
         },
         'openai': {
@@ -48,7 +48,14 @@ class LLMClient:
         
         self.base_url = provider_config['base_url']
         self.model = model or os.getenv('AI_MODEL', provider_config['default_model'])
-        self.timeout = int(os.getenv('AI_TIMEOUT', 30))
+        self.timeout = int(os.getenv('AI_TIMEOUT', 120))
+        
+        # Инициализируем OpenAI клиент
+        self.client = OpenAI(
+            api_key=self.api_key,
+            base_url=self.base_url,
+            timeout=self.timeout
+        )
         
         logger.info(f"🤖 LLMClient initialized: {self.provider}/{self.model}")
     
@@ -109,60 +116,36 @@ class LLMClient:
         response_format: dict = None
     ) -> str:
         """
-        Отправляет запрос к API
+        Отправляет запрос к API через OpenAI SDK
         """
-        url = f"{self.base_url}/chat/completions"
-        
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json"
-        }
-        
-        payload = {
-            "model": self.model,
-            "messages": messages,
-            "temperature": temperature,
-            "max_tokens": 4000
-        }
-        
-        # Добавляем response_format если указан
-        if response_format:
-            payload["response_format"] = response_format
-        
         try:
             logger.debug(f"📤 Sending request to {self.provider}...")
             
-            response = requests.post(
-                url,
-                headers=headers,
-                json=payload,
-                timeout=self.timeout
-            )
+            # Подготовка параметров
+            kwargs = {
+                "model": self.model,
+                "messages": messages,
+                "temperature": temperature,
+                "max_tokens": 4000
+            }
             
-            response.raise_for_status()
+            # Добавляем response_format если указан
+            if response_format:
+                kwargs["response_format"] = response_format
             
-            data = response.json()
+            # Отправляем запрос через OpenAI SDK
+            response = self.client.chat.completions.create(**kwargs)
             
             # Логируем использование токенов
-            usage = data.get('usage', {})
-            logger.info(f"📊 Tokens used: {usage.get('total_tokens', '?')} "
-                       f"(prompt: {usage.get('prompt_tokens', '?')}, "
-                       f"completion: {usage.get('completion_tokens', '?')})")
+            if response.usage:
+                logger.info(f"📊 Tokens used: {response.usage.total_tokens} "
+                           f"(prompt: {response.usage.prompt_tokens}, "
+                           f"completion: {response.usage.completion_tokens})")
             
             # Извлекаем ответ
-            content = data['choices'][0]['message']['content']
+            content = response.choices[0].message.content
             
             return content.strip()
-            
-        except requests.exceptions.Timeout:
-            logger.error(f"⏱️ API timeout after {self.timeout}s")
-            raise TimeoutError(f"LLM API timeout after {self.timeout}s")
-            
-        except requests.exceptions.HTTPError as e:
-            logger.error(f"❌ HTTP error: {e}")
-            if hasattr(e, 'response') and e.response:
-                logger.error(f"Response: {e.response.text[:500]}")
-            raise
             
         except Exception as e:
             logger.error(f"❌ API error: {e}")

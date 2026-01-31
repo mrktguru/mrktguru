@@ -44,3 +44,4 @@ psutil==5.9.6
 cryptography==41.0.7
 opentele==1.15.1
 tgcrypto==1.2.5
+openai>=1.0.0
