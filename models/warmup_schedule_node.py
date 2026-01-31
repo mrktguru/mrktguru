@@ -16,6 +16,11 @@ class WarmupScheduleNode(db.Model):
     # This is the ID displayed to users and used in logs
     sequence_id = db.Column(db.Integer, nullable=True)
     
+    # Supernode grouping - nodes with same supernode_id execute in sequence
+    # When a node triggers while another is running, they form a supernode
+    supernode_id = db.Column(db.Integer, nullable=True)  # NULL = standalone, same value = grouped
+    supernode_order = db.Column(db.Integer, nullable=True)  # Order within supernode (1, 2, 3...)
+    
     # Node configuration
     node_type = db.Column(db.String(50), nullable=False)  # bio, username, photo, contacts, subscribe, visit, idle
     day_number = db.Column(db.Integer, nullable=False)  # 1-14
@@ -58,6 +63,8 @@ class WarmupScheduleNode(db.Model):
             'id': self.id,
             'schedule_id': self.schedule_id,
             'sequence_id': self.sequence_id,
+            'supernode_id': self.supernode_id,
+            'supernode_order': self.supernode_order,
             'node_type': self.node_type,
             'day_number': self.day_number,
             'execution_date': self.execution_date.isoformat() if self.execution_date else None,

@@ -25,6 +25,33 @@ logger = logging.getLogger(__name__)
 setup_redis_logging()
 
 
+def execute_next_supernode(completed_node, account_id):
+    """
+    Check if there are more nodes in the supernode queue and execute the next one.
+    Called after a node completes (success or failure).
+    """
+    if not completed_node.supernode_id:
+        return  # Not part of a supernode
+    
+    # Find the next queued node in this supernode
+    next_node = WarmupScheduleNode.query.filter(
+        WarmupScheduleNode.supernode_id == completed_node.supernode_id,
+        WarmupScheduleNode.status == 'queued',
+        WarmupScheduleNode.supernode_order > completed_node.supernode_order
+    ).order_by(WarmupScheduleNode.supernode_order.asc()).first()
+    
+    if next_node:
+        display_id = next_node.get_display_id()
+        logger.info(f"[{account_id}] 🔗 Supernode: Executing next node {display_id} (order: {next_node.supernode_order})")
+        WarmupLog.log(account_id, 'info', f"Supernode: Starting next node {display_id}", action='supernode_next')
+        
+        # Execute the next node (this will acquire its own lock)
+        execute_scheduled_node.delay(next_node.id, is_adhoc=True)  # is_adhoc=True to force execution
+    else:
+        logger.info(f"[{account_id}] 🔗 Supernode #{completed_node.supernode_id} completed - no more queued nodes")
+        WarmupLog.log(account_id, 'success', f"Supernode #{completed_node.supernode_id} completed", action='supernode_complete')
+
+
 @celery.task(name='workers.scheduler_worker.check_warmup_schedules')
 def check_warmup_schedules():
     """
@@ -411,11 +438,45 @@ def execute_scheduled_node(node_id, is_adhoc=False):
             is_locked = redis_client.set(lock_key, "locked", nx=True, ex=1800)
             
             if not is_locked:
-                logger.warning(f"[{account_id}] ⚠️ Account is busy! Skipping overlapping task {display_id} (Race Condition).")
-                # Do NOT mark as failed. Likely another worker picked it up or just finished.
-                # If we mark failed, we might overwrite the actual running task's status or confuse user.
-                WarmupLog.log(account_id, 'warning', f"Skipped overlap task {display_id}", action='lock_overlap')
-                db.session.rollback() # Rollback status='running' change from this session
+                # --- SUPERNODE QUEUE LOGIC ---
+                # Instead of skipping, queue this node to execute after the current one
+                logger.info(f"[{account_id}] 🔗 Account is busy! Adding Node {display_id} to supernode queue.")
+                
+                # Find the currently running node for this schedule
+                running_node = WarmupScheduleNode.query.filter_by(
+                    schedule_id=node.schedule_id,
+                    status='running'
+                ).first()
+                
+                if running_node:
+                    # Create or extend supernode
+                    if running_node.supernode_id:
+                        # Extend existing supernode
+                        supernode_id = running_node.supernode_id
+                        # Get max order in this supernode
+                        max_order = db.session.query(db.func.max(WarmupScheduleNode.supernode_order)).filter_by(
+                            supernode_id=supernode_id
+                        ).scalar() or 1
+                        node.supernode_id = supernode_id
+                        node.supernode_order = max_order + 1
+                    else:
+                        # Create new supernode - use running node's ID as supernode_id
+                        supernode_id = running_node.id
+                        running_node.supernode_id = supernode_id
+                        running_node.supernode_order = 1
+                        node.supernode_id = supernode_id
+                        node.supernode_order = 2
+                    
+                    node.status = 'queued'  # New status for queued nodes
+                    db.session.commit()
+                    
+                    logger.info(f"[{account_id}] 📦 Node {display_id} queued in Supernode #{supernode_id} (order: {node.supernode_order})")
+                    WarmupLog.log(account_id, 'info', f"Node {display_id} queued in Supernode (order: {node.supernode_order})", action='supernode_queue')
+                else:
+                    # No running node found but lock exists - likely race condition, just wait
+                    logger.warning(f"[{account_id}] ⚠️ Lock exists but no running node found. Will retry next tick.")
+                    WarmupLog.log(account_id, 'warning', f"Node {display_id} waiting for lock release", action='lock_wait')
+                
                 return
 
             try:
@@ -522,6 +583,9 @@ def execute_scheduled_node(node_id, is_adhoc=False):
                     WarmupLog.log(account_id, 'error', f"Node failed: {node.error_message}", action=f'{node.node_type}_error')
 
                 db.session.commit()
+                
+                # --- SUPERNODE: EXECUTE NEXT NODE IN QUEUE ---
+                execute_next_supernode(node, account_id)
             
             finally:
                 # RELEASE LOCK

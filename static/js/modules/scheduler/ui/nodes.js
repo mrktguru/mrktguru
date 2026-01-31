@@ -193,6 +193,8 @@ function createNodeElement(node, colIndex) {
         el.classList.add('node-running');
     } else if (node.status === 'pending') {
         el.classList.add('node-ready');
+    } else if (node.status === 'queued') {
+        el.classList.add('node-queued');
     } else if (node.status === 'failed') {
         el.classList.add('node-failed');
     } else if (node.status === 'skipped') {
@@ -207,7 +209,8 @@ function createNodeElement(node, colIndex) {
         node.status === 'success' ||
         node.status === 'running' ||
         node.status === 'failed' ||
-        node.status === 'skipped');
+        node.status === 'skipped' ||
+        node.status === 'queued');
 
     if (isLocked) {
         el.style.cursor = 'default';
@@ -221,11 +224,16 @@ function createNodeElement(node, colIndex) {
     el._nodeObj = node;
 
     const isReady = node.status === 'pending';
+    const isQueued = node.status === 'queued';
+    const supernodeInfo = node.supernode_id ? `<span class="badge bg-purple text-white" style="font-size: 8px; padding: 1px 3px;">🔗${node.supernode_order || ''}</span>` : '';
+    
     el.innerHTML = `
         <div class="d-flex justify-content-between align-items-center">
             <strong class="text-truncate">${getNodeLabel(node.node_type, node.id)}</strong>
             <div class="d-flex gap-1" style="background: rgba(255,255,255,0.5); border-radius: 4px; padding: 0 2px;">
+                ${supernodeInfo}
                 ${isReady ? '<i class="bi bi-check-circle-fill text-success" title="Ready" style="font-size: 10px;"></i>' : ''}
+                ${isQueued ? '<i class="bi bi-hourglass-split text-purple" title="Queued in Supernode" style="font-size: 10px;"></i>' : ''}
                 <i class="bi bi-gear-fill node-config-btn" style="cursor:pointer; font-size: 10px;" title="View Details"></i>
                 ${!isLocked ? '<i class="bi bi-x node-remove-btn" style="cursor:pointer; font-size: 10px; color: #dc3545;" title="Remove"></i>' : ''}
             </div>
