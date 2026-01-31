@@ -43,7 +43,6 @@ class ImportContactsExecutor(BaseNodeExecutor):
             return {'success': True, 'message': f'Imported {len(contacts_data)} contacts'}
             
         except Exception as e:
-            logger.error(f"Import contacts node failed: {e}")
             self.log('error', f"Contact import failed: {str(e)}", action='import_error')
             return {'success': False, 'error': str(e)}
 
@@ -69,6 +68,5 @@ class SendMessageExecutor(BaseNodeExecutor):
             return {'success': True, 'message': f'Sent {count} message(s)'}
             
         except Exception as e:
-            logger.error(f"Send message node failed: {e}")
             self.log('error', f"Send message failed: {str(e)}", action='send_error')
             return {'success': False, 'error': str(e)}

@@ -157,7 +157,7 @@ class SubscribeExecutor(BaseNodeExecutor):
             }
 
         except Exception as e:
-            logger.error(f"SubscribeExecutor failed: {e}")
+            self.log('error', f"SubscribeExecutor failed: {e}", action='subscribe_error')
             return {'success': False, 'error': str(e)}
 
     def _fetch_auto_candidates(self, count, dead_days):

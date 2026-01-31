@@ -72,7 +72,6 @@ class BioExecutor(BaseNodeExecutor):
             return {'success': True, 'message': 'Bio node executed successfully'}
             
         except Exception as e:
-            logger.error(f"Bio node failed: {e}")
             self.log('error', f"Bio update failed: {str(e)}", action='bio_error')
             return {'success': False, 'error': str(e)}
 
@@ -104,7 +103,6 @@ class UsernameExecutor(BaseNodeExecutor):
             return {'success': True, 'message': f'Username set to @{username}'}
             
         except Exception as e:
-            logger.error(f"Username node failed: {e}")
             self.log('error', f"Username update failed: {str(e)}", action='username_error')
             return {'success': False, 'error': str(e)}
 
@@ -171,7 +169,7 @@ class PhotoExecutor(BaseNodeExecutor):
                     self.log('info', f"✅ DB updated with stable photo: {relative_path}", action='db_photo_update')
             except Exception as db_e:
                 db.session.rollback()
-                logger.error(f"Failed to update DB photo_url: {db_e}")
+                self.log('error', f"Failed to update DB photo_url: {db_e}", action='db_photo_error')
             
             await random_sleep(2, 5, reason="Processing photo update")
             self.log('success', '🎉 Photo uploaded and set successfully!', action='set_photo')
@@ -179,14 +177,13 @@ class PhotoExecutor(BaseNodeExecutor):
             return {'success': True, 'message': 'Profile photo uploaded'}
             
         except Exception as e:
-            logger.error(f"Photo node failed: {e}")
             self.log('error', f"❌ Photo upload failed: {str(e)}", action='photo_error')
             return {'success': False, 'error': str(e)}
 
 
 class SyncProfileExecutor(BaseNodeExecutor):
     async def execute(self):
-        logger.info(f"[{self.account_id}] 🔄 Starting Profile Sync Node...")
+        self.log('info', '🔄 Starting Profile Sync Node...', action='sync_start')
         try:
             with app.app_context():
                  # Ensure context if needed for queries not handled by Base
@@ -204,7 +201,7 @@ class SyncProfileExecutor(BaseNodeExecutor):
                 if hasattr(full_user_data, 'full_user') and hasattr(full_user_data.full_user, 'about'):
                     about_text = full_user_data.full_user.about
             except Exception as e:
-                logger.warning(f"[{self.account_id}] Could not fetch Bio: {e}")
+                self.log('warning', f"Could not fetch Bio: {e}", action='sync_bio_warning')
 
             photo_db_path = None
             if getattr(me, 'photo', None):
@@ -230,7 +227,7 @@ class SyncProfileExecutor(BaseNodeExecutor):
                         photo_db_path = current_db_path
                         
                 except Exception as e:
-                    logger.error(f"[{self.account_id}] Photo download error: {e}")
+                    self.log('error', f"Photo download error: {e}", action='sync_photo_error')
 
             with app.app_context():
                 try:
@@ -268,16 +265,16 @@ class SyncProfileExecutor(BaseNodeExecutor):
 
                     db.session.commit()
                     msg = f"Sync complete. Updated: {', '.join(changed) if changed else 'No changes'}"
-                    logger.info(f"[{self.account_id}] ✅ {msg}")
+                    self.log('success', msg, action='sync_complete')
                     return {'success': True, 'message': msg}
 
                 except Exception as db_err:
                     db.session.rollback()
-                    logger.error(f"[{self.account_id}] DB Error: {db_err}")
+                    self.log('error', f"DB Error: {db_err}", action='sync_db_error')
                     return {'success': False, 'error': str(db_err)}
 
         except Exception as e:
-            logger.error(f"[{self.account_id}] Sync failed: {e}")
+            self.log('error', f"Sync failed: {e}", action='sync_error')
             return {'success': False, 'error': str(e)}
 
 

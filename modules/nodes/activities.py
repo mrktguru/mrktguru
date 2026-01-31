@@ -49,7 +49,7 @@ class IdleExecutor(BaseNodeExecutor):
             return {'success': True, 'message': f'Idle for {duration} minutes'}
             
         except Exception as e:
-            logger.error(f"Idle node failed: {e}")
+            self.log('error', f"Idle node failed: {e}", action='idle_error')
             return {'success': False, 'error': str(e)}
 
 
@@ -232,7 +232,6 @@ class PassiveActivityExecutor(BaseNodeExecutor):
             }
             
         except Exception as e:
-            logger.error(f"Passive Activity failed: {e}")
             self.log('error', f'❌ Passive Activity failed: {e}', action='passive_error')
             return {'success': False, 'error': str(e)}
 
@@ -297,7 +296,6 @@ class PassiveActivityExecutor(BaseNodeExecutor):
             self.log('info', f'📜 Dialog scroll complete: {scroll_count} scroll actions', action='dialog_scroll_end')
             
         except Exception as e:
-            logger.warning(f"[{self.account_id}] Dialog scroll failed: {e}")
             self.log('warning', f'⚠️ Scroll fallback: {e}', action='scroll_fallback')
             # Fallback: just wait
             await asyncio.sleep(duration_seconds)
@@ -313,6 +311,5 @@ class SearchFilterExecutor(BaseNodeExecutor):
             return {'success': True, 'message': 'Search & Filter session completed'}
             
         except Exception as e:
-            logger.error(f"Search & Filter node failed: {e}")
             self.log('error', f"Search & Filter failed: {str(e)}", action='search_filter_error')
             return {'success': False, 'error': str(e)}

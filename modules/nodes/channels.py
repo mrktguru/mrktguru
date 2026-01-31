@@ -54,7 +54,6 @@ class SubscribeExecutor(BaseNodeExecutor):
             return {'success': True, 'message': f'Subscribed to {len(channels)} channel(s)'}
             
         except Exception as e:
-            logger.error(f"Subscribe channels node failed: {e}")
             self.log('error', f"Subscribe failed: {str(e)}", action='subscribe_error')
             return {'success': False, 'error': str(e)}
 
@@ -146,7 +145,6 @@ class VisitExecutor(BaseNodeExecutor):
             }
             
         except Exception as e:
-            logger.error(f"Visit channels node failed: {e}")
             self.log('error', f"Visit failed: {str(e)}", action='visit_error')
             return {'success': False, 'error': str(e)}
 
@@ -181,7 +179,6 @@ class SmartSubscribeExecutor(BaseNodeExecutor):
             return {'success': True, 'message': f'Processed {len(execution_queue)} channels'}
             
         except Exception as e:
-            logger.error(f"Smart Subscriber failed: {e}")
             self.log('error', f"Smart Subscriber failed: {str(e)}", action='smart_subscribe_error')
             return {'success': False, 'error': str(e)}
 
@@ -315,5 +312,4 @@ class SmartSubscribeExecutor(BaseNodeExecutor):
                 await asyncio.sleep(cooldown)
 
         except Exception as e:
-             logger.error(f"Error processing {entity_str}: {e}")
-             self.log('error', f"Channel error: {str(e)}", action='channel_error')
+             self.log('error', f"Channel error ({entity_str}): {str(e)}", action='channel_error')

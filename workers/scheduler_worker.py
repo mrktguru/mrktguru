@@ -7,6 +7,7 @@ import sys
 sys.setrecursionlimit(5000)
 
 import logging
+import json
 from datetime import datetime, time, timedelta
 import random
 from celery_app import celery
@@ -23,6 +24,34 @@ logger = logging.getLogger(__name__)
 
 # Setup Redis logging
 setup_redis_logging()
+
+
+def unified_log(account_id, level, message, action=None, node_id=None):
+    """
+    Unified logging: DB (WarmupLog) + Redis (Live UI)
+    Use this for all scheduler worker logs that should appear in Live Activity Log.
+    """
+    # 1. Database log
+    try:
+        WarmupLog.log(account_id, level, message, action=action, node_id=node_id)
+    except Exception as e:
+        logger.error(f"[{account_id}] DB log failed: {e}")
+    
+    # 2. Redis publish (for Live UI)
+    try:
+        if redis_client:
+            channel = f"logs:account:{account_id}"
+            payload = json.dumps({
+                'timestamp': datetime.now().strftime('%d.%m.%Y %H:%M:%S'),
+                'level': level.upper(),
+                'message': message,
+                'clean_message': message
+            })
+            redis_client.publish(channel, payload)
+            redis_client.rpush(f"history:{channel}", payload)
+            redis_client.ltrim(f"history:{channel}", -50, -1)
+    except Exception as e:
+        logger.debug(f"[{account_id}] Redis publish failed: {e}")
 
 
 def execute_next_supernode(completed_node, account_id):
@@ -43,13 +72,13 @@ def execute_next_supernode(completed_node, account_id):
     if next_node:
         display_id = next_node.get_display_id()
         logger.info(f"[{account_id}] 🔗 Supernode: Executing next node {display_id} (order: {next_node.supernode_order})")
-        WarmupLog.log(account_id, 'info', f"Supernode: Starting next node {display_id}", action='supernode_next')
+        unified_log(account_id, 'info', f"Supernode: Starting next node {display_id}", action='supernode_next', node_id=next_node.id)
         
         # Execute the next node (this will acquire its own lock)
         execute_scheduled_node.delay(next_node.id, is_adhoc=True)  # is_adhoc=True to force execution
     else:
         logger.info(f"[{account_id}] 🔗 Supernode #{completed_node.supernode_id} completed - no more queued nodes")
-        WarmupLog.log(account_id, 'success', f"Supernode #{completed_node.supernode_id} completed", action='supernode_complete')
+        unified_log(account_id, 'success', f"Supernode #{completed_node.supernode_id} completed", action='supernode_complete', node_id=completed_node.id)
 
 
 @celery.task(name='workers.scheduler_worker.check_warmup_schedules')
@@ -181,7 +210,7 @@ def check_warmup_schedules():
                                 r_node.error_message = f"Timeout: Expected {planned_duration}m, ran {elapsed_minutes}m (stuck after completion)"
                                 r_node.executed_at = now
                                 db.session.commit()
-                                WarmupLog.log(schedule.account_id, 'error', f"Node {r_node.id} timed out (stuck)", action='timeout_error')
+                                unified_log(schedule.account_id, 'error', f"Node {r_node.id} timed out (stuck)", action='timeout_error', node_id=r_node.id)
                             else:
                                 has_active_running = True
                                 elapsed_minutes = int((current_now - execution_start).total_seconds() / 60)
@@ -482,11 +511,11 @@ def execute_scheduled_node(node_id, is_adhoc=False):
                     db.session.commit()
                     
                     logger.info(f"[{account_id}] 📦 Node {display_id} queued in Supernode #{supernode_id} (order: {node.supernode_order})")
-                    WarmupLog.log(account_id, 'info', f"Node {display_id} queued in Supernode (order: {node.supernode_order})", action='supernode_queue')
+                    unified_log(account_id, 'info', f"Node {display_id} queued in Supernode (order: {node.supernode_order})", action='supernode_queue', node_id=node.id)
                 else:
                     # No running node found but lock exists - likely race condition, just wait
                     logger.warning(f"[{account_id}] ⚠️ Lock exists but no running node found. Will retry next tick.")
-                    WarmupLog.log(account_id, 'warning', f"Node {display_id} waiting for lock release", action='lock_wait')
+                    unified_log(account_id, 'warning', f"Node {display_id} waiting for lock release", action='lock_wait', node_id=node.id)
                 
                 return
 
@@ -560,7 +589,7 @@ def execute_scheduled_node(node_id, is_adhoc=False):
                     node.executed_at = datetime.now()
                     node.schedule.account.last_activity = datetime.now()
                     logger.info(f"[{account_id}] ✅ Node {display_id} completed successfully")
-                    WarmupLog.log(account_id, 'success', f"{node.node_type} completed", action=f'{node.node_type}_complete')
+                    unified_log(account_id, 'success', f"{node.node_type} completed", action=f'{node.node_type}_complete', node_id=node.id)
                 else:
                     # Check for FLOOD_WAIT
                     if result and result.get('flood_wait'):
@@ -572,7 +601,7 @@ def execute_scheduled_node(node_id, is_adhoc=False):
                             account.last_flood_wait = datetime.now()
                             account.flood_wait_reason = f"Warmup {node.node_type}"
                             logger.critical(f"FLOOD_WAIT triggered for account {account_id}")
-                            WarmupLog.log(account_id, 'critical', f"FLOOD_WAIT until {account.flood_wait_until}", action='flood_wait_critical')
+                            unified_log(account_id, 'critical', f"FLOOD_WAIT until {account.flood_wait_until}", action='flood_wait_critical', node_id=node.id)
                     
                     # Check for BAN
                     err_msg = (result.get('error') or '').lower()
@@ -586,13 +615,13 @@ def execute_scheduled_node(node_id, is_adhoc=False):
                              if release_dynamic_port(account):
                                  logger.info(f"[{account_id}] Port released.")
                         
-                        WarmupLog.log(account_id, 'critical', "Account Banned", action='account_banned')
+                        unified_log(account_id, 'critical', "Account Banned", action='account_banned', node_id=node.id)
                         db.session.commit()
 
                     node.status = 'failed'
                     node.error_message = result.get('error', 'Unknown error') if result else 'Unknown'
                     node.executed_at = datetime.now()
-                    WarmupLog.log(account_id, 'error', f"Node failed: {node.error_message}", action=f'{node.node_type}_error')
+                    unified_log(account_id, 'error', f"Node failed: {node.error_message}", action=f'{node.node_type}_error', node_id=node.id)
 
                 db.session.commit()
                 
