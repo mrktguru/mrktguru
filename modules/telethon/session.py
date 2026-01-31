@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import random
+import json
 from datetime import datetime
 from typing import Callable, Any
 
@@ -11,6 +12,8 @@ from telethon.tl.types import InputPeerEmpty
 
 from modules.telethon.client import ClientFactory
 from modules.telethon.verification import verify_session
+from models.warmup_log import WarmupLog
+from utils.redis_logger import redis_client
 # Note: verify_session here is the NEW one.
 
 logger = logging.getLogger(__name__)
@@ -25,8 +28,9 @@ class SessionOrchestrator:
     """
     Manages the lifecycle of a Telegram session using a State Machine approach.
     """
-    def __init__(self, account_id: int):
+    def __init__(self, account_id: int, node_id: int = None):
         self.account_id = account_id
+        self.node_id = node_id
         self.client = None
         self.state = 'OFFLINE'
         self.last_activity = None
@@ -38,6 +42,57 @@ class SessionOrchestrator:
         # State config
         self.IDLE_TIMEOUT = 180  # 3 minutes
         self.MAX_LIFESPAN = 900  # 15 minutes
+
+    def _log(self, level: str, message: str, action: str = None):
+        """
+        Unified logging: Console + DB + Redis (for Live UI)
+        """
+        # 1. Console log
+        log_msg = f"[{self.account_id}] {message}"
+        if level in ['error', 'critical']:
+            logger.error(log_msg)
+        elif level == 'warning':
+            logger.warning(log_msg)
+        else:
+            logger.info(log_msg)
+        
+        # 2. DB log
+        try:
+            from flask import has_app_context
+            from app import app
+            
+            def do_log():
+                WarmupLog.log(
+                    self.account_id, 
+                    level.upper(), 
+                    message, 
+                    action=action or f'orch_{level}',
+                    node_id=self.node_id
+                )
+            
+            if has_app_context():
+                do_log()
+            else:
+                with app.app_context():
+                    do_log()
+        except Exception as e:
+            logger.debug(f"[{self.account_id}] DB log failed: {e}")
+        
+        # 3. Redis publish (Live UI)
+        try:
+            if redis_client:
+                channel = f"logs:account:{self.account_id}"
+                payload = json.dumps({
+                    'timestamp': datetime.now().strftime('%d.%m.%Y %H:%M:%S'),
+                    'level': level.upper(),
+                    'message': message,
+                    'clean_message': message
+                })
+                redis_client.publish(channel, payload)
+                redis_client.rpush(f"history:{channel}", payload)
+                redis_client.ltrim(f"history:{channel}", -50, -1)
+        except Exception:
+            pass
 
     @property
     def shutdown_event(self) -> asyncio.Event:
@@ -55,7 +110,7 @@ class SessionOrchestrator:
         if not self.monitoring_task or self.monitoring_task.done():
             self.shutdown_event.clear()
             self.monitoring_task = asyncio.create_task(self._lifecycle_monitor())
-            logger.info(f"[{self.account_id}] 🟢 Session Monitor started")
+            self._log('info', '🟢 Session Monitor started', action='orch_monitor_start')
 
 
     async def execute(self, task_func: Callable, *args, **kwargs) -> Any:
@@ -69,11 +124,11 @@ class SessionOrchestrator:
                 await self._handle_ban_logic()
                 raise
             except Exception as e:
-                logger.error(f"[{self.account_id}] Execution error: {e}")
+                self._log('error', f"Execution error: {e}", action='orch_exec_error')
                 raise
 
     async def _handle_ban_logic(self):
-        logger.critical(f"[{self.account_id}] ☠️ Handling Session Death...")
+        self._log('critical', '☠️ Handling Session Death...', action='orch_session_death')
         await self.stop()
 
     async def stop(self):
@@ -116,13 +171,14 @@ class SessionOrchestrator:
         if self.client:
             if self.client.is_connected():
                 try:
+                    self._log('info', '🔌 Disconnecting from Telegram...', action='orch_disconnect')
                     await self.client.disconnect()
                 except Exception as e:
                      logger.warning(f"[{self.account_id}] Disconnect warning: {e}")
             self.client = None
             
         self.state = 'OFFLINE'
-        logger.info(f"[{self.account_id}] 🔴 Session Stopped")
+        self._log('info', '🔴 Session Stopped', action='orch_stopped')
 
     async def _ensure_ready_state(self):
         if self.state == 'OFFLINE' or not self.client or not self.client.is_connected():
@@ -134,25 +190,56 @@ class SessionOrchestrator:
             raise SessionDeathError("User not authorized", reason='auth_lost')
 
     async def _perform_cold_start(self):
-        logger.info(f"[{self.account_id}] 🧊 COLD START initiated...")
+        self._log('info', '🧊 COLD START initiated...', action='orch_cold_start')
+        
+        # Get proxy info for logging
+        from flask import has_app_context
+        from app import app
+        proxy_info = "No proxy"
+        try:
+            def get_proxy_info():
+                from models.account import Account
+                from models.proxy_network import ProxyNetwork
+                account = Account.query.get(self.account_id)
+                if account and account.proxy_network_id:
+                    pn = ProxyNetwork.query.get(account.proxy_network_id)
+                    if pn:
+                        port = account.assigned_port or pn.port_start
+                        return f"{pn.host}:{port} ({pn.name})"
+                return "No proxy"
+            
+            if has_app_context():
+                proxy_info = get_proxy_info()
+            else:
+                with app.app_context():
+                    proxy_info = get_proxy_info()
+        except Exception:
+            pass
+        
+        self._log('info', f'🔌 Connecting via proxy: {proxy_info}', action='orch_proxy_connect')
         
         loop = asyncio.get_running_loop()
         self.client = ClientFactory.create_client(self.account_id, loop=loop)
+        
+        self._log('info', '📡 Establishing connection to Telegram...', action='orch_connecting')
         await self.client.connect()
+        self._log('success', '✅ Connected to Telegram', action='orch_connected')
         
         if not await self.client.is_user_authorized():
-             logger.warning(f"[{self.account_id}] Not authorized on cold start")
-             # Try clean disconnect
+             self._log('warning', 'Not authorized on cold start', action='orch_auth_fail')
              await self.client.disconnect()
              raise SessionDeathError("Not authorized", reason='auth_fail')
         
-        # Verify Session
+        self._log('info', '🔐 Verifying session...', action='orch_verify_start')
         res = await verify_session(self.account_id, client=self.client)
         if not res['success']:
+             self._log('error', f"Verification failed: {res.get('error')}", action='orch_verify_fail')
              await self.client.disconnect()
              raise SessionDeathError(f"Verification failed: {res.get('error')}", reason='verify_fail')
+        self._log('success', '✅ Session verified', action='orch_verified')
              
         # Simulate App Launch
+        self._log('info', '📱 Simulating app launch (GetConfig)...', action='orch_app_init')
         
         # 1. GetConfig
         await self.client(GetConfigRequest())
@@ -169,13 +256,14 @@ class SessionOrchestrator:
         
         self.state = 'ACTIVE'
         self.last_activity = datetime.now()
-        logger.info(f"[{self.account_id}] ✅ COLD START complete. State: ACTIVE")
+        self._log('success', '✅ COLD START complete. Session ACTIVE', action='orch_ready')
 
     async def _perform_hot_start(self):
-        logger.info(f"[{self.account_id}] 🔥 HOT START initiated...")
+        self._log('info', '🔥 HOT START - Reusing cached session', action='orch_hot_start')
         await self.client(UpdateStatusRequest(offline=False))
         self.state = 'ACTIVE'
         self.last_activity = datetime.now()
+        self._log('success', '✅ Session resumed', action='orch_resumed')
 
     async def _lifecycle_monitor(self):
         logger.debug(f"[{self.account_id}] Monitor looper started")
@@ -192,7 +280,7 @@ class SessionOrchestrator:
                     idle_sec = (datetime.now() - self.last_activity).total_seconds()
                     
                     if idle_sec > self.IDLE_TIMEOUT:
-                        logger.info(f"[{self.account_id}] 💤 Auto-switching to IDLE (Activity: {int(idle_sec)}s ago)")
+                        self._log('info', f'💤 Auto-switching to IDLE (idle {int(idle_sec)}s)', action='orch_idle')
                         self.state = 'IDLE'
                         # Maybe set offline?
                         if self.client and self.client.is_connected():

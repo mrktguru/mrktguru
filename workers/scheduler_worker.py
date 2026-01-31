@@ -524,7 +524,7 @@ def execute_scheduled_node(node_id, is_adhoc=False):
                 from modules.telethon import SessionOrchestrator
                 import asyncio
                 
-                logger.info(f"[{account_id}] 🎭 Initializing Session Orchestrator...")
+                unified_log(account_id, 'info', '🎭 Initializing Session Orchestrator...', action='orch_init', node_id=node.id)
                 
                 async def run_with_orchestrator():
                     # 1. Check for live session
@@ -535,28 +535,30 @@ def execute_scheduled_node(node_id, is_adhoc=False):
                         if account_id in ACTIVE_SESSIONS:
                             del ACTIVE_SESSIONS[account_id] # Cleaning
                         
-                        logger.info(f"[{account_id}] 🆕 Creating NEW session orchestrator...")
-                        orch = SessionOrchestrator(account_id)
+                        unified_log(account_id, 'info', '🆕 Creating NEW session orchestrator...', action='orch_new', node_id=node.id)
+                        orch = SessionOrchestrator(account_id, node_id=node.id)
                         ACTIVE_SESSIONS[account_id] = orch
                         
                         # 🔥 IMPORTANT: Start monitor so it auto-kills session after 10-15 min
                         await orch.start_monitoring()
-                        logger.info(f"[{account_id}] ✅ Session orchestrator ready (cached)")
+                        unified_log(account_id, 'success', '✅ Session orchestrator ready (cached)', action='orch_cached', node_id=node.id)
                     else:
-                        logger.info(f"[{account_id}] ♻️ Reusing EXISTING active session")
+                        # Update node_id for existing orchestrator
+                        orch.node_id = node.id
+                        unified_log(account_id, 'info', '♻️ Reusing EXISTING active session', action='orch_reuse', node_id=node.id)
 
                     # 2. Task Wrapper
                     async def task_wrapper(client):
                         # Connection check
-                        logger.info(f"[{account_id}] 🔌 Verifying connection state...")
+                        unified_log(account_id, 'info', '🔌 Verifying connection state...', action='client_verify', node_id=node.id)
                         if not client.is_connected():
-                             logger.info(f"[{account_id}] 🔄 Reconnecting client...")
+                             unified_log(account_id, 'info', '🔄 Reconnecting client...', action='client_reconnect', node_id=node.id)
                              await client.connect()
                         
                         if not await client.is_user_authorized():
                              raise Exception("Client not authorized")
                         
-                        logger.info(f"[{account_id}] ✅ Client authorized, executing node...")
+                        unified_log(account_id, 'success', f'✅ Client authorized, executing {node.node_type}...', action='node_exec_start', node_id=node.id)
                         return await execute_node(
                             client,
                             node.node_type,
@@ -572,11 +574,12 @@ def execute_scheduled_node(node_id, is_adhoc=False):
                 # Run on global background loop
                 try:
                     from utils.bg_loop import BackgroundLoop
-                    logger.info(f"[{account_id}] ⚙️ Submitting task to background loop...")
+                    unified_log(account_id, 'info', '⚙️ Submitting task to background loop...', action='bg_loop_submit', node_id=node.id)
                     result = BackgroundLoop.submit(run_with_orchestrator())
-                    logger.info(f"[{account_id}] 📦 Node execution completed, processing result...")
+                    unified_log(account_id, 'info', '📦 Node execution completed, processing result...', action='node_result', node_id=node.id)
                 except Exception as loop_e:
                      logger.exception(f"Orchestrator error: {loop_e}")
+                     unified_log(account_id, 'error', f'Orchestrator error: {loop_e}', action='orch_error', node_id=node.id)
                      result = {'success': False, 'error': str(loop_e)}
                      
                      # On crash, remove from cache to start fresh next time
@@ -661,6 +664,8 @@ def execute_adhoc_node(account_id, node_type, config):
                 from modules.telethon import SessionOrchestrator
                 import asyncio
                 
+                unified_log(account_id, 'info', f'🎭 Adhoc: Initializing orchestrator for {node_type}', action='adhoc_init')
+                
                 async def run_with_orchestrator():
                     # CACHING LOGIC
                     orch = ACTIVE_SESSIONS.get(account_id)
@@ -670,9 +675,9 @@ def execute_adhoc_node(account_id, node_type, config):
                         orch = SessionOrchestrator(account_id)
                         ACTIVE_SESSIONS[account_id] = orch
                         await orch.start_monitoring() # Start auto-kill timer
-                        logger.info(f"[{account_id}] Adhoc: Created NEW session")
+                        unified_log(account_id, 'info', 'Adhoc: Created NEW session', action='adhoc_new_session')
                     else:
-                        logger.info(f"[{account_id}] Adhoc: Reusing EXISTING session")
+                        unified_log(account_id, 'info', 'Adhoc: Reusing EXISTING session', action='adhoc_reuse_session')
 
                     async def task_wrapper(client):
                         if not client.is_connected(): await client.connect()
@@ -685,20 +690,20 @@ def execute_adhoc_node(account_id, node_type, config):
                 from utils.bg_loop import BackgroundLoop
                 result = BackgroundLoop.submit(run_with_orchestrator())
             except Exception as e:
-                logger.error(f"Adhoc Orchestrator error: {e}")
+                unified_log(account_id, 'error', f'Adhoc Orchestrator error: {e}', action='adhoc_error')
                 if account_id in ACTIVE_SESSIONS: del ACTIVE_SESSIONS[account_id]
                 result = {'success': False, 'error': str(e)}
             
             # Log result
             if result and result.get('success'):
-                logger.info(f"Adhoc {node_type} success")
+                unified_log(account_id, 'success', f'Adhoc {node_type} completed', action='adhoc_complete')
                 from models.account import Account
                 account = Account.query.get(account_id)
                 if account:
                     account.last_activity = datetime.now()
                     db.session.commit()
             else:
-                logger.error(f"Adhoc {node_type} failed")
+                unified_log(account_id, 'error', f'Adhoc {node_type} failed', action='adhoc_fail')
 
         except Exception as e:
             logger.error(f"Error in execute_adhoc_node: {e}")
