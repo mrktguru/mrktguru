@@ -165,10 +165,20 @@ def check_warmup_schedules():
                             if execution_start and execution_start.tzinfo is None and current_now.tzinfo is not None:
                                 current_now = current_now.replace(tzinfo=None)
                             
-                            if execution_start and execution_start < current_now - timedelta(minutes=30):
-                                logger.warning(f"Node {r_node.id} appears stuck (running since {execution_start}). Marking as failed.")
+                            # Calculate dynamic timeout based on node's planned duration
+                            # Default: 30 minutes, but if node has duration_minutes config, use that + 50% buffer
+                            base_timeout = 30  # minutes
+                            if r_node.config and r_node.config.get('duration_minutes'):
+                                planned_duration = int(r_node.config.get('duration_minutes', 30))
+                                # Add 50% buffer to planned duration, minimum 30 min, maximum 240 min (4 hours)
+                                base_timeout = max(30, min(240, int(planned_duration * 1.5)))
+                            
+                            timeout_minutes = base_timeout
+                            
+                            if execution_start and execution_start < current_now - timedelta(minutes=timeout_minutes):
+                                logger.warning(f"Node {r_node.id} appears stuck (running since {execution_start}, timeout: {timeout_minutes}m). Marking as failed.")
                                 r_node.status = 'failed'
-                                r_node.error_message = "Timeout: Execution stuck for > 30 mins"
+                                r_node.error_message = f"Timeout: Execution stuck for > {timeout_minutes} mins"
                                 r_node.executed_at = now
                                 db.session.commit()
                                 WarmupLog.log(schedule.account_id, 'error', f"Node {r_node.id} timed out (stuck)", action='timeout_error')
