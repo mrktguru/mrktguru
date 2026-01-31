@@ -200,12 +200,20 @@ class SessionOrchestrator:
             def get_proxy_info():
                 from models.account import Account
                 from models.proxy_network import ProxyNetwork
+                from urllib.parse import urlparse
+                
                 account = Account.query.get(self.account_id)
                 if account and account.proxy_network_id:
                     pn = ProxyNetwork.query.get(account.proxy_network_id)
                     if pn:
-                        port = account.assigned_port or pn.port_start
-                        return f"{pn.host}:{port} ({pn.name})"
+                        port = account.assigned_port or pn.start_port
+                        # Parse host from base_url (format: socks5://user:pass@host)
+                        try:
+                            parsed = urlparse(pn.base_url)
+                            host = parsed.hostname or parsed.netloc.split('@')[-1]
+                        except:
+                            host = "proxy"
+                        return f"{host}:{port} ({pn.name})"
                 return "No proxy"
             
             if has_app_context():
