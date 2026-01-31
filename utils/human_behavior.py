@@ -246,11 +246,18 @@ class HumanBehavior:
         Steps:
         1. App switch delay (2-4 sec)
         2. Resolve username
-        3. Deep inspection (view posts)
-        4. Send readHistory
-        5. Filter check
+        3. Quick Glance (check subscribers) - Early Exit if too low
+        4. Deep inspection (view posts)
+        5. Filter check (only for SEARCH origin)
         6. Save to DB
+        
+        Note: LINK and DIRECT_MENTION origins skip filtering!
+        This allows users to add their own small/new channels.
         """
+        # Determine if we should apply filters
+        # Direct links and @mentions = user knows what they want, no filtering
+        skip_filters = origin in ('LINK', 'DIRECT_MENTION')
+        
         try:
             # === STEP 1: App switching delay ===
             await asyncio.sleep(random.uniform(2, 4))
@@ -265,22 +272,46 @@ class HumanBehavior:
             title = getattr(entity, 'title', username)
             logger.info(f"{self.log_prefix}   -> Resolved: {title}")
             
-            # === STEP 3: Deep Inspection ===
+            # === STEP 3: Quick Glance - Early Exit (only for SEARCH) ===
+            participants_count = 0
+            if not skip_filters:
+                try:
+                    full_info = await self.client(functions.channels.GetFullChannelRequest(entity))
+                    participants_count = full_info.full_chat.participants_count
+                    
+                    # Early exit if too few subscribers (human sees this immediately)
+                    if participants_count < self.min_subscribers:
+                        logger.info(f"{self.log_prefix}   👀 Quick glance: {participants_count} subs - too low, leaving...")
+                        await asyncio.sleep(random.uniform(2, 4))  # Quick exit pause
+                        return {'saved': False, 'filtered': True, 'reason': f'low_members_{participants_count}'}
+                    
+                    logger.info(f"{self.log_prefix}   👀 Quick glance: {participants_count} subs - looks good!")
+                except Exception as e:
+                    logger.warning(f"{self.log_prefix}   ⚠️ Could not get subscriber count: {e}")
+                    participants_count = getattr(entity, 'participants_count', 0)
+            else:
+                logger.info(f"{self.log_prefix}   ⏭️ Skipping filters (direct link/mention)")
+            
+            # === STEP 4: Deep Inspection ===
             inspection_result = await self._deep_inspection(entity)
             
-            # === STEP 4: Filter validation ===
-            filter_result = await self._validate_channel(entity, inspection_result)
+            # === STEP 5: Activity filter (only for SEARCH) ===
+            if not skip_filters:
+                last_post_date = inspection_result.get('last_post_date')
+                if last_post_date:
+                    now = datetime.now(last_post_date.tzinfo) if last_post_date.tzinfo else datetime.utcnow()
+                    days_inactive = (now - last_post_date).days
+                    
+                    if days_inactive > self.max_inactive_days:
+                        logger.info(f"{self.log_prefix}   ❌ Channel inactive: {days_inactive} days since last post")
+                        return {'saved': False, 'filtered': True, 'reason': f'inactive_{days_inactive}_days'}
             
-            if not filter_result['passed']:
-                logger.info(f"{self.log_prefix}   ❌ Filtered: {filter_result['reason']}")
-                return {'saved': False, 'filtered': True, 'reason': filter_result['reason']}
-            
-            # === STEP 5: Save to DB ===
+            # === STEP 6: Save to DB ===
             await self._save_discovered_channel(
                 entity, 
                 origin=origin,
                 last_post_date=inspection_result.get('last_post_date'),
-                participants_count=filter_result.get('participants_count')
+                participants_count=participants_count or getattr(entity, 'participants_count', 0)
             )
             
             return {'saved': True, 'filtered': False}
@@ -355,22 +386,40 @@ class HumanBehavior:
             title = getattr(target, 'title', 'Unknown')
             logger.info(f"{self.log_prefix}   -> Clicked result: {title}")
             
-            # Deep inspection
+            # === STEP 6: Quick Glance - Early Exit ===
+            try:
+                full_info = await self.client(functions.channels.GetFullChannelRequest(target))
+                participants_count = full_info.full_chat.participants_count
+                
+                if participants_count < self.min_subscribers:
+                    logger.info(f"{self.log_prefix}   👀 Quick glance: {participants_count} subs - too low, leaving...")
+                    await asyncio.sleep(random.uniform(2, 4))
+                    return {'saved': False, 'filtered': True, 'reason': f'low_members_{participants_count}'}
+                
+                logger.info(f"{self.log_prefix}   👀 Quick glance: {participants_count} subs - looks good!")
+            except Exception as e:
+                logger.warning(f"{self.log_prefix}   ⚠️ Could not get subscriber count: {e}")
+                participants_count = getattr(target, 'participants_count', 0)
+            
+            # === STEP 7: Deep inspection ===
             inspection_result = await self._deep_inspection(target)
             
-            # Filter validation
-            filter_result = await self._validate_channel(target, inspection_result)
+            # === STEP 8: Activity filter ===
+            last_post_date = inspection_result.get('last_post_date')
+            if last_post_date:
+                now = datetime.now(last_post_date.tzinfo) if last_post_date.tzinfo else datetime.utcnow()
+                days_inactive = (now - last_post_date).days
+                
+                if days_inactive > self.max_inactive_days:
+                    logger.info(f"{self.log_prefix}   ❌ Channel inactive: {days_inactive} days since last post")
+                    return {'saved': False, 'filtered': True, 'reason': f'inactive_{days_inactive}_days'}
             
-            if not filter_result['passed']:
-                logger.info(f"{self.log_prefix}   ❌ Filtered: {filter_result['reason']}")
-                return {'saved': False, 'filtered': True, 'reason': filter_result['reason']}
-            
-            # Save
+            # === STEP 9: Save ===
             await self._save_discovered_channel(
                 target, 
                 origin='SEARCH',
                 last_post_date=inspection_result.get('last_post_date'),
-                participants_count=filter_result.get('participants_count')
+                participants_count=participants_count
             )
             
             return {'saved': True, 'filtered': False}
@@ -443,6 +492,18 @@ class HumanBehavior:
                 
                 # Simulate reading
                 await asyncio.sleep(read_time)
+                
+                # === STEP 3a: Increment view counter (Critical for organic behavior) ===
+                try:
+                    from telethon.tl.functions.messages import GetMessagesViewsRequest
+                    await self.client(GetMessagesViewsRequest(
+                        peer=entity,
+                        id=[msg.id],
+                        increment=True  # This makes us visible in channel stats
+                    ))
+                except Exception:
+                    # Ignore errors (groups don't have views, some channels restrict)
+                    pass
                 
                 # === STEP 3b: Media interaction (25% chance) ===
                 if getattr(msg, 'media', None) and random.random() < self.CONFIG['media_open_probability']:
