@@ -12,9 +12,39 @@ from modules.scheduler.exceptions import (
     InvalidNodeDataError,
     SchedulerError
 )
-from sqlalchemy import or_
+from sqlalchemy import or_, func
 
 class SchedulerService:
+    @staticmethod
+    def backfill_sequence_ids(schedule_id: int):
+        """
+        Backfill sequence_id for existing nodes that don't have one.
+        This ensures old nodes created before sequence_id was added get proper IDs.
+        """
+        # Get all nodes without sequence_id for this schedule
+        nodes_without_seq = WarmupScheduleNode.query.filter_by(
+            schedule_id=schedule_id
+        ).filter(
+            WarmupScheduleNode.sequence_id.is_(None)
+        ).order_by(
+            WarmupScheduleNode.created_at.asc()
+        ).all()
+        
+        if not nodes_without_seq:
+            return  # All nodes have sequence_id
+        
+        # Get the current max sequence_id for this schedule
+        max_seq = db.session.query(func.max(WarmupScheduleNode.sequence_id)).filter_by(
+            schedule_id=schedule_id
+        ).scalar() or 0
+        
+        # Assign sequence_ids to nodes that don't have them
+        for node in nodes_without_seq:
+            max_seq += 1
+            node.sequence_id = max_seq
+        
+        db.session.commit()
+
     @staticmethod
     def get_full_schedule(account_id: int) -> dict:
         """Get full schedule with real and ghost nodes, sorted"""
@@ -30,6 +60,8 @@ class SchedulerService:
         else:
             schedule_dict = schedule.to_dict()
             schedule_id = schedule.id
+            # Backfill sequence_ids for any nodes that don't have them (migration compat)
+            SchedulerService.backfill_sequence_ids(schedule_id)
             
         nodes = []
         if schedule:
