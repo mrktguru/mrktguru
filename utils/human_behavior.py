@@ -89,8 +89,8 @@ class HumanBehavior:
                     node_id=self.node_id
                 )
             except Exception as e:
-                # Don't crash on logging failure
-                logger.debug(f"DB log failed: {e}")
+                # Log failure but don't crash
+                logger.warning(f"DB log failed: {e}")
 
     async def process_mixed_links(self, config):
         """
