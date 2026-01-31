@@ -165,26 +165,27 @@ def check_warmup_schedules():
                             if execution_start and execution_start.tzinfo is None and current_now.tzinfo is not None:
                                 current_now = current_now.replace(tzinfo=None)
                             
-                            # Calculate dynamic timeout based on node's planned duration
-                            # Default: 30 minutes, but if node has duration_minutes config, use that + 50% buffer
-                            base_timeout = 30  # minutes
+                            # Calculate expected completion time: start_time + planned_duration + 30min buffer
+                            # This allows nodes to run as long as needed, but detects if they're stuck after expected completion
+                            planned_duration = 30  # default 30 minutes
                             if r_node.config and r_node.config.get('duration_minutes'):
                                 planned_duration = int(r_node.config.get('duration_minutes', 30))
-                                # Add 50% buffer to planned duration, minimum 30 min, maximum 240 min (4 hours)
-                                base_timeout = max(30, min(240, int(planned_duration * 1.5)))
                             
-                            timeout_minutes = base_timeout
+                            # Expected completion = start + planned duration + 30 min stuck detection buffer
+                            expected_completion = execution_start + timedelta(minutes=planned_duration + 30)
                             
-                            if execution_start and execution_start < current_now - timedelta(minutes=timeout_minutes):
-                                logger.warning(f"Node {r_node.id} appears stuck (running since {execution_start}, timeout: {timeout_minutes}m). Marking as failed.")
+                            if execution_start and current_now > expected_completion:
+                                elapsed_minutes = int((current_now - execution_start).total_seconds() / 60)
+                                logger.warning(f"Node {r_node.id} appears stuck (started {execution_start}, planned {planned_duration}m, elapsed {elapsed_minutes}m). Marking as failed.")
                                 r_node.status = 'failed'
-                                r_node.error_message = f"Timeout: Execution stuck for > {timeout_minutes} mins"
+                                r_node.error_message = f"Timeout: Expected {planned_duration}m, ran {elapsed_minutes}m (stuck after completion)"
                                 r_node.executed_at = now
                                 db.session.commit()
                                 WarmupLog.log(schedule.account_id, 'error', f"Node {r_node.id} timed out (stuck)", action='timeout_error')
                             else:
                                 has_active_running = True
-                                logger.info(f"Node {r_node.id} is currently running (started {execution_start})")
+                                elapsed_minutes = int((current_now - execution_start).total_seconds() / 60)
+                                logger.info(f"Node {r_node.id} is currently running (started {execution_start}, elapsed {elapsed_minutes}/{planned_duration}m)")
                         
                         if has_active_running:
                             logger.info(f"Schedule {schedule.id} has active running nodes. Waiting for completion.")
