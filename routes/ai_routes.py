@@ -6,7 +6,7 @@ AI Planner API Routes
 - Settings pages
 """
 from flask import Blueprint, request, jsonify, render_template
-from flask_login import login_required
+from utils.decorators import login_required
 from datetime import datetime, date
 import logging
 
