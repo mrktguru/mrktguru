@@ -239,29 +239,13 @@ class SessionOrchestrator:
             import socket
             socket.setdefaulttimeout(3)
             
-            # Use proxy for IP check if available
-            proxy_handler = None
-            if self.client and hasattr(self.client, '_proxy') and self.client._proxy:
-                proxy_dict = self.client._proxy
-                if proxy_dict.get('proxy_type'):
-                    import socks
-                    proxy_type = proxy_dict['proxy_type']
-                    if proxy_type == socks.SOCKS5:
-                        proxy_url = f"socks5://{proxy_dict.get('addr')}:{proxy_dict.get('port')}"
-                    else:
-                        proxy_url = f"http://{proxy_dict.get('addr')}:{proxy_dict.get('port')}"
-                    proxy_handler = urllib.request.ProxyHandler({'http': proxy_url, 'https': proxy_url})
-            
-            if proxy_handler:
-                opener = urllib.request.build_opener(proxy_handler)
-            else:
-                opener = urllib.request.build_opener()
-            
-            response = opener.open('https://api.ipify.org?format=text', timeout=3)
+            # Simple IP check without proxy routing (direct check shows proxy IP if used)
+            response = urllib.request.urlopen('https://api.ipify.org?format=text', timeout=3)
             real_ip = response.read().decode('utf-8').strip()
             self._log('success', f'🌐 Real IP: {real_ip}', action='orch_ip_detected')
         except Exception as ip_err:
-            self._log('info', f'ℹ️ Could not detect IP: {ip_err}', action='orch_ip_skip')
+            # Not critical if fails
+            pass
         
         if not await self.client.is_user_authorized():
              self._log('warning', 'Not authorized on cold start', action='orch_auth_fail')
