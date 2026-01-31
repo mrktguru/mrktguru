@@ -20,15 +20,27 @@ logger = logging.getLogger(__name__)
 class SubscribeExecutor(BaseNodeExecutor):
     async def execute(self):
         try:
-            channels = self.get_config('channels', [])
+            channels_raw = self.get_config('channels', [])
             read_count = int(self.get_config('read_count', 5))
             interaction = self.get_config('interaction_depth', {})
+            
+            # Parse channels - handle both list and newline-separated string
+            if isinstance(channels_raw, str):
+                channels = [ch.strip() for ch in channels_raw.split('\n') if ch.strip()]
+            elif isinstance(channels_raw, list):
+                channels = channels_raw
+            else:
+                channels = []
             
             if not channels:
                 return {'success': False, 'error': 'No channels provided'}
             
             for channel_username in channels:
-                channel_username = channel_username.replace('@', '').strip()
+                # Clean channel username - remove URL prefix, @ symbol, and whitespace
+                channel_username = channel_username.replace('https://t.me/', '').replace('http://t.me/', '').replace('@', '').strip()
+                
+                if not channel_username:
+                    continue
                 
                 self.log('info', f"Subscribing to {channel_username}", action='subscribe_start')
                 await asyncio.sleep(random.uniform(10, 20))
@@ -83,15 +95,27 @@ class SubscribeExecutor(BaseNodeExecutor):
 class VisitExecutor(SubscribeExecutor): # Inherit to reuse interaction logic
     async def execute(self):
         try:
-            channels = self.get_config('channels', [])
+            channels_raw = self.get_config('channels', [])
             read_count = int(self.get_config('read_count', 5))
             interaction = self.get_config('interaction_depth', {})
+            
+            # Parse channels - handle both list and newline-separated string
+            if isinstance(channels_raw, str):
+                channels = [ch.strip() for ch in channels_raw.split('\n') if ch.strip()]
+            elif isinstance(channels_raw, list):
+                channels = channels_raw
+            else:
+                channels = []
             
             if not channels:
                 return {'success': False, 'error': 'No channels provided'}
             
             for channel_username in channels:
-                channel_username = channel_username.replace('@', '').strip()
+                # Clean channel username - remove URL prefix, @ symbol, and whitespace
+                channel_username = channel_username.replace('https://t.me/', '').replace('http://t.me/', '').replace('@', '').strip()
+                
+                if not channel_username:
+                    continue
                 
                 self.log('info', f"Visiting {channel_username}", action='visit_start')
                 await asyncio.sleep(random.uniform(2, 5))
