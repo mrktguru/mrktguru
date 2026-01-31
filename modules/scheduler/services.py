@@ -51,15 +51,18 @@ class SchedulerService:
 
         node_dicts.sort(key=sort_key)
         
-        # Assign per-account ordinal IDs and custom_logic_id with Telegram ID
-        for idx, node in enumerate(node_dicts, 1):
-            node['ordinal_id'] = idx
-            # Format: {telegram_id}_{ordinal_id} (e.g., 8524632170_3)
-            # Falls back to account_id if telegram_id is not available
-            if telegram_id:
-                node['custom_logic_id'] = f"{telegram_id}_{idx}"
+        # Use sequence_id (per-account persistent ID) for display and custom_logic_id
+        for node in node_dicts:
+            seq_id = node.get('sequence_id')
+            if seq_id:
+                # Format: {telegram_id}_{sequence_id} (e.g., 8524632170_3)
+                if telegram_id:
+                    node['custom_logic_id'] = f"{telegram_id}_{seq_id}"
+                else:
+                    node['custom_logic_id'] = f"{account_id}_{seq_id}"
             else:
-                node['custom_logic_id'] = f"{account_id}_{idx}"
+                # Fallback for legacy nodes without sequence_id
+                node['custom_logic_id'] = str(node.get('id'))
             
         return {
             'schedule': schedule_dict,
@@ -131,9 +134,13 @@ class SchedulerService:
         execution_date = None
         if schedule.start_date:
             execution_date = schedule.start_date + timedelta(days=int(data['day_number']) - 1)
+        
+        # Get next sequence_id for this schedule (per-account sequential ID)
+        next_seq_id = WarmupScheduleNode.get_next_sequence_id(schedule_id)
             
         node = WarmupScheduleNode(
             schedule_id=schedule_id,
+            sequence_id=next_seq_id,
             node_type=data['node_type'],
             day_number=data['day_number'],
             execution_date=execution_date,

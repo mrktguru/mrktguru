@@ -12,6 +12,10 @@ class WarmupScheduleNode(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     schedule_id = db.Column(db.Integer, db.ForeignKey('warmup_schedules.id'), nullable=False)
     
+    # Per-account sequential ID (starts at 1 for each account's schedule)
+    # This is the ID displayed to users and used in logs
+    sequence_id = db.Column(db.Integer, nullable=True)
+    
     # Node configuration
     node_type = db.Column(db.String(50), nullable=False)  # bio, username, photo, contacts, subscribe, visit, idle
     day_number = db.Column(db.Integer, nullable=False)  # 1-14
@@ -39,11 +43,21 @@ class WarmupScheduleNode(db.Model):
     def __repr__(self):
         return f'<WarmupScheduleNode {self.id}: {self.node_type} Day {self.day_number} ({self.status})>'
     
+    @staticmethod
+    def get_next_sequence_id(schedule_id):
+        """Get the next sequence_id for a given schedule"""
+        from sqlalchemy import func
+        max_seq = db.session.query(func.max(WarmupScheduleNode.sequence_id)).filter_by(
+            schedule_id=schedule_id
+        ).scalar()
+        return (max_seq or 0) + 1
+    
     def to_dict(self):
         """Convert to dictionary for API responses"""
         return {
             'id': self.id,
             'schedule_id': self.schedule_id,
+            'sequence_id': self.sequence_id,
             'node_type': self.node_type,
             'day_number': self.day_number,
             'execution_date': self.execution_date.isoformat() if self.execution_date else None,
@@ -59,33 +73,20 @@ class WarmupScheduleNode(db.Model):
     
     def get_display_id(self):
         """
-        Get a display-friendly ID in format: telegram_id_ordinal_id
-        This requires computing the ordinal position within the schedule.
-        Falls back to database ID if computation fails.
+        Get a display-friendly ID in format: telegram_id_sequence_id
+        Uses the persistent sequence_id instead of computed ordinal position.
         """
         try:
             # Get account's telegram_id through schedule relationship
             account = self.schedule.account if self.schedule else None
             telegram_id = account.telegram_id if account else None
             
-            if not telegram_id:
-                return str(self.id)
+            if self.sequence_id:
+                if telegram_id:
+                    return f"{telegram_id}_{self.sequence_id}"
+                return str(self.sequence_id)
             
-            # Compute ordinal position by counting nodes with same schedule
-            # sorted by (execution_date, execution_time, id) that come before this one
-            all_nodes = WarmupScheduleNode.query.filter_by(schedule_id=self.schedule_id).all()
-            
-            def sort_key(n):
-                d_str = str(n.execution_date) if n.execution_date else '1970-01-01'
-                t_str = n.execution_time or '00:00'
-                return (d_str, t_str, n.id)
-            
-            all_nodes.sort(key=sort_key)
-            
-            for idx, node in enumerate(all_nodes, 1):
-                if node.id == self.id:
-                    return f"{telegram_id}_{idx}"
-            
+            # Fallback to database ID if sequence_id not set
             return str(self.id)
         except Exception:
             return str(self.id)
