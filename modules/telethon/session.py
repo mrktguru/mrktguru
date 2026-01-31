@@ -196,6 +196,7 @@ class SessionOrchestrator:
         from flask import has_app_context
         from app import app
         proxy_info = "No proxy"
+        proxy_config = None  # Will store (host, port, user, password, type)
         try:
             def get_proxy_info():
                 from models.account import Account
@@ -207,24 +208,57 @@ class SessionOrchestrator:
                     pn = ProxyNetwork.query.get(account.proxy_network_id)
                     if pn:
                         port = account.assigned_port or pn.start_port
-                        # Parse host from base_url (format: socks5://user:pass@host)
+                        # Parse from base_url (format: socks5://user:pass@host)
                         try:
                             parsed = urlparse(pn.base_url)
                             host = parsed.hostname or parsed.netloc.split('@')[-1]
+                            user = parsed.username
+                            password = parsed.password
+                            proxy_type = parsed.scheme  # socks5 or http
+                            return (f"{host}:{port} ({pn.name})", (host, port, user, password, proxy_type))
                         except:
-                            host = "proxy"
-                        return f"{host}:{port} ({pn.name})"
-                return "No proxy"
+                            return (f"proxy:{port} ({pn.name})", None)
+                return ("No proxy", None)
             
             if has_app_context():
-                proxy_info = get_proxy_info()
+                proxy_info, proxy_config = get_proxy_info()
             else:
                 with app.app_context():
-                    proxy_info = get_proxy_info()
+                    proxy_info, proxy_config = get_proxy_info()
         except Exception:
             pass
         
         self._log('info', f'🔌 Connecting via proxy: {proxy_info}', action='orch_proxy_connect')
+        
+        # Check real IP through proxy BEFORE connecting to Telegram
+        if proxy_config:
+            try:
+                import socks
+                import socket
+                
+                host, port, user, password, proxy_type = proxy_config
+                
+                # Create SOCKS connection
+                s = socks.socksocket()
+                if proxy_type == 'socks5':
+                    s.set_proxy(socks.SOCKS5, host, port, username=user, password=password)
+                else:
+                    s.set_proxy(socks.HTTP, host, port, username=user, password=password)
+                s.settimeout(5)
+                
+                # Connect to IP check service
+                s.connect(("api.ipify.org", 80))
+                s.sendall(b"GET / HTTP/1.1\r\nHost: api.ipify.org\r\nConnection: close\r\n\r\n")
+                response = s.recv(4096).decode('utf-8')
+                s.close()
+                
+                # Parse IP from response body
+                if '\r\n\r\n' in response:
+                    body = response.split('\r\n\r\n', 1)[1].strip()
+                    if body and '.' in body:
+                        self._log('success', f'🌐 Proxy IP: {body}', action='orch_proxy_ip')
+            except Exception as ip_err:
+                self._log('warning', f'⚠️ Could not verify proxy IP: {ip_err}', action='orch_ip_fail')
         
         loop = asyncio.get_running_loop()
         self.client = ClientFactory.create_client(self.account_id, loop=loop)
@@ -232,20 +266,6 @@ class SessionOrchestrator:
         self._log('info', '📡 Establishing connection to Telegram...', action='orch_connecting')
         await self.client.connect()
         self._log('success', '✅ Connected to Telegram', action='orch_connected')
-        
-        # Get real IP after connection
-        try:
-            import urllib.request
-            import socket
-            socket.setdefaulttimeout(3)
-            
-            # Simple IP check without proxy routing (direct check shows proxy IP if used)
-            response = urllib.request.urlopen('https://api.ipify.org?format=text', timeout=3)
-            real_ip = response.read().decode('utf-8').strip()
-            self._log('success', f'🌐 Real IP: {real_ip}', action='orch_ip_detected')
-        except Exception as ip_err:
-            # Not critical if fails
-            pass
         
         if not await self.client.is_user_authorized():
              self._log('warning', 'Not authorized on cold start', action='orch_auth_fail')
