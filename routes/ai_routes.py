@@ -19,12 +19,16 @@ from modules.ai.persona_builder import PersonaBuilder
 
 logger = logging.getLogger(__name__)
 
+# API Blueprint (for JSON endpoints)
 ai_bp = Blueprint('ai', __name__, url_prefix='/api/ai')
 
+# Settings Blueprint (for HTML pages)
+ai_settings_bp = Blueprint('ai_settings', __name__, url_prefix='/settings/ai')
 
-# ==================== SETTINGS PAGES ====================
 
-@ai_bp.route('/settings/topics')
+# ==================== SETTINGS PAGES (HTML) ====================
+
+@ai_settings_bp.route('/topics')
 @login_required
 def settings_topics():
     """Страница настройки Topics"""
@@ -32,7 +36,7 @@ def settings_topics():
     return render_template('ai/settings_topics.html', topics=topics)
 
 
-@ai_bp.route('/settings/tiers')
+@ai_settings_bp.route('/tiers')
 @login_required
 def settings_tiers():
     """Страница настройки Tiers"""
