@@ -482,11 +482,13 @@
                         <small class="text-muted" id="aiTierDescription"></small>
                     </div>
                     
-                    <!-- Topic (readonly, from account) -->
+                    <!-- Topic -->
                     <div class="mb-3">
-                        <label for="aiTopicDisplay" class="form-label fw-bold">Topic:</label>
-                        <input type="text" class="form-control" id="aiTopicDisplay" readonly>
-                        <small class="text-muted">Change in account settings</small>
+                        <label for="aiTopicSelect" class="form-label fw-bold">Topic:</label>
+                        <select class="form-select" id="aiTopicSelect">
+                            <!-- Loaded dynamically -->
+                        </select>
+                        <small class="text-muted">Affects persona interests and schedule patterns</small>
                     </div>
                 </form>
                 
@@ -515,14 +517,17 @@
         const generateBtn = document.getElementById('generateScheduleBtn');
         const tierSelect = document.getElementById('aiTierSelect');
         const tierDescription = document.getElementById('aiTierDescription');
-        const topicDisplay = document.getElementById('aiTopicDisplay');
+        const topicSelect = document.getElementById('aiTopicSelect');
         const personaInfo = document.getElementById('aiPersonaInfo');
         
         let tiersData = [];
+        let topicsData = [];
+        let currentTopicSlug = 'general';
         
         // Load data when modal opens
         aiModal.addEventListener('show.bs.modal', async function () {
             await loadTiers();
+            await loadTopics();
             await loadPersona();
         });
         
@@ -543,6 +548,22 @@
             }
         }
         
+        // Load topics
+        async function loadTopics() {
+            try {
+                const resp = await fetch('/api/ai/topics');
+                const data = await resp.json();
+                if (data.success) {
+                    topicsData = data.topics;
+                    topicSelect.innerHTML = data.topics.map(t => 
+                        `<option value="${t.slug}">${t.name}</option>`
+                    ).join('');
+                }
+            } catch (e) {
+                console.error('Failed to load topics:', e);
+            }
+        }
+        
         // Load persona
         async function loadPersona() {
             try {
@@ -552,9 +573,10 @@
                     const p = data.persona;
                     personaInfo.innerHTML = `
                         <strong>🎭 Persona:</strong> ${p.name}, ${p.age}y, ${p.gender === 'male' ? '♂️' : '♀️'}
-                        <br><small>📍 ${p.timezone_offset} | 🎯 ${p.topic_name}</small>
+                        <br><small>📍 ${p.timezone_offset}</small>
                     `;
-                    topicDisplay.value = p.topic_name || 'General';
+                    currentTopicSlug = p.topic_slug || 'general';
+                    topicSelect.value = currentTopicSlug;
                 }
             } catch (e) {
                 console.error('Failed to load persona:', e);
@@ -593,7 +615,8 @@
                     body: JSON.stringify({
                         tier: tierSelect.value,
                         days: parseInt(document.getElementById('aiPeriodDays').value),
-                        node_types: selectedNodes
+                        node_types: selectedNodes,
+                        topic: topicSelect.value
                     })
                 });
                 

@@ -73,6 +73,17 @@ def generate_schedule(account_id):
         if data.get('start_date'):
             start_date = datetime.strptime(data['start_date'], '%Y-%m-%d').date()
         
+        # Update topic if provided
+        topic_slug = data.get('topic')
+        if topic_slug:
+            topic = Topic.query.filter_by(slug=topic_slug).first()
+            if topic:
+                account.persona_topic_id = topic.id
+                # Reset persona to regenerate with new topic
+                if account.ai_metadata:
+                    account.ai_metadata['is_generated'] = False
+                db.session.commit()
+        
         # Validate days
         if days < 1 or days > 30:
             return jsonify({'success': False, 'error': 'Days must be between 1 and 30'}), 400
