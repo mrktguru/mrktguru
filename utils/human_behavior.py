@@ -1,20 +1,53 @@
+"""
+Human Behavior Simulation for Telegram
+========================================
+Comprehensive emulation of human behavior patterns for channel discovery.
+
+Key Features:
+- 3 Input Types: Direct links, @username, Invite links
+- Deep Inspection: Read 3-7 posts with realistic timing
+- readHistory: Send read receipts progressively
+- Media Interaction: 25% chance to expand photos/videos
+- Cooldown: 30-120 second pause between channels
+- Filtering: Subscribers > 500, Last post < 7 days
+"""
+
 import asyncio
 import random
 import logging
+from datetime import datetime, timedelta
 from telethon import functions, errors
+from telethon.tl.types import Channel, Chat, User, ChatInviteAlready, ChatInvite
 
 logger = logging.getLogger(__name__)
+
 
 class HumanBehavior:
     """
     Simulates realistic human behavior for Telegram actions.
-    Includes:
-    - Smart link processing (Direct vs Search)
-    - Typo simulation
-    - "Paste vs Typing" logic
-    - Scrolling and media viewing
-    - Misclick simulation
+    
+    Processing Pipeline:
+    1. Parse input (link/username/invite)
+    2. Resolve entity via appropriate API
+    3. Deep Inspection (read posts, send readHistory)
+    4. Filter validation (subscribers, activity)
+    5. Save to database
+    6. Cooldown pause before next channel
     """
+
+    # Configuration defaults
+    CONFIG = {
+        'posts_to_view_min': 3,
+        'posts_to_view_max': 7,
+        'reading_speed_chars_per_sec': 15,
+        'media_open_probability': 0.25,
+        'video_watch_ratio': 0.3,
+        'min_subscribers': 500,
+        'max_inactive_days': 7,
+        'cooldown_min': 30,
+        'cooldown_max': 120,
+        'misclick_probability': 0.10,
+    }
 
     def __init__(self, client, account_id=None):
         self.client = client
@@ -24,251 +57,523 @@ class HumanBehavior:
     async def process_mixed_links(self, config):
         """
         Main entry point. Processes a mixed list of links and usernames.
+        
+        Config keys:
+        - links: str - newline-separated links/usernames
+        - min_subscribers: int - minimum subscriber count (default 500)
+        - max_inactive_days: int - max days since last post (default 7)
+        - cooldown_min/max: int - seconds between channels (default 30-120)
         """
         links_text = config.get('links', '')
         lines = [line.strip() for line in links_text.split('\n') if line.strip()]
         
         if not lines:
             logger.warning(f"{self.log_prefix}No links provided for processing")
-            return
+            return {'success': False, 'error': 'No links provided'}
+
+        # Override config values if provided
+        self.min_subscribers = config.get('min_subscribers', self.CONFIG['min_subscribers'])
+        self.max_inactive_days = config.get('max_inactive_days', self.CONFIG['max_inactive_days'])
+        self.cooldown_min = config.get('cooldown_min', self.CONFIG['cooldown_min'])
+        self.cooldown_max = config.get('cooldown_max', self.CONFIG['cooldown_max'])
 
         # Shuffle execution order to avoid robotic patterns
         random.shuffle(lines)
-        logger.info(f"{self.log_prefix}Processing {len(lines)} items with Smart Human Logic")
+        total = len(lines)
+        logger.info(f"{self.log_prefix}🚀 Processing {total} items with Full Human Emulation")
+        
+        processed = 0
+        saved = 0
+        filtered_out = 0
+        errors_count = 0
 
-        for item in lines:
+        for index, item in enumerate(lines):
             try:
-                # === SCENARIO 1: DIRECT LINK (BROWSER MODE) ===
-                if 't.me/' in item or 'telegram.me/' in item:
-                    await self._simulate_browser_click(item)
-
-                # === SCENARIO 2: SEARCH (SEARCH & TYPING MODE) ===
-                else:
-                    await self._simulate_human_search(item)
+                logger.info(f"{self.log_prefix}[{index+1}/{total}] Processing: {item}")
                 
-                # Pause between channels (Human attention span)
-                pause = random.uniform(5, 15)
-                logger.info(f"{self.log_prefix}☕ Taking a break for {pause:.1f}s...")
-                await asyncio.sleep(pause)
+                result = await self._process_single_item(item)
+                
+                if result.get('saved'):
+                    saved += 1
+                elif result.get('filtered'):
+                    filtered_out += 1
+                
+                processed += 1
+                
+                # === COOLDOWN between channels (30-120 sec) ===
+                if index < total - 1:  # Not last item
+                    await self._inter_channel_cooldown()
 
             except Exception as e:
-                logger.error(f"{self.log_prefix}Error processing item '{item}': {e}")
+                logger.error(f"{self.log_prefix}Error processing '{item}': {e}")
+                errors_count += 1
                 continue
         
-        logger.info(f"{self.log_prefix}✅ All {len(lines)} items processed with Smart Human Logic")
-
-    async def _simulate_browser_click(self, link):
-        """
-        Simulates clicking a link from an external source (Browser).
-        Uses CheckChatInvite or ResolveUsername directly.
-        """
-        logger.info(f"{self.log_prefix}🔗 Simulating Browser Click: {link}")
+        logger.info(f"{self.log_prefix}✅ Completed: {processed}/{total} processed, {saved} saved, {filtered_out} filtered, {errors_count} errors")
         
-        # 1. Invite Link (t.me/+AbCd...)
-        if '+' in link or 'joinchat' in link:
-            try:
-                # Extract hash
-                hash_arg = link.split('+')[-1] if '+' in link else link.split('joinchat/')[-1]
-                hash_arg = hash_arg.replace('/', '').strip()
-                
-                # CheckChatInvite peeks at the chat without joining
-                invite_info = await self.client(functions.messages.CheckChatInviteRequest(hash=hash_arg))
-                
-                logger.info(f"{self.log_prefix}   -> Viewed invite for: {getattr(invite_info, 'title', 'Unknown')}")
-                await asyncio.sleep(random.uniform(2, 5)) # "Thinking" time
-                return 
+        return {
+            'success': True,
+            'processed': processed,
+            'saved': saved,
+            'filtered_out': filtered_out,
+            'errors': errors_count
+        }
 
-            except errors.InviteHashExpiredError:
-                logger.warning(f"{self.log_prefix}   -> Link expired")
-                return
-            except Exception as e:
-                logger.error(f"{self.log_prefix}   -> Failed to check invite: {e}")
-                return
+    async def _process_single_item(self, item):
+        """
+        Process a single link/username based on its type.
+        
+        Returns dict with:
+        - saved: bool - if channel was saved to DB
+        - filtered: bool - if channel was filtered out
+        - reason: str - reason for filtering (if filtered)
+        """
+        # Determine input type and process accordingly
+        
+        # === SCENARIO C: INVITE LINK (t.me/+AbCd or t.me/joinchat/...) ===
+        if '+' in item or 'joinchat' in item:
+            return await self._process_invite_link(item)
+        
+        # === SCENARIO A/B: DIRECT LINK or @USERNAME ===
+        elif 't.me/' in item or 'telegram.me/' in item:
+            return await self._process_direct_link(item)
+        
+        # === SCENARIO B: @username or plain username ===
+        elif item.startswith('@'):
+            return await self._process_username(item.replace('@', ''))
+        
+        # === SCENARIO D: KEYWORD SEARCH ===
+        else:
+            return await self._process_search_query(item)
 
-        # 2. Public Link (t.me/username)
-        # Clean up link to get username
-        username = link.split('t.me/')[-1].split('/')[0].split('?')[0]
+    async def _process_invite_link(self, link):
+        """
+        Process private invite link (t.me/+AbCd... or t.me/joinchat/...)
+        
+        Limitations:
+        - Cannot see post history before joining
+        - Cannot verify last post date
+        - Requires join to fully validate
+        """
+        logger.info(f"{self.log_prefix}🔐 Processing INVITE link: {link}")
         
         try:
-            # ResolveUsername is a direct API call, analogous to opening a link
+            # Extract hash from link
+            if '+' in link:
+                hash_arg = link.split('+')[-1]
+            else:
+                hash_arg = link.split('joinchat/')[-1]
+            hash_arg = hash_arg.replace('/', '').strip()
+            
+            # Pause: "App switching" delay
+            await asyncio.sleep(random.uniform(2, 4))
+            
+            # CheckChatInvite - peek without joining
+            invite_info = await self.client(functions.messages.CheckChatInviteRequest(hash=hash_arg))
+            
+            # Handle already joined case
+            if isinstance(invite_info, ChatInviteAlready):
+                logger.info(f"{self.log_prefix}   Already a member of this chat")
+                return {'saved': False, 'filtered': True, 'reason': 'already_member'}
+            
+            if not isinstance(invite_info, ChatInvite):
+                logger.warning(f"{self.log_prefix}   Unknown invite response type")
+                return {'saved': False, 'filtered': True, 'reason': 'unknown_response'}
+            
+            title = getattr(invite_info, 'title', 'Private Chat')
+            participants = getattr(invite_info, 'participants_count', 0)
+            
+            logger.info(f"{self.log_prefix}   -> Viewed invite: {title} ({participants} members)")
+            
+            # Thinking pause
+            await asyncio.sleep(random.uniform(2, 5))
+            
+            # === FILTER: Minimum subscribers ===
+            if participants < self.min_subscribers:
+                logger.info(f"{self.log_prefix}   ❌ Filtered: {participants} < {self.min_subscribers} members")
+                return {'saved': False, 'filtered': True, 'reason': f'low_members_{participants}'}
+            
+            # === SAVE to DB ===
+            # For invite links, we save with special flag requiring join to validate
+            await self._save_invite_candidate(invite_info, hash_arg)
+            
+            return {'saved': True, 'filtered': False}
+
+        except errors.InviteHashExpiredError:
+            logger.warning(f"{self.log_prefix}   ⚠️ Invite link expired")
+            return {'saved': False, 'filtered': True, 'reason': 'expired'}
+        except errors.InviteHashInvalidError:
+            logger.warning(f"{self.log_prefix}   ⚠️ Invalid invite hash")
+            return {'saved': False, 'filtered': True, 'reason': 'invalid'}
+        except Exception as e:
+            logger.error(f"{self.log_prefix}   ❌ Failed to check invite: {e}")
+            raise
+
+    async def _process_direct_link(self, link):
+        """
+        Process direct public link (https://t.me/username)
+        
+        Pipeline:
+        1. Parse username from URL
+        2. ResolveUsername (emulates browser click)
+        3. Deep inspection (read posts)
+        4. Filter validation
+        5. Save to DB
+        """
+        logger.info(f"{self.log_prefix}🔗 Processing DIRECT link: {link}")
+        
+        # Parse username from URL
+        # Handles: t.me/username, telegram.me/username, https://t.me/username
+        username = link.split('t.me/')[-1].split('/')[0].split('?')[0].strip()
+        
+        if not username:
+            return {'saved': False, 'filtered': True, 'reason': 'invalid_link'}
+        
+        return await self._resolve_and_inspect(username, origin='LINK')
+
+    async def _process_username(self, username):
+        """
+        Process @username input.
+        Same as direct link but origin = DIRECT_MENTION
+        """
+        logger.info(f"{self.log_prefix}👤 Processing @USERNAME: @{username}")
+        return await self._resolve_and_inspect(username, origin='DIRECT_MENTION')
+
+    async def _resolve_and_inspect(self, username, origin='LINK'):
+        """
+        Common logic for resolving public username and deep inspection.
+        
+        Steps:
+        1. App switch delay (2-4 sec)
+        2. Resolve username
+        3. Deep inspection (view posts)
+        4. Send readHistory
+        5. Filter check
+        6. Save to DB
+        """
+        try:
+            # === STEP 1: App switching delay ===
+            await asyncio.sleep(random.uniform(2, 4))
+            
+            # === STEP 2: Resolve username ===
             entity = await self.client.get_entity(username)
             
-            # Enter channel content view
-            await self._view_channel_content(entity)
+            if not isinstance(entity, (Channel, Chat)):
+                logger.info(f"{self.log_prefix}   -> Not a channel/group, skipping")
+                return {'saved': False, 'filtered': True, 'reason': 'not_channel'}
             
+            title = getattr(entity, 'title', username)
+            logger.info(f"{self.log_prefix}   -> Resolved: {title}")
+            
+            # === STEP 3: Deep Inspection ===
+            inspection_result = await self._deep_inspection(entity)
+            
+            # === STEP 4: Filter validation ===
+            filter_result = await self._validate_channel(entity, inspection_result)
+            
+            if not filter_result['passed']:
+                logger.info(f"{self.log_prefix}   ❌ Filtered: {filter_result['reason']}")
+                return {'saved': False, 'filtered': True, 'reason': filter_result['reason']}
+            
+            # === STEP 5: Save to DB ===
+            await self._save_discovered_channel(
+                entity, 
+                origin=origin,
+                last_post_date=inspection_result.get('last_post_date'),
+                participants_count=filter_result.get('participants_count')
+            )
+            
+            return {'saved': True, 'filtered': False}
+
+        except errors.UsernameNotOccupiedError:
+            logger.warning(f"{self.log_prefix}   ⚠️ Username not found: {username}")
+            return {'saved': False, 'filtered': True, 'reason': 'not_found'}
+        except errors.UsernameInvalidError:
+            logger.warning(f"{self.log_prefix}   ⚠️ Invalid username: {username}")
+            return {'saved': False, 'filtered': True, 'reason': 'invalid_username'}
         except Exception as e:
-            logger.error(f"{self.log_prefix}   -> Failed to resolve public link: {e}")
+            logger.error(f"{self.log_prefix}   ❌ Failed to resolve: {e}")
+            raise
 
-    async def _simulate_human_search(self, query):
+    async def _process_search_query(self, query):
         """
-        Simulates manual typing in Global Search and clicking a result.
-        """
-        clean_query = query.replace('@', '') # Typing usually omits @ in search
-        logger.info(f"{self.log_prefix}🔍 Simulating Search: '{clean_query}'")
-
-        # 1. Focus Delay
-        await asyncio.sleep(random.uniform(1.0, 3.0))
-
-        # 2. Paste vs Typing Logic
-        if len(clean_query) > 12:
-            logger.info(f"{self.log_prefix}   -> Long query, simulating CTRL+V")
-            await asyncio.sleep(random.uniform(0.5, 1.0)) # Ctrl+V pause
-        else:
-            await self._human_typing(clean_query)
+        Process keyword search query.
         
-        # 3. Final Search Request
+        Steps:
+        1. Focus delay
+        2. Human typing simulation (or paste for long queries)
+        3. Global search
+        4. Optional misclick (10% chance)
+        5. Select result and deep inspect
+        """
+        logger.info(f"{self.log_prefix}🔍 Processing SEARCH query: '{query}'")
+        
+        # === STEP 1: Focus delay ===
+        await asyncio.sleep(random.uniform(1.0, 3.0))
+        
+        # === STEP 2: Typing simulation ===
+        if len(query) > 12:
+            logger.info(f"{self.log_prefix}   -> Long query, simulating Ctrl+V paste")
+            await asyncio.sleep(random.uniform(0.5, 1.0))
+        else:
+            await self._simulate_typing(query)
+        
+        # === STEP 3: Execute search ===
         try:
             results = await self.client(functions.contacts.SearchRequest(
-                q=clean_query,
+                q=query,
                 limit=5
             ))
-
-            if not results.chats and not results.users:
-                logger.info(f"{self.log_prefix}   -> Nothing found for '{clean_query}'")
-                return
-
-            # 4. Result Selection (with Misclick chance)
-            # Combine chats and users, prioritizing chats usually
-            all_results = results.chats + results.users
+            
+            all_results = list(results.chats) + list(results.users)
+            
             if not all_results:
-                return
+                logger.info(f"{self.log_prefix}   -> No results for '{query}'")
+                return {'saved': False, 'filtered': True, 'reason': 'no_results'}
             
-            target_idx = 0 
+            # Filter to only channels/chats
+            channel_results = [r for r in all_results if isinstance(r, (Channel, Chat))]
             
-            # MISCLICK SCENARIO (10% chance)
-            if len(all_results) > 1 and random.random() < 0.1:
-                wrong_target = all_results[1]
-                logger.info(f"{self.log_prefix}   ⚠️ Misclick! Opened wrong channel: {getattr(wrong_target, 'title', 'Unknown')}")
+            if not channel_results:
+                logger.info(f"{self.log_prefix}   -> No channels in results")
+                return {'saved': False, 'filtered': True, 'reason': 'no_channels'}
+            
+            # === STEP 4: Misclick scenario (10% chance) ===
+            target_idx = 0
+            if len(channel_results) > 1 and random.random() < self.CONFIG['misclick_probability']:
+                wrong_target = channel_results[1]
+                logger.info(f"{self.log_prefix}   ⚠️ Misclick! Opened: {getattr(wrong_target, 'title', 'Unknown')}")
                 
-                await self._view_channel_content(wrong_target, short_visit=True, origin='SEARCH')
+                # Quick look and back
+                await self._deep_inspection(wrong_target, short_visit=True)
                 
                 logger.info(f"{self.log_prefix}   🔙 Back to search results...")
                 await asyncio.sleep(random.uniform(1.0, 2.0))
-                
-                target_idx = 0 # Correct target
             
-            real_target = all_results[target_idx]
-            title = getattr(real_target, 'title', getattr(real_target, 'username', 'Unknown'))
+            # === STEP 5: Select correct result ===
+            target = channel_results[target_idx]
+            title = getattr(target, 'title', 'Unknown')
             logger.info(f"{self.log_prefix}   -> Clicked result: {title}")
             
-            await self._view_channel_content(real_target, origin='SEARCH')
+            # Deep inspection
+            inspection_result = await self._deep_inspection(target)
+            
+            # Filter validation
+            filter_result = await self._validate_channel(target, inspection_result)
+            
+            if not filter_result['passed']:
+                logger.info(f"{self.log_prefix}   ❌ Filtered: {filter_result['reason']}")
+                return {'saved': False, 'filtered': True, 'reason': filter_result['reason']}
+            
+            # Save
+            await self._save_discovered_channel(
+                target, 
+                origin='SEARCH',
+                last_post_date=inspection_result.get('last_post_date'),
+                participants_count=filter_result.get('participants_count')
+            )
+            
+            return {'saved': True, 'filtered': False}
 
         except Exception as e:
             logger.error(f"{self.log_prefix}Search failed: {e}")
+            raise
 
-    async def _human_typing(self, text):
-        """Simulates typing with realistic speed and occasional typos."""
-        nearby_keys = {
-            'a': 'qwsz', 'b': 'vghn', 'c': 'xdfv', 'd': 'serfc', 'e': 'rdsw',
-            'f': 'drtgv', 'g': 'ftyhb', 'h': 'gyujn', 'i': 'ujko', 'j': 'hunik',
-            'k': 'jilm', 'l': 'kop', 'm': 'njk', 'n': 'bhjm', 'o': 'iklp',
-            'p': 'ol', 'q': 'wa', 'r': 'edft', 's': 'awzedx', 't': 'rfgy',
-            'u': 'yhji', 'v': 'cfgb', 'w': 'qase', 'x': 'zsdc', 'y': 'tghu', 'z': 'asx'
+    async def _deep_inspection(self, entity, short_visit=False):
+        """
+        Deep Inspection: Read posts with human-like timing.
+        
+        Algorithm:
+        1. Fetch 5-8 recent posts
+        2. Select 3-7 posts for "reading"
+        3. For each post:
+           - Calculate reading time based on text length
+           - 25% chance to open media
+           - Occasional micro-pauses (coffee breaks)
+        4. Send readHistory progressively (not all at once)
+        
+        Returns:
+            dict with last_post_date, messages_read
+        """
+        title = getattr(entity, 'title', 'Unknown')
+        logger.info(f"{self.log_prefix}   👀 Deep inspection: {title}")
+        
+        result = {
+            'last_post_date': None,
+            'messages_read': 0
         }
-
-        typed_text = ""
-        for char in text:
-            # 2% chance for massive typo
-            if char.lower() in nearby_keys and random.random() < 0.02:
-                typo = random.choice(nearby_keys[char.lower()])
-                # Press wrong key
-                await asyncio.sleep(random.uniform(0.1, 0.3))
-                
-                # Realize mistake
-                await asyncio.sleep(random.uniform(0.3, 0.8))
-                
-                # Backspace
-                await asyncio.sleep(random.uniform(0.1, 0.2))
-                
-                # Now correct key will be pressed in next main loop iteration...
-                # Actually we need to press it now or let the loop continue?
-                # Let's simulate just the delay of correction here.
-            
-            # Press correct key
-            await asyncio.sleep(random.uniform(0.08, 0.35))
-            typed_text += char
-
-    async def _view_channel_content(self, entity, short_visit=False, origin='LINK'):
-        """
-        Общая логика просмотра: скроллинг, чтение.
-        Использует client.get_messages вместо сырых запросов.
-        """
+        
         try:
-            from telethon.tl.types import Channel, Chat
-            from models.channel_candidate import ChannelCandidate
-            from database import db
-            from datetime import datetime
-            
-            # 0. Save as discovered channel
-            await self._save_discovered_channel(entity, origin)
-
-            title = getattr(entity, 'title', getattr(entity, 'username', 'Chat'))
-            logger.info(f"{self.log_prefix}   👀 Viewing content in: {title}")
-
-            # 1. Получаем последние сообщения (High-level API)
-            # Это замена сломанному GetHistory
+            # === STEP 1: Fetch messages ===
             limit = 2 if short_visit else random.randint(5, 8)
             messages = await self.client.get_messages(entity, limit=limit)
             
             if not messages:
                 logger.info(f"{self.log_prefix}   -> Channel is empty")
-                return
-
-            if short_visit:
-                 # Minimal interaction for short visit
-                 pass
-
-            # 2. Имитация чтения (скроллинг)
-            # Читаем сверху вниз (от более старых к новым в этой выборке)
-            # Если short_visit - читаем меньше
-            msgs_to_read = messages[:3] if not short_visit else messages[:1]
+                return result
             
-            for msg in reversed(msgs_to_read): 
-                text = getattr(msg, 'text', '') or getattr(msg, 'message', '') or ''
-                if text:
-                    # Скорость чтения: ~15 символов в секунду + база 1 сек
-                    read_time = (len(text) / 15) + 1
-                    read_time = min(read_time, 8.0) # Не залипаем дольше 8 сек на посте
-                    
-                    await asyncio.sleep(read_time)
-                
-                # Шанс развернуть медиа
-                if getattr(msg, 'media', None) and random.random() < 0.15:
-                    logger.info(f"{self.log_prefix}   🖼️ Maximized photo/video view")
-                    await asyncio.sleep(random.uniform(2, 5))
-
+            # Record last post date
+            if messages:
+                result['last_post_date'] = messages[0].date
+            
             if short_visit:
-                return
-
-            # 3. СКРОЛЛ ВВЕРХ (Context Check) — Шанс 30%
-            if len(messages) > 0 and random.random() < 0.3:
-                logger.info(f"{self.log_prefix}   ⬆️ Scrolling up to check context...")
-                last_id = messages[-1].id # ID самого старого из загруженных
+                # Minimal interaction for misclick/short visit
+                await asyncio.sleep(random.uniform(1.0, 2.0))
+                return result
+            
+            # === STEP 2: Select posts to read ===
+            posts_to_read = random.randint(
+                self.CONFIG['posts_to_view_min'],
+                min(self.CONFIG['posts_to_view_max'], len(messages))
+            )
+            target_messages = list(reversed(messages[:posts_to_read]))  # Old to new
+            
+            logger.info(f"{self.log_prefix}   📖 Reading {len(target_messages)} posts...")
+            
+            # === STEP 3: Read each post ===
+            last_read_id = None
+            for idx, msg in enumerate(target_messages):
+                # Calculate reading time
+                text = getattr(msg, 'text', '') or getattr(msg, 'message', '') or ''
+                read_time = self._calculate_reading_time(text)
                 
-                # Подгружаем историю ДО этого сообщения
-                older_msgs = await self.client.get_messages(
-                    entity, 
-                    limit=3, 
-                    offset_id=last_id
-                )
-                await asyncio.sleep(random.uniform(3, 6))
-                logger.info(f"{self.log_prefix}   ⬇️ Scrolling back to recent...")
+                # Log reading action
+                text_preview = text[:50] + '...' if len(text) > 50 else text
+                logger.debug(f"{self.log_prefix}     Post {msg.id}: {read_time:.1f}s ({len(text)} chars)")
+                
+                # Simulate reading
+                await asyncio.sleep(read_time)
+                
+                # === STEP 3b: Media interaction (25% chance) ===
+                if getattr(msg, 'media', None) and random.random() < self.CONFIG['media_open_probability']:
+                    logger.info(f"{self.log_prefix}   🖼️ Viewing media...")
+                    
+                    # Different timing for different media types
+                    if hasattr(msg.media, 'document'):
+                        # Video/GIF - watch portion of it
+                        duration = getattr(msg.media.document, 'duration', 10)
+                        watch_time = duration * self.CONFIG['video_watch_ratio']
+                        watch_time = min(watch_time, 15)  # Cap at 15 sec
+                        await asyncio.sleep(watch_time)
+                    else:
+                        # Photo - viewing time
+                        await asyncio.sleep(random.uniform(2, 5))
+                
+                # === STEP 3c: Micro-pause (10% chance - coffee break) ===
+                if random.random() < 0.10:
+                    pause = random.uniform(3, 6)
+                    logger.debug(f"{self.log_prefix}   ☕ Micro-pause: {pause:.1f}s")
+                    await asyncio.sleep(pause)
+                
+                last_read_id = msg.id
+                result['messages_read'] += 1
+                
+                # === STEP 4: Progressive readHistory ===
+                # Send readHistory after ~50% of posts, then again at end
+                if idx == len(target_messages) // 2 or idx == len(target_messages) - 1:
+                    try:
+                        await self.client(functions.messages.ReadHistoryRequest(
+                            peer=entity,
+                            max_id=last_read_id
+                        ))
+                        logger.debug(f"{self.log_prefix}   ✓ Sent readHistory up to {last_read_id}")
+                    except Exception as e:
+                        # readHistory might fail for channels (vs groups), that's OK
+                        logger.debug(f"{self.log_prefix}   readHistory skipped: {e}")
+            
+            # === STEP 5: Optional scroll up (30% chance) ===
+            if len(messages) > 0 and random.random() < 0.30:
+                logger.info(f"{self.log_prefix}   ⬆️ Scrolling up to check context...")
                 await asyncio.sleep(random.uniform(2, 4))
+                
+                # Fetch older messages
+                older = await self.client.get_messages(
+                    entity,
+                    limit=3,
+                    offset_id=messages[-1].id
+                )
+                
+                await asyncio.sleep(random.uniform(2, 4))
+                logger.info(f"{self.log_prefix}   ⬇️ Scrolling back down...")
+            
+            return result
 
         except Exception as e:
-            logger.error(f"{self.log_prefix}   ⚠️ Error viewing content: {e}")
+            logger.error(f"{self.log_prefix}   ⚠️ Error in deep inspection: {e}")
+            return result
 
-    async def _save_discovered_channel(self, entity, origin='LINK'):
-        """Persistence logic: save or update discovered channel candidate"""
+    async def _validate_channel(self, entity, inspection_result):
+        """
+        Validate channel against filters.
+        
+        Checks:
+        1. Minimum subscribers (default 500)
+        2. Last post date < 7 days (is_alive check)
+        3. Can send messages (for groups)
+        
+        Returns:
+            dict with passed: bool, reason: str, participants_count: int
+        """
+        result = {
+            'passed': True,
+            'reason': None,
+            'participants_count': 0
+        }
+        
         try:
-            from telethon.tl.types import Channel, Chat
+            # === Get full channel info for participant count ===
+            full_info = await self.client(functions.channels.GetFullChannelRequest(entity))
+            participants_count = full_info.full_chat.participants_count
+            result['participants_count'] = participants_count
+            
+            # === FILTER 1: Minimum subscribers ===
+            if participants_count < self.min_subscribers:
+                result['passed'] = False
+                result['reason'] = f'low_members_{participants_count}_min_{self.min_subscribers}'
+                return result
+            
+            # === FILTER 2: Last post date (is_alive) ===
+            last_post_date = inspection_result.get('last_post_date')
+            if last_post_date:
+                # Make timezone aware comparison
+                now = datetime.now(last_post_date.tzinfo) if last_post_date.tzinfo else datetime.utcnow()
+                days_inactive = (now - last_post_date).days
+                
+                if days_inactive > self.max_inactive_days:
+                    result['passed'] = False
+                    result['reason'] = f'inactive_{days_inactive}_days'
+                    return result
+            
+            # === FILTER 3: Banned rights (for groups) ===
+            if hasattr(entity, 'default_banned_rights') and entity.default_banned_rights:
+                if getattr(entity.default_banned_rights, 'send_messages', False):
+                    result['passed'] = False
+                    result['reason'] = 'cannot_send_messages'
+                    return result
+            
+            return result
+
+        except Exception as e:
+            # If we can't get full info, still allow with warning
+            logger.warning(f"{self.log_prefix}   ⚠️ Could not get full channel info: {e}")
+            # Try to get from entity directly
+            result['participants_count'] = getattr(entity, 'participants_count', 0)
+            return result
+
+    async def _save_discovered_channel(self, entity, origin='LINK', last_post_date=None, participants_count=None):
+        """
+        Save or update discovered channel in database.
+        
+        Sets:
+        - status = 'VISITED'
+        - origin = LINK/DIRECT_MENTION/SEARCH
+        - last_visit_ts = now
+        - access_hash for later subscription
+        """
+        try:
             from models.channel_candidate import ChannelCandidate
             from database import db
-            from datetime import datetime
             
-            if not isinstance(entity, (Channel, Chat)):
-                return
-
             peer_id = entity.id
             access_hash = getattr(entity, 'access_hash', 0)
             username = getattr(entity, 'username', None)
@@ -276,10 +581,9 @@ class HumanBehavior:
             
             type_str = 'CHANNEL' if isinstance(entity, Channel) else 'MEGAGROUP'
             
-            # Use app context if not present (usually worker has it)
             # Find existing
             candidate = ChannelCandidate.query.filter_by(
-                account_id=self.account_id, 
+                account_id=self.account_id,
                 peer_id=peer_id
             ).first()
             
@@ -291,7 +595,9 @@ class HumanBehavior:
                     origin=origin
                 )
                 db.session.add(candidate)
-                logger.info(f"{self.log_prefix}   ✨ New channel discovered: {title}")
+                logger.info(f"{self.log_prefix}   ✨ NEW channel discovered: {title}")
+            else:
+                logger.info(f"{self.log_prefix}   🔄 Updated existing: {title}")
             
             # Update fields
             candidate.username = username
@@ -300,25 +606,139 @@ class HumanBehavior:
             candidate.last_visit_ts = datetime.utcnow()
             candidate.status = 'VISITED'
             
-            # Extract participants count if available
-            # Note: entity.participants_count might not be populated in all GetDialogs/GetFullChannel contexts
-            # but we try our best.
-            if hasattr(entity, 'participants_count') and entity.participants_count:
-                candidate.participants_count = entity.participants_count
+            if participants_count:
+                candidate.participants_count = participants_count
+            
+            if last_post_date:
+                candidate.last_post_date = last_post_date
             
             db.session.commit()
             
         except Exception as e:
-            logger.error(f"{self.log_prefix}   ❌ Failed to save discovered channel: {e}")
-            # Don't raise, persistence failure shouldn't kill the worker
+            logger.error(f"{self.log_prefix}   ❌ Failed to save channel: {e}")
+            # Don't raise - persistence failure shouldn't kill the worker
+
+    async def _save_invite_candidate(self, invite_info, invite_hash):
+        """
+        Save invite link candidate to database.
+        Special handling: cannot verify last post without joining.
+        """
+        try:
+            from models.channel_candidate import ChannelCandidate
+            from database import db
+            
+            title = getattr(invite_info, 'title', 'Private Chat')
+            participants = getattr(invite_info, 'participants_count', 0)
+            
+            # For invites, we don't have peer_id until we join
+            # Use hash as temporary identifier (will be updated on join)
+            # Actually, let's check if we have any ID from the invite
+            peer_id = getattr(invite_info, 'chat_id', None) or hash(invite_hash) & 0x7FFFFFFF
+            
+            candidate = ChannelCandidate.query.filter_by(
+                account_id=self.account_id,
+                peer_id=peer_id
+            ).first()
+            
+            if not candidate:
+                candidate = ChannelCandidate(
+                    account_id=self.account_id,
+                    peer_id=peer_id,
+                    access_hash=0,  # Don't have it yet
+                    origin='INVITE_LINK'
+                )
+                db.session.add(candidate)
+                logger.info(f"{self.log_prefix}   ✨ NEW invite saved: {title}")
+            
+            candidate.title = title
+            candidate.type = 'PRIVATE'  # Mark as private
+            candidate.last_visit_ts = datetime.utcnow()
+            candidate.status = 'VISITED'
+            candidate.participants_count = participants
+            # Store invite hash for later joining
+            candidate.error_reason = f"invite_hash:{invite_hash}"  # Reuse field temporarily
+            
+            db.session.commit()
+            
+        except Exception as e:
+            logger.error(f"{self.log_prefix}   ❌ Failed to save invite: {e}")
+
+    async def _inter_channel_cooldown(self):
+        """
+        Cooldown pause between channels (30-120 seconds).
+        Simulates user taking a break between browsing channels.
+        """
+        delay = random.uniform(self.cooldown_min, self.cooldown_max)
+        logger.info(f"{self.log_prefix}💤 Cooldown: {delay:.1f}s before next channel...")
+        
+        # We just sleep - the orchestrator handles keep-alive pings
+        await asyncio.sleep(delay)
+
+    def _calculate_reading_time(self, text):
+        """
+        Calculate realistic reading time for text.
+        
+        Algorithm:
+        - Base: chars / 15 chars per second
+        - Short posts (< 50 chars): read more carefully (+20%)
+        - Long posts (> 500 chars): skim faster (-30%)
+        - Add random noise (0.5-1.5 sec)
+        - Cap at 8 seconds max per post
+        """
+        if not text:
+            return random.uniform(0.5, 1.5)
+        
+        char_count = len(text)
+        base_time = char_count / self.CONFIG['reading_speed_chars_per_sec']
+        
+        # Adjust for text length
+        if char_count < 50:
+            base_time *= 1.2  # Read short posts more carefully
+        elif char_count > 500:
+            base_time *= 0.7  # Skim long posts
+        
+        # Add noise (reaction time)
+        noise = random.uniform(0.5, 1.5)
+        
+        total = base_time + noise
+        
+        # Cap at 8 seconds
+        return min(total, 8.0)
+
+    async def _simulate_typing(self, text):
+        """
+        Simulate human typing with occasional typos.
+        """
+        nearby_keys = {
+            'a': 'qwsz', 'b': 'vghn', 'c': 'xdfv', 'd': 'serfc', 'e': 'rdsw',
+            'f': 'drtgv', 'g': 'ftyhb', 'h': 'gyujn', 'i': 'ujko', 'j': 'hunik',
+            'k': 'jilm', 'l': 'kop', 'm': 'njk', 'n': 'bhjm', 'o': 'iklp',
+            'p': 'ol', 'q': 'wa', 'r': 'edft', 's': 'awzedx', 't': 'rfgy',
+            'u': 'yhji', 'v': 'cfgb', 'w': 'qase', 'x': 'zsdc', 'y': 'tghu', 'z': 'asx'
+        }
+        
+        for char in text:
+            # 2% chance for typo
+            if char.lower() in nearby_keys and random.random() < 0.02:
+                # Press wrong key
+                await asyncio.sleep(random.uniform(0.1, 0.3))
+                # Realize mistake
+                await asyncio.sleep(random.uniform(0.3, 0.8))
+                # Backspace
+                await asyncio.sleep(random.uniform(0.1, 0.2))
+            
+            # Press correct key
+            await asyncio.sleep(random.uniform(0.08, 0.35))
 
     async def join_channel_humanly(self, entity, mute_notifications=True):
         """
-        Executes the complex human behavior of joining a channel:
-        1. View content (scroll/read).
-        2. Random pause (decision making).
-        3. Join action.
-        4. Post-join behavior (Muting).
+        Executes the complex human behavior of joining a channel.
+        
+        Steps:
+        1. View content (scroll/read)
+        2. Decision pause
+        3. Join action
+        4. Post-join behavior (muting)
         
         Returns:
             str: 'JOINED', 'PENDING_APPROVAL', 'ALREADY_PARTICIPANT', 'REJECTED'
@@ -326,58 +746,50 @@ class HumanBehavior:
         from telethon.tl.functions.account import UpdateNotifySettingsRequest
         from telethon.tl.functions.channels import JoinChannelRequest
         from telethon.tl.types import InputPeerNotifySettings
-        from telethon import functions
-        from telethon.errors import UserAlreadyParticipantError, LinkNotModifiedError
+        from telethon.errors import UserAlreadyParticipantError
         
-        # 1. PRE-JOIN INTERACTION (Look before you leap)
-        # Мы используем уже существующую логику просмотра
-        # Это создает "глазик" на постах и имитирует интерес
-        await self._view_channel_content(entity, short_visit=False, origin='SUBSCRIBE_NODE')
-
+        # 1. PRE-JOIN INTERACTION
+        await self._deep_inspection(entity, short_visit=False)
+        
         # 2. DECISION PAUSE
-        await self.random_sleep(2.0, 5.0, reason="Thinking about joining")
-
+        await asyncio.sleep(random.uniform(2.0, 5.0))
+        
         # 3. JOIN ACTION
         result_status = 'JOINED'
         try:
-            # Пытаемся вступить
-            updates = await self.client(JoinChannelRequest(channel=entity))
+            await self.client(JoinChannelRequest(channel=entity))
             
-            # Если updates пустой, иногда это Pending, но не всегда.
-            if not getattr(updates, 'chats', None):
-                pass 
-
         except UserAlreadyParticipantError:
             logger.info(f"{self.log_prefix}   ℹ️ Already a participant")
             result_status = 'ALREADY_PARTICIPANT'
         except Exception as e:
-            # Если ошибка про "Invites" (заявка)
             err_str = str(e).lower()
             if "invite request sent" in err_str or "pending" in err_str:
-                logger.info(f"{self.log_prefix}   ⏳ Join Request sent (Pending Approval)")
+                logger.info(f"{self.log_prefix}   ⏳ Join Request sent (Pending)")
                 return 'PENDING_APPROVAL'
-            raise e 
-
-        # 4. POST-JOIN BEHAVIOR (MUTE)
+            raise
+        
+        # 4. POST-JOIN: MUTE (80% of time)
         if mute_notifications and result_status == 'JOINED':
             if random.random() < 0.8:
-                await self.random_sleep(1.0, 3.0, reason="Muting notifications")
+                await asyncio.sleep(random.uniform(1.0, 3.0))
                 try:
                     await self.client(UpdateNotifySettingsRequest(
                         peer=entity,
-                        settings=InputPeerNotifySettings(mute_until=2147483647) # Forever
+                        settings=InputPeerNotifySettings(mute_until=2147483647)
                     ))
                     logger.info(f"{self.log_prefix}   🔕 Notifications muted")
                 except Exception as e:
                     logger.warning(f"{self.log_prefix}   ⚠️ Failed to mute: {e}")
-
+        
         return result_status
-    
-    # Helper wrapper for internal use
+
     async def random_sleep(self, min_s, max_s, reason=None):
+        """Helper wrapper for sleep with logging"""
         duration = random.uniform(min_s, max_s)
         msg = f"☕ Waiting {duration:.1f}s..."
-        if reason: msg += f" ({reason})"
+        if reason:
+            msg += f" ({reason})"
         logger.info(f"{self.log_prefix}{msg}")
         await asyncio.sleep(duration)
 
@@ -394,14 +806,14 @@ async def random_sleep(min_s: float, max_s: float, reason: str = None):
         logger.info(f"☕ Waiting {duration:.1f}s...")
     await asyncio.sleep(duration)
 
+
 async def simulate_typing(length: int):
     """Simulate typing delay based on text length"""
-    # Average 0.1s - 0.2s per character
     delay = length * random.uniform(0.05, 0.15)
-    # Cap delay to avoid hanging too long
     delay = min(delay, 5.0)
     logger.info(f"⌨️ Simulating typing ({length} chars, {delay:.1f}s)...")
     await asyncio.sleep(delay)
+
 
 async def simulate_scrolling(times: int = 1):
     """Simulate scrolling delay"""
