@@ -306,7 +306,7 @@ class PassiveActivityExecutor(BaseNodeExecutor):
 class SearchFilterExecutor(BaseNodeExecutor):
     async def execute(self):
         try:
-            hb = HumanBehavior(self.client, self.account_id)
+            hb = HumanBehavior(self.client, self.account_id, node_id=self.node_id)
             await hb.process_mixed_links(self.config)
             
             self.log('success', f"Search & Filter session completed", action='search_filter_complete')

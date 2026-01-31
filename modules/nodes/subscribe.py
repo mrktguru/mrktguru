@@ -25,7 +25,7 @@ class SubscribeExecutor(BaseNodeExecutor):
         try:
             # 1. Initialize logic
             self.log('info', '📺 Starting Smart Subscribe Node...', action='subscribe_start')
-            self.hb = HumanBehavior(self.client, self.account_id)
+            self.hb = HumanBehavior(self.client, self.account_id, node_id=self.node_id)
             
             mode = self.get_config('mode', 'auto')
             count = int(self.get_config('count', 1))

@@ -49,10 +49,48 @@ class HumanBehavior:
         'misclick_probability': 0.10,
     }
 
-    def __init__(self, client, account_id=None):
+    def __init__(self, client, account_id=None, node_id=None):
         self.client = client
         self.account_id = account_id
+        self.node_id = node_id
         self.log_prefix = f"[{account_id}] " if account_id else ""
+
+    def _log(self, level: str, message: str, action: str = None):
+        """
+        Dual logging: console (logger) + database (WarmupLog).
+        Ensures all HumanBehavior actions appear in UI.
+        
+        Args:
+            level: 'info', 'warning', 'error', 'success', 'debug'
+            message: Log message
+            action: Action type for DB (hb_start, hb_read, etc.)
+        """
+        # Console logging (always)
+        full_message = f"{self.log_prefix}{message}"
+        if level == 'debug':
+            logger.debug(full_message)
+            return  # Debug logs don't go to DB
+        elif level == 'warning':
+            logger.warning(full_message)
+        elif level == 'error':
+            logger.error(full_message)
+        else:
+            logger.info(full_message)
+        
+        # Database logging (if we have account_id)
+        if self.account_id:
+            try:
+                from models.warmup_log import WarmupLog
+                WarmupLog.log(
+                    account_id=self.account_id,
+                    level=level.upper() if level != 'success' else 'SUCCESS',
+                    message=message,
+                    action=action or f'hb_{level}',
+                    node_id=self.node_id
+                )
+            except Exception as e:
+                # Don't crash on logging failure
+                logger.debug(f"DB log failed: {e}")
 
     async def process_mixed_links(self, config):
         """
@@ -68,7 +106,7 @@ class HumanBehavior:
         lines = [line.strip() for line in links_text.split('\n') if line.strip()]
         
         if not lines:
-            logger.warning(f"{self.log_prefix}No links provided for processing")
+            self._log('warning', 'No links provided for processing', action='hb_no_links')
             return {'success': False, 'error': 'No links provided'}
 
         # Override config values if provided
@@ -80,7 +118,7 @@ class HumanBehavior:
         # Shuffle execution order to avoid robotic patterns
         random.shuffle(lines)
         total = len(lines)
-        logger.info(f"{self.log_prefix}🚀 Processing {total} items with Full Human Emulation")
+        self._log('info', f'🚀 Processing {total} items with Full Human Emulation', action='hb_start')
         
         processed = 0
         saved = 0
@@ -89,7 +127,7 @@ class HumanBehavior:
 
         for index, item in enumerate(lines):
             try:
-                logger.info(f"{self.log_prefix}[{index+1}/{total}] Processing: {item}")
+                self._log('info', f'[{index+1}/{total}] Processing: {item}', action='hb_process_item')
                 
                 result = await self._process_single_item(item)
                 
@@ -105,11 +143,11 @@ class HumanBehavior:
                     await self._inter_channel_cooldown()
 
             except Exception as e:
-                logger.error(f"{self.log_prefix}Error processing '{item}': {e}")
+                self._log('error', f"Error processing '{item}': {e}", action='hb_item_error')
                 errors_count += 1
                 continue
         
-        logger.info(f"{self.log_prefix}✅ Completed: {processed}/{total} processed, {saved} saved, {filtered_out} filtered, {errors_count} errors")
+        self._log('success', f'✅ Completed: {processed}/{total} processed, {saved} saved, {filtered_out} filtered, {errors_count} errors', action='hb_complete')
         
         return {
             'success': True,
@@ -155,7 +193,7 @@ class HumanBehavior:
         - Cannot verify last post date
         - Requires join to fully validate
         """
-        logger.info(f"{self.log_prefix}🔐 Processing INVITE link: {link}")
+        self._log('info', f'🔐 Processing INVITE link: {link}', action='hb_invite_start')
         
         try:
             # Extract hash from link
@@ -173,24 +211,24 @@ class HumanBehavior:
             
             # Handle already joined case
             if isinstance(invite_info, ChatInviteAlready):
-                logger.info(f"{self.log_prefix}   Already a member of this chat")
+                self._log('info', '   Already a member of this chat', action='hb_already_member')
                 return {'saved': False, 'filtered': True, 'reason': 'already_member'}
             
             if not isinstance(invite_info, ChatInvite):
-                logger.warning(f"{self.log_prefix}   Unknown invite response type")
+                self._log('warning', '   Unknown invite response type', action='hb_unknown_invite')
                 return {'saved': False, 'filtered': True, 'reason': 'unknown_response'}
             
             title = getattr(invite_info, 'title', 'Private Chat')
             participants = getattr(invite_info, 'participants_count', 0)
             
-            logger.info(f"{self.log_prefix}   -> Viewed invite: {title} ({participants} members)")
+            self._log('info', f'   -> Viewed invite: {title} ({participants} members)', action='hb_invite_viewed')
             
             # Thinking pause
             await asyncio.sleep(random.uniform(2, 5))
             
             # === FILTER: Minimum subscribers ===
             if participants < self.min_subscribers:
-                logger.info(f"{self.log_prefix}   ❌ Filtered: {participants} < {self.min_subscribers} members")
+                self._log('info', f'   ❌ Filtered: {participants} < {self.min_subscribers} members', action='hb_filter_low_members')
                 return {'saved': False, 'filtered': True, 'reason': f'low_members_{participants}'}
             
             # === SAVE to DB ===
@@ -200,13 +238,13 @@ class HumanBehavior:
             return {'saved': True, 'filtered': False}
 
         except errors.InviteHashExpiredError:
-            logger.warning(f"{self.log_prefix}   ⚠️ Invite link expired")
+            self._log('warning', '   ⚠️ Invite link expired', action='hb_invite_expired')
             return {'saved': False, 'filtered': True, 'reason': 'expired'}
         except errors.InviteHashInvalidError:
-            logger.warning(f"{self.log_prefix}   ⚠️ Invalid invite hash")
+            self._log('warning', '   ⚠️ Invalid invite hash', action='hb_invite_invalid')
             return {'saved': False, 'filtered': True, 'reason': 'invalid'}
         except Exception as e:
-            logger.error(f"{self.log_prefix}   ❌ Failed to check invite: {e}")
+            self._log('error', f'   ❌ Failed to check invite: {e}', action='hb_invite_error')
             raise
 
     async def _process_direct_link(self, link):
@@ -220,7 +258,7 @@ class HumanBehavior:
         4. Filter validation
         5. Save to DB
         """
-        logger.info(f"{self.log_prefix}🔗 Processing DIRECT link: {link}")
+        self._log('info', f'🔗 Processing DIRECT link: {link}', action='hb_direct_link')
         
         # Parse username from URL
         # Handles: t.me/username, telegram.me/username, https://t.me/username
@@ -236,7 +274,7 @@ class HumanBehavior:
         Process @username input.
         Same as direct link but origin = DIRECT_MENTION
         """
-        logger.info(f"{self.log_prefix}👤 Processing @USERNAME: @{username}")
+        self._log('info', f'👤 Processing @USERNAME: @{username}', action='hb_username')
         return await self._resolve_and_inspect(username, origin='DIRECT_MENTION')
 
     async def _resolve_and_inspect(self, username, origin='LINK'):
@@ -266,11 +304,11 @@ class HumanBehavior:
             entity = await self.client.get_entity(username)
             
             if not isinstance(entity, (Channel, Chat)):
-                logger.info(f"{self.log_prefix}   -> Not a channel/group, skipping")
+                self._log('info', '   -> Not a channel/group, skipping', action='hb_not_channel')
                 return {'saved': False, 'filtered': True, 'reason': 'not_channel'}
             
             title = getattr(entity, 'title', username)
-            logger.info(f"{self.log_prefix}   -> Resolved: {title}")
+            self._log('info', f'   -> Resolved: {title}', action='hb_resolved')
             
             # === STEP 3: Quick Glance - Early Exit (only for SEARCH) ===
             participants_count = 0
@@ -281,16 +319,16 @@ class HumanBehavior:
                     
                     # Early exit if too few subscribers (human sees this immediately)
                     if participants_count < self.min_subscribers:
-                        logger.info(f"{self.log_prefix}   👀 Quick glance: {participants_count} subs - too low, leaving...")
+                        self._log('info', f'   👀 Quick glance: {participants_count} subs - too low, leaving...', action='hb_quick_glance_low')
                         await asyncio.sleep(random.uniform(2, 4))  # Quick exit pause
                         return {'saved': False, 'filtered': True, 'reason': f'low_members_{participants_count}'}
                     
-                    logger.info(f"{self.log_prefix}   👀 Quick glance: {participants_count} subs - looks good!")
+                    self._log('info', f'   👀 Quick glance: {participants_count} subs - looks good!', action='hb_quick_glance_ok')
                 except Exception as e:
-                    logger.warning(f"{self.log_prefix}   ⚠️ Could not get subscriber count: {e}")
+                    self._log('warning', f'   ⚠️ Could not get subscriber count: {e}', action='hb_subscriber_error')
                     participants_count = getattr(entity, 'participants_count', 0)
             else:
-                logger.info(f"{self.log_prefix}   ⏭️ Skipping filters (direct link/mention)")
+                self._log('info', '   ⏭️ Skipping filters (direct link/mention)', action='hb_skip_filters')
             
             # === STEP 4: Deep Inspection ===
             inspection_result = await self._deep_inspection(entity)
@@ -303,7 +341,7 @@ class HumanBehavior:
                     days_inactive = (now - last_post_date).days
                     
                     if days_inactive > self.max_inactive_days:
-                        logger.info(f"{self.log_prefix}   ❌ Channel inactive: {days_inactive} days since last post")
+                        self._log('info', f'   ❌ Channel inactive: {days_inactive} days since last post', action='hb_inactive')
                         return {'saved': False, 'filtered': True, 'reason': f'inactive_{days_inactive}_days'}
             
             # === STEP 6: Save to DB ===
@@ -317,13 +355,13 @@ class HumanBehavior:
             return {'saved': True, 'filtered': False}
 
         except errors.UsernameNotOccupiedError:
-            logger.warning(f"{self.log_prefix}   ⚠️ Username not found: {username}")
+            self._log('warning', f'   ⚠️ Username not found: {username}', action='hb_username_not_found')
             return {'saved': False, 'filtered': True, 'reason': 'not_found'}
         except errors.UsernameInvalidError:
-            logger.warning(f"{self.log_prefix}   ⚠️ Invalid username: {username}")
+            self._log('warning', f'   ⚠️ Invalid username: {username}', action='hb_username_invalid')
             return {'saved': False, 'filtered': True, 'reason': 'invalid_username'}
         except Exception as e:
-            logger.error(f"{self.log_prefix}   ❌ Failed to resolve: {e}")
+            self._log('error', f'   ❌ Failed to resolve: {e}', action='hb_resolve_error')
             raise
 
     async def _process_search_query(self, query):
@@ -337,14 +375,14 @@ class HumanBehavior:
         4. Optional misclick (10% chance)
         5. Select result and deep inspect
         """
-        logger.info(f"{self.log_prefix}🔍 Processing SEARCH query: '{query}'")
+        self._log('info', f"🔍 Processing SEARCH query: '{query}'", action='hb_search_start')
         
         # === STEP 1: Focus delay ===
         await asyncio.sleep(random.uniform(1.0, 3.0))
         
         # === STEP 2: Typing simulation ===
         if len(query) > 12:
-            logger.info(f"{self.log_prefix}   -> Long query, simulating Ctrl+V paste")
+            self._log('info', '   -> Long query, simulating Ctrl+V paste', action='hb_paste')
             await asyncio.sleep(random.uniform(0.5, 1.0))
         else:
             await self._simulate_typing(query)
@@ -359,32 +397,32 @@ class HumanBehavior:
             all_results = list(results.chats) + list(results.users)
             
             if not all_results:
-                logger.info(f"{self.log_prefix}   -> No results for '{query}'")
+                self._log('info', f"   -> No results for '{query}'", action='hb_no_results')
                 return {'saved': False, 'filtered': True, 'reason': 'no_results'}
             
             # Filter to only channels/chats
             channel_results = [r for r in all_results if isinstance(r, (Channel, Chat))]
             
             if not channel_results:
-                logger.info(f"{self.log_prefix}   -> No channels in results")
+                self._log('info', '   -> No channels in results', action='hb_no_channels')
                 return {'saved': False, 'filtered': True, 'reason': 'no_channels'}
             
             # === STEP 4: Misclick scenario (10% chance) ===
             target_idx = 0
             if len(channel_results) > 1 and random.random() < self.CONFIG['misclick_probability']:
                 wrong_target = channel_results[1]
-                logger.info(f"{self.log_prefix}   ⚠️ Misclick! Opened: {getattr(wrong_target, 'title', 'Unknown')}")
+                self._log('info', f"   ⚠️ Misclick! Opened: {getattr(wrong_target, 'title', 'Unknown')}", action='hb_misclick')
                 
                 # Quick look and back
                 await self._deep_inspection(wrong_target, short_visit=True)
                 
-                logger.info(f"{self.log_prefix}   🔙 Back to search results...")
+                self._log('info', '   🔙 Back to search results...', action='hb_back')
                 await asyncio.sleep(random.uniform(1.0, 2.0))
             
             # === STEP 5: Select correct result ===
             target = channel_results[target_idx]
             title = getattr(target, 'title', 'Unknown')
-            logger.info(f"{self.log_prefix}   -> Clicked result: {title}")
+            self._log('info', f'   -> Clicked result: {title}', action='hb_clicked_result')
             
             # === STEP 6: Quick Glance - Early Exit ===
             try:
@@ -392,13 +430,13 @@ class HumanBehavior:
                 participants_count = full_info.full_chat.participants_count
                 
                 if participants_count < self.min_subscribers:
-                    logger.info(f"{self.log_prefix}   👀 Quick glance: {participants_count} subs - too low, leaving...")
+                    self._log('info', f'   👀 Quick glance: {participants_count} subs - too low, leaving...', action='hb_quick_glance_low')
                     await asyncio.sleep(random.uniform(2, 4))
                     return {'saved': False, 'filtered': True, 'reason': f'low_members_{participants_count}'}
                 
-                logger.info(f"{self.log_prefix}   👀 Quick glance: {participants_count} subs - looks good!")
+                self._log('info', f'   👀 Quick glance: {participants_count} subs - looks good!', action='hb_quick_glance_ok')
             except Exception as e:
-                logger.warning(f"{self.log_prefix}   ⚠️ Could not get subscriber count: {e}")
+                self._log('warning', f'   ⚠️ Could not get subscriber count: {e}', action='hb_subscriber_error')
                 participants_count = getattr(target, 'participants_count', 0)
             
             # === STEP 7: Deep inspection ===
@@ -411,7 +449,7 @@ class HumanBehavior:
                 days_inactive = (now - last_post_date).days
                 
                 if days_inactive > self.max_inactive_days:
-                    logger.info(f"{self.log_prefix}   ❌ Channel inactive: {days_inactive} days since last post")
+                    self._log('info', f'   ❌ Channel inactive: {days_inactive} days since last post', action='hb_inactive')
                     return {'saved': False, 'filtered': True, 'reason': f'inactive_{days_inactive}_days'}
             
             # === STEP 9: Save ===
@@ -425,7 +463,7 @@ class HumanBehavior:
             return {'saved': True, 'filtered': False}
 
         except Exception as e:
-            logger.error(f"{self.log_prefix}Search failed: {e}")
+            self._log('error', f'Search failed: {e}', action='hb_search_error')
             raise
 
     async def _deep_inspection(self, entity, short_visit=False):
@@ -445,7 +483,7 @@ class HumanBehavior:
             dict with last_post_date, messages_read
         """
         title = getattr(entity, 'title', 'Unknown')
-        logger.info(f"{self.log_prefix}   👀 Deep inspection: {title}")
+        self._log('info', f'   👀 Deep inspection: {title}', action='hb_deep_inspect')
         
         result = {
             'last_post_date': None,
@@ -458,7 +496,7 @@ class HumanBehavior:
             messages = await self.client.get_messages(entity, limit=limit)
             
             if not messages:
-                logger.info(f"{self.log_prefix}   -> Channel is empty")
+                self._log('info', '   -> Channel is empty', action='hb_channel_empty')
                 return result
             
             # Record last post date
@@ -477,7 +515,7 @@ class HumanBehavior:
             )
             target_messages = list(reversed(messages[:posts_to_read]))  # Old to new
             
-            logger.info(f"{self.log_prefix}   📖 Reading {len(target_messages)} posts...")
+            self._log('info', f'   📖 Reading {len(target_messages)} posts...', action='hb_reading')
             
             # === STEP 3: Read each post ===
             last_read_id = None
@@ -507,7 +545,7 @@ class HumanBehavior:
                 
                 # === STEP 3b: Media interaction (25% chance) ===
                 if getattr(msg, 'media', None) and random.random() < self.CONFIG['media_open_probability']:
-                    logger.info(f"{self.log_prefix}   🖼️ Viewing media...")
+                    self._log('info', '   🖼️ Viewing media...', action='hb_media')
                     
                     # Different timing for different media types
                     if hasattr(msg.media, 'document'):
@@ -544,7 +582,7 @@ class HumanBehavior:
             
             # === STEP 5: Optional scroll up (30% chance) ===
             if len(messages) > 0 and random.random() < 0.30:
-                logger.info(f"{self.log_prefix}   ⬆️ Scrolling up to check context...")
+                self._log('info', '   ⬆️ Scrolling up to check context...', action='hb_scroll_up')
                 await asyncio.sleep(random.uniform(2, 4))
                 
                 # Fetch older messages
@@ -555,12 +593,12 @@ class HumanBehavior:
                 )
                 
                 await asyncio.sleep(random.uniform(2, 4))
-                logger.info(f"{self.log_prefix}   ⬇️ Scrolling back down...")
+                self._log('info', '   ⬇️ Scrolling back down...', action='hb_scroll_down')
             
             return result
 
         except Exception as e:
-            logger.error(f"{self.log_prefix}   ⚠️ Error in deep inspection: {e}")
+            self._log('error', f'   ⚠️ Error in deep inspection: {e}', action='hb_inspect_error')
             return result
 
     async def _validate_channel(self, entity, inspection_result):
@@ -616,7 +654,7 @@ class HumanBehavior:
 
         except Exception as e:
             # If we can't get full info, still allow with warning
-            logger.warning(f"{self.log_prefix}   ⚠️ Could not get full channel info: {e}")
+            self._log('warning', f'   ⚠️ Could not get full channel info: {e}', action='hb_full_info_error')
             # Try to get from entity directly
             result['participants_count'] = getattr(entity, 'participants_count', 0)
             return result
@@ -656,9 +694,9 @@ class HumanBehavior:
                     origin=origin
                 )
                 db.session.add(candidate)
-                logger.info(f"{self.log_prefix}   ✨ NEW channel discovered: {title}")
+                self._log('info', f'   ✨ NEW channel discovered: {title}', action='hb_new_channel')
             else:
-                logger.info(f"{self.log_prefix}   🔄 Updated existing: {title}")
+                self._log('info', f'   🔄 Updated existing: {title}', action='hb_update_channel')
             
             # Update fields
             candidate.username = username
@@ -676,7 +714,7 @@ class HumanBehavior:
             db.session.commit()
             
         except Exception as e:
-            logger.error(f"{self.log_prefix}   ❌ Failed to save channel: {e}")
+            self._log('error', f'   ❌ Failed to save channel: {e}', action='hb_save_error')
             # Don't raise - persistence failure shouldn't kill the worker
 
     async def _save_invite_candidate(self, invite_info, invite_hash):
@@ -709,7 +747,7 @@ class HumanBehavior:
                     origin='INVITE_LINK'
                 )
                 db.session.add(candidate)
-                logger.info(f"{self.log_prefix}   ✨ NEW invite saved: {title}")
+                self._log('info', f'   ✨ NEW invite saved: {title}', action='hb_new_invite')
             
             candidate.title = title
             candidate.type = 'PRIVATE'  # Mark as private
@@ -722,7 +760,7 @@ class HumanBehavior:
             db.session.commit()
             
         except Exception as e:
-            logger.error(f"{self.log_prefix}   ❌ Failed to save invite: {e}")
+            self._log('error', f'   ❌ Failed to save invite: {e}', action='hb_invite_save_error')
 
     async def _inter_channel_cooldown(self):
         """
@@ -730,7 +768,7 @@ class HumanBehavior:
         Simulates user taking a break between browsing channels.
         """
         delay = random.uniform(self.cooldown_min, self.cooldown_max)
-        logger.info(f"{self.log_prefix}💤 Cooldown: {delay:.1f}s before next channel...")
+        self._log('info', f'💤 Cooldown: {delay:.1f}s before next channel...', action='hb_cooldown')
         
         # We just sleep - the orchestrator handles keep-alive pings
         await asyncio.sleep(delay)
@@ -821,12 +859,12 @@ class HumanBehavior:
             await self.client(JoinChannelRequest(channel=entity))
             
         except UserAlreadyParticipantError:
-            logger.info(f"{self.log_prefix}   ℹ️ Already a participant")
+            self._log('info', '   ℹ️ Already a participant', action='hb_already_member')
             result_status = 'ALREADY_PARTICIPANT'
         except Exception as e:
             err_str = str(e).lower()
             if "invite request sent" in err_str or "pending" in err_str:
-                logger.info(f"{self.log_prefix}   ⏳ Join Request sent (Pending)")
+                self._log('info', '   ⏳ Join Request sent (Pending)', action='hb_pending')
                 return 'PENDING_APPROVAL'
             raise
         
@@ -839,9 +877,9 @@ class HumanBehavior:
                         peer=entity,
                         settings=InputPeerNotifySettings(mute_until=2147483647)
                     ))
-                    logger.info(f"{self.log_prefix}   🔕 Notifications muted")
+                    self._log('info', '   🔕 Notifications muted', action='hb_muted')
                 except Exception as e:
-                    logger.warning(f"{self.log_prefix}   ⚠️ Failed to mute: {e}")
+                    self._log('warning', f'   ⚠️ Failed to mute: {e}', action='hb_mute_error')
         
         return result_status
 
@@ -851,7 +889,7 @@ class HumanBehavior:
         msg = f"☕ Waiting {duration:.1f}s..."
         if reason:
             msg += f" ({reason})"
-        logger.info(f"{self.log_prefix}{msg}")
+        self._log('info', msg, action='hb_sleep')
         await asyncio.sleep(duration)
 
 

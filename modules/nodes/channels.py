@@ -119,7 +119,7 @@ class VisitExecutor(BaseNodeExecutor):
             self.log('info', f'📺 Starting Visit Node: {len(channels)} channels', action='visit_start')
             
             # Initialize HumanBehavior
-            hb = HumanBehavior(self.client, self.account_id)
+            hb = HumanBehavior(self.client, self.account_id, node_id=self.node_id)
             
             # Prepare config for HumanBehavior
             # Visit node uses "channels" field, but HumanBehavior expects "links"
