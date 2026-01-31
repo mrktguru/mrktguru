@@ -24,12 +24,14 @@ SYSTEM_PROMPT_TEMPLATE = """Ты — AI-планировщик активнос�
 {tier_constraints}
 
 ПРАВИЛА ГЕНЕРАЦИИ:
-1. Учитывай часовой пояс пользователя — все времена в его локальном времени
-2. Учитывай его "жизненный график" — когда он работает, когда отдыхает
+1. ВСЕ ВРЕМЕНА УКАЗЫВАЙ В ЛОКАЛЬНОМ ВРЕМЕНИ ПОЛЬЗОВАТЕЛЯ (его timezone: {user_timezone})
+2. Учитывай его "жизненный график" — когда он работает, когда отдыхает  
 3. Время должно быть "неровным" (14:07, 19:23), НЕ круглые значения (14:00, 19:00)
 4. Сессии должны быть распределены естественно — больше вечером, меньше утром
 5. Между сессиями минимум 30 минут перерыва
 6. Строго соблюдай ограничения по количеству сессий и длительности из TIER
+7. НЕ планируй активность до 07:00 и после 23:00 в локальном времени пользователя
+{today_constraint}
 
 ВЫБРАННЫЕ ТИПЫ АКТИВНОСТИ:
 {selected_nodes}
@@ -108,8 +110,32 @@ class AISchedulerService:
             # Defaults
             if node_types is None:
                 node_types = ['passive_activity']
+            
+            # Calculate proper start_date - must be today or later
+            now = datetime.now()
+            today = now.date()
+            
             if start_date is None:
-                start_date = date.today()  # Start from today, not tomorrow
+                start_date = today
+            else:
+                # Ensure start_date is not in the past
+                if start_date < today:
+                    start_date = today
+            
+            # Get persona for timezone info
+            persona = self.persona_builder.get_or_create_persona()
+            user_timezone = persona.get('timezone_offset', 'UTC+3')
+            
+            # Calculate minimum hour for today (current time + 1 hour)
+            today_constraint = ""
+            if start_date == today:
+                min_hour = now.hour + 1
+                if min_hour < 23:  # Still time left today
+                    today_constraint = f"\n8. ВАЖНО: Сегодня ({today.isoformat()}) планируй активность ТОЛЬКО после {min_hour:02d}:00 (текущее серверное время: {now.strftime('%H:%M')}, нужен запас минимум 1 час)"
+                else:
+                    # Too late today, start from tomorrow
+                    start_date = today + timedelta(days=1)
+                    logger.info(f"📅 Too late today, starting from tomorrow: {start_date}")
             
             # 1. Получаем Tier из БД
             tier = Tier.query.filter_by(slug=tier_slug, is_active=True).first()
@@ -134,7 +160,9 @@ class AISchedulerService:
                 tier_constraints=tier_constraints,
                 selected_nodes=selected_nodes,
                 days=days,
-                start_date=start_date.isoformat()
+                start_date=start_date.isoformat(),
+                user_timezone=user_timezone,
+                today_constraint=today_constraint
             )
             
             # 6. Отправляем в LLM
