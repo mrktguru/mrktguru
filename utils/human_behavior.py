@@ -83,7 +83,7 @@ class HumanBehavior:
                 from models.warmup_log import WarmupLog
                 WarmupLog.log(
                     account_id=self.account_id,
-                    level=level.upper() if level != 'success' else 'SUCCESS',
+                    status=level.upper() if level != 'success' else 'SUCCESS',
                     message=message,
                     action=action or f'hb_{level}',
                     node_id=self.node_id
