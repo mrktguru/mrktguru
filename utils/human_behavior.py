@@ -80,14 +80,31 @@ class HumanBehavior:
         # Database logging (if we have account_id)
         if self.account_id:
             try:
-                from models.warmup_log import WarmupLog
-                WarmupLog.log(
-                    account_id=self.account_id,
-                    status=level.upper() if level != 'success' else 'SUCCESS',
-                    message=message,
-                    action=action or f'hb_{level}',
-                    node_id=self.node_id
-                )
+                # Import Flask app and check context
+                from flask import current_app, has_app_context
+                
+                # If no app context, we're in BackgroundLoop thread - skip DB logging
+                if not has_app_context():
+                    # Try to push app context
+                    from app import app
+                    with app.app_context():
+                        from models.warmup_log import WarmupLog
+                        WarmupLog.log(
+                            account_id=self.account_id,
+                            status=level.upper() if level != 'success' else 'SUCCESS',
+                            message=message,
+                            action=action or f'hb_{level}',
+                            node_id=self.node_id
+                        )
+                else:
+                    from models.warmup_log import WarmupLog
+                    WarmupLog.log(
+                        account_id=self.account_id,
+                        status=level.upper() if level != 'success' else 'SUCCESS',
+                        message=message,
+                        action=action or f'hb_{level}',
+                        node_id=self.node_id
+                    )
             except Exception as e:
                 # Log failure but don't crash
                 logger.warning(f"DB log failed: {e}")
