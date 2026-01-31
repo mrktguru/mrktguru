@@ -42,8 +42,14 @@ export function renderGridStructure() {
         const diffTime = colDate.getTime() - state.accountCreatedAtDate.getTime();
         const lifeDayIndex = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
 
-        // Past days (before today) - dimmed out
-        if (colDate < now) {
+        // Days before account creation (before Day 1) - striped pattern
+        if (lifeDayIndex < 1) {
+            col.style.background = 'repeating-linear-gradient(45deg, #e9ecef, #e9ecef 10px, #d0d0d0 10px, #d0d0d0 20px)';
+            col.classList.add('day-before-creation');
+            col.style.opacity = '0.7';
+        }
+        // Past days (before today but after account creation) - dimmed out
+        else if (colDate < now) {
             col.style.backgroundColor = '#e9ecef';
             col.classList.add('day-past');
             col.style.opacity = '0.6';
