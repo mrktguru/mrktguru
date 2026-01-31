@@ -15,11 +15,18 @@ Key Features:
 import asyncio
 import random
 import logging
+import json
 from datetime import datetime, timedelta
 from telethon import functions, errors
 from telethon.tl.types import Channel, Chat, User, ChatInviteAlready, ChatInvite
 
 logger = logging.getLogger(__name__)
+
+# Redis client for live logs
+try:
+    from config import redis_client
+except:
+    redis_client = None
 
 
 class HumanBehavior:
@@ -108,6 +115,24 @@ class HumanBehavior:
             except Exception as e:
                 # Log failure but don't crash
                 logger.warning(f"DB log failed: {e}")
+            
+            # Redis Publish (For Live Terminal in Frontend)
+            try:
+                if redis_client:
+                    channel = f"logs:account:{self.account_id}"
+                    payload = json.dumps({
+                        'timestamp': datetime.now().strftime('%d.%m.%Y %H:%M:%S'),
+                        'level': level.upper(),
+                        'message': message,
+                        'clean_message': message
+                    })
+                    # Publish to channel and save history (last 50 lines)
+                    redis_client.publish(channel, payload)
+                    redis_client.rpush(f"history:{channel}", payload)
+                    redis_client.ltrim(f"history:{channel}", -50, -1)
+            except Exception as e:
+                # Don't crash on Redis failure
+                logger.debug(f"Redis publish failed: {e}")
 
     async def process_mixed_links(self, config):
         """
