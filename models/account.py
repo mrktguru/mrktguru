@@ -66,6 +66,10 @@ class Account(db.Model):
     source = db.Column(db.String(255)) # Manual source label (e.g. shop name)
     tags = db.Column(db.JSON) # List of tags/hashtags
     
+    # AI Persona & Scheduler
+    ai_metadata = db.Column(db.JSON, default={})  # Сгенерированный паспорт (имя, возраст, пол, timezone)
+    persona_topic_id = db.Column(db.Integer, db.ForeignKey('topics.id'), nullable=True, index=True)
+    
     # Relationships
     proxy = db.relationship('Proxy', backref=db.backref('accounts', lazy='dynamic'))
     device_profile = db.relationship('DeviceProfile', backref='account', uselist=False, cascade='all, delete-orphan')
@@ -73,8 +77,9 @@ class Account(db.Model):
     api_credential = db.relationship('ApiCredential', backref='accounts')
     tdata_metadata = db.relationship('TDataMetadata', backref='account', uselist=False, cascade='all, delete-orphan')
     active_sessions = db.relationship('AccountSession', backref='account', lazy='dynamic', cascade='all, delete-orphan')
+    persona_topic = db.relationship('Topic', backref='accounts')
     
-    def __repr__(self):
+    def __repr__():
         return f'<Account {self.phone}>'
     @property
     def days_age(self):

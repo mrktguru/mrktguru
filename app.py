@@ -102,6 +102,7 @@ def create_app():
     from routes.api_credentials import api_credentials_bp
     from routes.scheduler_routes import scheduler_bp
     from routes.phone_login_routes import phone_login_bp
+    from routes.ai_routes import ai_bp
     
     app.register_blueprint(auth_bp)
     app.register_blueprint(phone_login_bp)
@@ -117,6 +118,7 @@ def create_app():
     app.register_blueprint(automation_bp, url_prefix="/automation")
     app.register_blueprint(api_credentials_bp)
     app.register_blueprint(scheduler_bp)
+    app.register_blueprint(ai_bp)
     
     # Error handlers
     @app.errorhandler(404)

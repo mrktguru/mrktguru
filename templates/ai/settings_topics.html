@@ -1,0 +1,205 @@
+{% extends "base.html" %}
+
+{% block title %}AI Topics Settings{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="bi bi-tags"></i> AI Topics</h2>
+                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#topicModal" onclick="openNewTopicModal()">
+                    <i class="bi bi-plus-lg"></i> Add Topic
+                </button>
+            </div>
+
+            <div class="card">
+                <div class="card-body">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Order</th>
+                                <th>Slug</th>
+                                <th>Name</th>
+                                <th>Interests</th>
+                                <th>Schedule</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for topic in topics %}
+                            <tr>
+                                <td>{{ topic.sort_order }}</td>
+                                <td><code>{{ topic.slug }}</code></td>
+                                <td><strong>{{ topic.name }}</strong></td>
+                                <td>
+                                    <small class="text-muted" style="max-width: 200px; display: inline-block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                        {{ topic.interests_prompt[:100] }}...
+                                    </small>
+                                </td>
+                                <td>
+                                    <small class="text-muted" style="max-width: 200px; display: inline-block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                        {{ topic.schedule_prompt[:100] }}...
+                                    </small>
+                                </td>
+                                <td>
+                                    {% if topic.is_active %}
+                                    <span class="badge bg-success">Active</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary">Inactive</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-primary" onclick="editTopic({{ topic.id }}, '{{ topic.slug }}', '{{ topic.name }}', `{{ topic.interests_prompt | e }}`, `{{ topic.schedule_prompt | e }}`, {{ topic.sort_order }}, {{ topic.is_active | lower }})">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                    {% if topic.slug != 'general' %}
+                                    <button class="btn btn-sm btn-outline-danger" onclick="deleteTopic({{ topic.id }}, '{{ topic.name }}')">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Topic Modal -->
+<div class="modal fade" id="topicModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="topicModalTitle">Add Topic</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="topicForm">
+                    <input type="hidden" id="topicId">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Slug</label>
+                            <input type="text" class="form-control" id="topicSlug" required placeholder="e.g. crypto">
+                            <small class="text-muted">Unique identifier (lowercase, no spaces)</small>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Name</label>
+                            <input type="text" class="form-control" id="topicName" required placeholder="e.g. Криптовалюта">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Interests Prompt</label>
+                        <textarea class="form-control" id="topicInterests" rows="3" required placeholder="Bitcoin, Ethereum, DeFi, Trading..."></textarea>
+                        <small class="text-muted">What interests this persona? Used in AI prompts.</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Schedule Prompt</label>
+                        <textarea class="form-control" id="topicSchedule" rows="3" required placeholder="Early riser, checks markets at 07:00..."></textarea>
+                        <small class="text-muted">Lifestyle/activity pattern description for AI.</small>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Sort Order</label>
+                            <input type="number" class="form-control" id="topicSortOrder" value="0">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <div class="form-check mt-4">
+                                <input class="form-check-input" type="checkbox" id="topicActive" checked>
+                                <label class="form-check-label" for="topicActive">Active</label>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveTopic()">Save</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let isEditing = false;
+
+function openNewTopicModal() {
+    isEditing = false;
+    document.getElementById('topicModalTitle').textContent = 'Add Topic';
+    document.getElementById('topicForm').reset();
+    document.getElementById('topicId').value = '';
+    document.getElementById('topicSlug').disabled = false;
+}
+
+function editTopic(id, slug, name, interests, schedule, sortOrder, isActive) {
+    isEditing = true;
+    document.getElementById('topicModalTitle').textContent = 'Edit Topic';
+    document.getElementById('topicId').value = id;
+    document.getElementById('topicSlug').value = slug;
+    document.getElementById('topicSlug').disabled = true; // Can't change slug
+    document.getElementById('topicName').value = name;
+    document.getElementById('topicInterests').value = interests;
+    document.getElementById('topicSchedule').value = schedule;
+    document.getElementById('topicSortOrder').value = sortOrder;
+    document.getElementById('topicActive').checked = isActive;
+    
+    new bootstrap.Modal(document.getElementById('topicModal')).show();
+}
+
+async function saveTopic() {
+    const id = document.getElementById('topicId').value;
+    const data = {
+        slug: document.getElementById('topicSlug').value,
+        name: document.getElementById('topicName').value,
+        interests_prompt: document.getElementById('topicInterests').value,
+        schedule_prompt: document.getElementById('topicSchedule').value,
+        sort_order: parseInt(document.getElementById('topicSortOrder').value),
+        is_active: document.getElementById('topicActive').checked
+    };
+    
+    try {
+        const url = isEditing ? `/api/ai/topics/${id}` : '/api/ai/topics';
+        const method = isEditing ? 'PUT' : 'POST';
+        
+        const resp = await fetch(url, {
+            method: method,
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        });
+        
+        const result = await resp.json();
+        
+        if (result.success) {
+            location.reload();
+        } else {
+            alert('Error: ' + (result.error || 'Unknown error'));
+        }
+    } catch (e) {
+        console.error(e);
+        alert('Failed to save topic');
+    }
+}
+
+async function deleteTopic(id, name) {
+    if (!confirm(`Delete topic "${name}"?`)) return;
+    
+    try {
+        const resp = await fetch(`/api/ai/topics/${id}`, {method: 'DELETE'});
+        const result = await resp.json();
+        
+        if (result.success) {
+            location.reload();
+        } else {
+            alert('Error: ' + (result.error || 'Unknown error'));
+        }
+    } catch (e) {
+        console.error(e);
+        alert('Failed to delete topic');
+    }
+}
+</script>
+{% endblock %}

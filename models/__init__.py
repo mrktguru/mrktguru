@@ -1,3 +1,6 @@
 # Models package
 # Import models for convenience
-__all__ = []
+from models.topic import Topic
+from models.tier import Tier
+
+__all__ = ['Topic', 'Tier']

@@ -1,0 +1,257 @@
+{% extends "base.html" %}
+
+{% block title %}AI Tiers Settings{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="bi bi-speedometer2"></i> AI Tiers</h2>
+                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#tierModal" onclick="openNewTierModal()">
+                    <i class="bi bi-plus-lg"></i> Add Tier
+                </button>
+            </div>
+
+            <div class="card">
+                <div class="card-body">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Order</th>
+                                <th>Slug</th>
+                                <th>Name</th>
+                                <th>Sessions/Day</th>
+                                <th>Total Minutes</th>
+                                <th>Session Duration</th>
+                                <th>Forbidden Hours</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for tier in tiers %}
+                            <tr>
+                                <td>{{ tier.sort_order }}</td>
+                                <td><code>{{ tier.slug }}</code></td>
+                                <td><strong>{{ tier.name }}</strong></td>
+                                <td>{{ tier.min_sessions }}-{{ tier.max_sessions }}</td>
+                                <td>{{ tier.total_minutes_min }}-{{ tier.total_minutes_max }} min</td>
+                                <td>{{ tier.session_duration_min }}-{{ tier.session_duration_max }} min</td>
+                                <td>
+                                    <small>{{ tier.forbidden_hours | join(', ') if tier.forbidden_hours else 'None' }}</small>
+                                </td>
+                                <td>
+                                    {% if tier.is_active %}
+                                    <span class="badge bg-success">Active</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary">Inactive</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-primary" onclick='editTier({{ tier.to_dict() | tojson }})'>
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                    {% if tier.slug != 'tier_1' %}
+                                    <button class="btn btn-sm btn-outline-danger" onclick="deleteTier({{ tier.id }}, '{{ tier.name }}')">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <div class="alert alert-info mt-3">
+                <i class="bi bi-info-circle"></i>
+                <strong>Forbidden Hours:</strong> Hours when activity is not allowed (user's local time). 
+                Format: comma-separated hours (0-23). Example: 0,1,2,3,4,5,6 means no activity from midnight to 6 AM.
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tier Modal -->
+<div class="modal fade" id="tierModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="tierModalTitle">Add Tier</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="tierForm">
+                    <input type="hidden" id="tierId">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Slug</label>
+                            <input type="text" class="form-control" id="tierSlug" required placeholder="e.g. tier_5">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Name</label>
+                            <input type="text" class="form-control" id="tierName" required placeholder="e.g. Expert">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Description</label>
+                        <textarea class="form-control" id="tierDescription" rows="2" placeholder="Description for UI"></textarea>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Min Sessions/Day</label>
+                            <input type="number" class="form-control" id="tierMinSessions" value="2" min="1" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Max Sessions/Day</label>
+                            <input type="number" class="form-control" id="tierMaxSessions" value="5" min="1" required>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Min Total Minutes/Day</label>
+                            <input type="number" class="form-control" id="tierMinMinutes" value="15" min="1" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Max Total Minutes/Day</label>
+                            <input type="number" class="form-control" id="tierMaxMinutes" value="45" min="1" required>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Min Session Duration (min)</label>
+                            <input type="number" class="form-control" id="tierMinDuration" value="2" min="1" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Max Session Duration (min)</label>
+                            <input type="number" class="form-control" id="tierMaxDuration" value="12" min="1" required>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Forbidden Hours (comma-separated)</label>
+                        <input type="text" class="form-control" id="tierForbiddenHours" value="0,1,2,3,4,5,6" placeholder="0,1,2,3,4,5,6">
+                        <small class="text-muted">Hours 0-23 when activity is forbidden</small>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Sort Order</label>
+                            <input type="number" class="form-control" id="tierSortOrder" value="0">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <div class="form-check mt-4">
+                                <input class="form-check-input" type="checkbox" id="tierActive" checked>
+                                <label class="form-check-label" for="tierActive">Active</label>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveTier()">Save</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let isEditing = false;
+
+function openNewTierModal() {
+    isEditing = false;
+    document.getElementById('tierModalTitle').textContent = 'Add Tier';
+    document.getElementById('tierForm').reset();
+    document.getElementById('tierId').value = '';
+    document.getElementById('tierSlug').disabled = false;
+    document.getElementById('tierForbiddenHours').value = '0,1,2,3,4,5,6';
+}
+
+function editTier(tier) {
+    isEditing = true;
+    document.getElementById('tierModalTitle').textContent = 'Edit Tier';
+    document.getElementById('tierId').value = tier.id;
+    document.getElementById('tierSlug').value = tier.slug;
+    document.getElementById('tierSlug').disabled = true;
+    document.getElementById('tierName').value = tier.name;
+    document.getElementById('tierDescription').value = tier.description || '';
+    document.getElementById('tierMinSessions').value = tier.min_sessions;
+    document.getElementById('tierMaxSessions').value = tier.max_sessions;
+    document.getElementById('tierMinMinutes').value = tier.total_minutes_min;
+    document.getElementById('tierMaxMinutes').value = tier.total_minutes_max;
+    document.getElementById('tierMinDuration').value = tier.session_duration_min;
+    document.getElementById('tierMaxDuration').value = tier.session_duration_max;
+    document.getElementById('tierForbiddenHours').value = (tier.forbidden_hours || []).join(',');
+    document.getElementById('tierSortOrder').value = tier.sort_order;
+    document.getElementById('tierActive').checked = tier.is_active;
+    
+    new bootstrap.Modal(document.getElementById('tierModal')).show();
+}
+
+async function saveTier() {
+    const id = document.getElementById('tierId').value;
+    
+    // Parse forbidden hours
+    const forbiddenStr = document.getElementById('tierForbiddenHours').value;
+    const forbiddenHours = forbiddenStr.split(',')
+        .map(s => parseInt(s.trim()))
+        .filter(n => !isNaN(n) && n >= 0 && n <= 23);
+    
+    const data = {
+        slug: document.getElementById('tierSlug').value,
+        name: document.getElementById('tierName').value,
+        description: document.getElementById('tierDescription').value,
+        min_sessions: parseInt(document.getElementById('tierMinSessions').value),
+        max_sessions: parseInt(document.getElementById('tierMaxSessions').value),
+        total_minutes_min: parseInt(document.getElementById('tierMinMinutes').value),
+        total_minutes_max: parseInt(document.getElementById('tierMaxMinutes').value),
+        session_duration_min: parseInt(document.getElementById('tierMinDuration').value),
+        session_duration_max: parseInt(document.getElementById('tierMaxDuration').value),
+        forbidden_hours: forbiddenHours,
+        sort_order: parseInt(document.getElementById('tierSortOrder').value),
+        is_active: document.getElementById('tierActive').checked
+    };
+    
+    try {
+        const url = isEditing ? `/api/ai/tiers/${id}` : '/api/ai/tiers';
+        const method = isEditing ? 'PUT' : 'POST';
+        
+        const resp = await fetch(url, {
+            method: method,
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        });
+        
+        const result = await resp.json();
+        
+        if (result.success) {
+            location.reload();
+        } else {
+            alert('Error: ' + (result.error || 'Unknown error'));
+        }
+    } catch (e) {
+        console.error(e);
+        alert('Failed to save tier');
+    }
+}
+
+async function deleteTier(id, name) {
+    if (!confirm(`Delete tier "${name}"?`)) return;
+    
+    try {
+        const resp = await fetch(`/api/ai/tiers/${id}`, {method: 'DELETE'});
+        const result = await resp.json();
+        
+        if (result.success) {
+            location.reload();
+        } else {
+            alert('Error: ' + (result.error || 'Unknown error'));
+        }
+    } catch (e) {
+        console.error(e);
+        alert('Failed to delete tier');
+    }
+}
+</script>
+{% endblock %}
