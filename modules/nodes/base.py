@@ -18,10 +18,11 @@ class BaseNodeExecutor:
     Base class for all node executors.
     Provides infrastructure for logging, config access, and real-time streaming.
     """
-    def __init__(self, client, account_id, config):
+    def __init__(self, client, account_id, config, node_id=None):
         self.client = client
         self.account_id = account_id
         self.config = config or {}
+        self.node_id = node_id
         
     async def execute(self):
         """
@@ -73,7 +74,7 @@ class BaseNodeExecutor:
             
         # 2. Database log (Persistent History) - always log to DB
         try:
-            WarmupLog.log(self.account_id, level.upper(), message, action=action)
+            WarmupLog.log(self.account_id, level.upper(), message, action=action, node_id=self.node_id)
         except Exception as e:
             logger.error(f"[{self.account_id}] Failed to write to DB log: {e}")
 

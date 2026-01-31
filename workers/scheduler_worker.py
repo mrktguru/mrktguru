@@ -532,7 +532,8 @@ def execute_scheduled_node(node_id, is_adhoc=False):
                             client,
                             node.node_type,
                             account_id,
-                            node.config or {}
+                            node.config or {},
+                            node_id=node.id
                         )
                 
                     # 3. Execute

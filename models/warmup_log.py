@@ -11,6 +11,7 @@ class WarmupLog(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     account_id = db.Column(db.Integer, db.ForeignKey('accounts.id'), nullable=False)
+    node_id = db.Column(db.Integer, nullable=True, index=True)  # Which node execution
     
     # Context
     stage_number = db.Column(db.Integer, nullable=True)  # Which stage
@@ -31,7 +32,7 @@ class WarmupLog(db.Model):
         return f'<WarmupLog {self.status}: {self.message[:50]}>'
     
     @staticmethod
-    def log(account_id, status, message, stage=None, action=None, details=None):
+    def log(account_id, status, message, stage=None, action=None, details=None, node_id=None):
         """
         Convenience method to create a log entry with retry logic for SQLite locks
         """
@@ -45,6 +46,7 @@ class WarmupLog(db.Model):
             try:
                 log = WarmupLog(
                     account_id=account_id,
+                    node_id=node_id,
                     stage_number=stage,
                     action_type=action,
                     status=status,
