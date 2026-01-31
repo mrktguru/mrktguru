@@ -112,24 +112,31 @@ class UsernameExecutor(BaseNodeExecutor):
 class PhotoExecutor(BaseNodeExecutor):
     async def execute(self):
         try:
+            self.log('info', '📸 Starting Photo Node execution...', action='photo_start')
+            
             account = Account.query.get(self.account_id)
             if not account:
                 return {'success': False, 'error': 'Account not found'}
             
             source_path = self.get_config('photo_path')
             if not source_path:
+                self.log('error', '❌ No photo path configured', action='photo_error')
                 return {'success': False, 'error': 'Photo path is required'}
+            
+            self.log('info', f'📁 Source photo: {source_path}', action='photo_path')
             
             if not os.path.exists(source_path):
                 error_msg = f"Photo file not found: {source_path}"
                 self.log('error', error_msg, action='photo_error')
                 return {'success': False, 'error': error_msg}
             
-            self.log('info', 'Preparing profile photo...', action='upload_photo_start')
+            self.log('info', '🔄 Preparing profile photo...', action='upload_photo_start')
             
             me = await self.client.get_me()
             if not me:
                 raise Exception("Could not get_me()")
+            
+            self.log('info', f'👤 Telegram user ID: {me.id}', action='user_info')
 
             target_dir = os.path.join(os.getcwd(), 'uploads', 'photos')
             os.makedirs(target_dir, exist_ok=True)
@@ -139,15 +146,19 @@ class PhotoExecutor(BaseNodeExecutor):
             
             try:
                 shutil.copy2(source_path, stable_path)
+                self.log('info', f'📋 Photo copied to: {stable_path}', action='photo_copy')
             except Exception as copy_error:
                 raise Exception(f"Failed to process image file: {copy_error}")
 
+            self.log('info', '⏳ Waiting before upload (simulating human delay)...', action='upload_delay')
             await asyncio.sleep(random.uniform(5, 10))
             
+            self.log('info', '📤 Uploading photo to Telegram...', action='telegram_upload')
             uploaded_file = await self.client.upload_file(stable_path)
             if not uploaded_file:
                 raise Exception("File upload to Telegram failed")
             
+            self.log('info', '🖼️ Setting profile photo...', action='set_profile_photo')
             await self.client(UploadProfilePhotoRequest(file=uploaded_file))
             
             relative_path = f"uploads/photos/{stable_filename}"
@@ -157,19 +168,19 @@ class PhotoExecutor(BaseNodeExecutor):
                 if current_account:
                     current_account.photo_url = relative_path
                     db.session.commit()
-                    self.log('info', f"DB updated with stable photo: {relative_path}", action='db_photo_update')
+                    self.log('info', f"✅ DB updated with stable photo: {relative_path}", action='db_photo_update')
             except Exception as db_e:
                 db.session.rollback()
                 logger.error(f"Failed to update DB photo_url: {db_e}")
             
             await asyncio.sleep(random.uniform(2, 5))
-            self.log('success', 'Photo uploaded and set', action='set_photo')
+            self.log('success', '🎉 Photo uploaded and set successfully!', action='set_photo')
             
             return {'success': True, 'message': 'Profile photo uploaded'}
             
         except Exception as e:
             logger.error(f"Photo node failed: {e}")
-            self.log('error', f"Photo upload failed: {str(e)}", action='photo_error')
+            self.log('error', f"❌ Photo upload failed: {str(e)}", action='photo_error')
             return {'success': False, 'error': str(e)}
 
 

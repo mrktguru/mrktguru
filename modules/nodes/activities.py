@@ -35,6 +35,9 @@ class PassiveActivityExecutor(BaseNodeExecutor):
             total_seconds = duration_mins * 60
             enable_scroll = self.get_config('enable_scroll', False)
             
+            self.log('info', f'🧘 Starting Passive Activity Node ({duration_mins}m)', action='passive_start')
+            self.log('info', f'📋 Config: duration={duration_mins}min, scroll={enable_scroll}', action='config_info')
+            
             scroll_events = []
             if enable_scroll:
                 count = random.randint(
@@ -43,6 +46,8 @@ class PassiveActivityExecutor(BaseNodeExecutor):
                 )
                 dur_min = int(self.get_config('scroll_duration_min', 30))
                 dur_max = int(self.get_config('scroll_duration_max', 120))
+                
+                self.log('info', f'📜 Scroll events: {count} scrolls of {dur_min}-{dur_max}s', action='scroll_config')
                 
                 if total_seconds > 300:
                     for _ in range(count):
@@ -54,22 +59,23 @@ class PassiveActivityExecutor(BaseNodeExecutor):
                             'done': False
                         })
                     scroll_events.sort(key=lambda x: x['start_at'])
-
-            self.log('info', f"Starting Passive Activity ({duration_mins}m)", action='passive_start')
             
             start_time = datetime.now()
             last_network_activity = datetime.now()
             next_ping_delay = random.randint(15, 40)
             
-            logger.info(f"[{self.account_id}] ⚡ UpdateStatusRequest(offline=False) sent")
+            self.log('info', '⚡ Sending online status to Telegram...', action='status_update')
             try:
                 await asyncio.wait_for(self.client(UpdateStatusRequest(offline=False)), timeout=20)
+                self.log('info', '✅ Online status sent successfully', action='status_success')
             except asyncio.TimeoutError:
-                logger.warning(f"[{self.account_id}] Initial UpdateStatus timed out")
+                self.log('warning', '⏰ Initial status update timed out', action='status_timeout')
             except Exception as e:
-                logger.warning(f"[{self.account_id}] Initial UpdateStatus failed: {e}")
+                self.log('warning', f'⚠️ Initial status update failed: {e}', action='status_error')
             
-            logger.info(f"[{self.account_id}] 🔄 Starting Passive Activity main loop...")
+            self.log('info', '🔄 Starting IDLE simulation loop...', action='loop_start')
+            self.log('info', f'⏱️ Will run for {duration_mins} minutes', action='duration_info')
+            
             while True:
                 now = datetime.now()
                 elapsed = (now - start_time).total_seconds()
@@ -91,11 +97,9 @@ class PassiveActivityExecutor(BaseNodeExecutor):
                         last_network_activity = now
                         next_ping_delay = random.randint(15, 40)
                     except Exception as e:
-                        # logger.warning(f"Ping failed: {e}")
                         pass
                 
                 if current_scroll:
-                     # logger.info(f"[{self.account_id}] 📜 Starting scroll event: {current_scroll['duration']}s")
                      self.log('info', f"👀 Waking up: Scrolling feed for {current_scroll['duration']}s", action='scroll_start')
                      try:
                         await asyncio.wait_for(self.client(UpdateStatusRequest(offline=False)), timeout=15)
@@ -105,7 +109,6 @@ class PassiveActivityExecutor(BaseNodeExecutor):
                      while datetime.now() < scroll_end:
                          await asyncio.sleep(random.uniform(2.0, 5.0))
                          try:
-                             # logger.debug(f"[{self.account_id}] GetDialogsRequest tick...")
                              await asyncio.wait_for(self.client(GetDialogsRequest(
                                  offset_date=None, offset_id=0,
                                  offset_peer=InputPeerEmpty(), limit=10, hash=0
@@ -116,7 +119,6 @@ class PassiveActivityExecutor(BaseNodeExecutor):
                          except Exception as e:
                              logger.warning(f"[{self.account_id}] GetDialogsRequest error: {e}")
                              
-                     # logger.info(f"[{self.account_id}] ✅ Scroll event finished")
                      current_scroll['done'] = True
                      self.log('info', "💤 Scroll finished. Going back to IDLE.", action='scroll_end')
                      last_network_activity = datetime.now()
@@ -125,10 +127,12 @@ class PassiveActivityExecutor(BaseNodeExecutor):
                 else:
                     await asyncio.sleep(5)
             
+            self.log('success', f'🎉 Passive Activity completed ({duration_mins}m)', action='passive_complete')
             return {'success': True, 'message': f'Completed {duration_mins}m session'}
             
         except Exception as e:
             logger.error(f"Passive Activity failed: {e}")
+            self.log('error', f'❌ Passive Activity failed: {e}', action='passive_error')
             return {'success': False, 'error': str(e)}
 
 

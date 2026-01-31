@@ -258,8 +258,18 @@ def stream_logs(account_id):
         
         try:
             history = redis_client.lrange(f"history:{channel}", 0, -1)
+            # Deduplicate history entries by message content
+            seen_hashes = set()
             for log_json in history:
-                yield f"data: {log_json}\n\n"
+                try:
+                    import hashlib
+                    # Create hash of the log content to detect duplicates
+                    msg_hash = hashlib.md5(log_json.encode()).hexdigest()
+                    if msg_hash not in seen_hashes:
+                        seen_hashes.add(msg_hash)
+                        yield f"data: {log_json}\n\n"
+                except:
+                    yield f"data: {log_json}\n\n"
         except Exception as e:
             logger.error(f"Error reading log history: {e}")
         

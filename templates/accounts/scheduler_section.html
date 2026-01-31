@@ -396,76 +396,10 @@
 </div>
 
 <script>
+    // Note: Log terminal connection is handled by detail.html 
+    // This script only contains scheduler-specific logic
     document.addEventListener('DOMContentLoaded', function () {
         const accountId = "{{ account.id }}";
-        const terminal = document.getElementById('terminal-content');
-        const badge = document.getElementById('log-status-badge');
-        let eventSource = null;
-
-        function connectLogs() {
-            if (eventSource) eventSource.close();
-
-            // Clear initially? Maybe keep "Waiting" text until first log
-            // terminal.innerHTML = ''; 
-
-            eventSource = new EventSource(`/scheduler/stream/logs/${accountId}`);
-
-            eventSource.onopen = () => {
-                badge.className = 'badge bg-success';
-                badge.innerText = 'LIVE';
-                // Only append if terminal has "Waiting..."
-                if (terminal.innerText.includes('Waiting')) terminal.innerHTML = '';
-                appendLine({ timestamp: new Date().toLocaleTimeString(), level: 'SYSTEM', message: 'Connection established.' }, true);
-            };
-
-            eventSource.onmessage = (e) => {
-                try {
-                    const data = JSON.parse(e.data);
-                    appendLine(data);
-                } catch (err) {
-                    console.error('Log parse error', err);
-                }
-            };
-
-            eventSource.onerror = () => {
-                badge.className = 'badge bg-danger';
-                badge.innerText = 'RECONNECTING';
-                // EventSource retries automatically
-            };
-        }
-
-        function appendLine(log, isSystem = false) {
-            const row = document.createElement('div');
-            row.style.marginBottom = '2px';
-            row.style.lineHeight = '1.2';
-            row.style.wordWrap = 'break-word';
-
-            // Colors
-            let color = '#d4d4d4'; // Default text
-            let levelColor = '#808080';
-
-            if (log.level === 'INFO') { levelColor = '#569cd6'; }
-            else if (log.level === 'WARNING') { levelColor = '#ce9178'; color = '#ce9178'; }
-            else if (log.level === 'ERROR' || log.level === 'CRITICAL') { levelColor = '#f44747'; color = '#f44747'; }
-            else if (isSystem) { color = '#6a9955'; }
-
-            // Format: [TIME] [LEVEL] Message
-            row.innerHTML = `
-                <span style="color: #6a9955; margin-right: 5px; opacity:0.7;">[${log.timestamp}]</span>
-                <span style="color: ${levelColor}; font-weight: bold; min-width: 50px; display: inline-block;">${log.level}</span>
-                <span style="color: ${color};">${log.raw_message || log.message}</span>
-            `;
-
-            terminal.appendChild(row);
-
-            // Auto-scroll
-            const autoscroll = document.getElementById('autoscroll-switch').checked;
-            if (autoscroll) {
-                terminal.scrollTop = terminal.scrollHeight;
-            }
-        }
-
-        // Start connection
-        if (accountId) connectLogs();
+        // Scheduler-specific initialization can go here if needed
     });
 </script>

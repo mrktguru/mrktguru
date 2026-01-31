@@ -62,16 +62,19 @@ async function _internalSaveSchedule(silent) {
         } catch (e) { return; }
     }
 
+    // Track if any changes were made
+    let hasChanges = false;
+
     // 2. Process Deletions
     if (state.deletedNodeIds.length > 0) {
         for (const id of state.deletedNodeIds) {
             await API.deleteNode(id);
         }
         state.deletedNodeIds = [];
+        hasChanges = true;
     }
 
     // 3. Process Upserts
-    let hasNewNodes = false;
     for (const node of state.scheduleData.nodes) {
         if (node.is_ghost) continue;
 
@@ -91,14 +94,15 @@ async function _internalSaveSchedule(silent) {
                 const data = await API.createNode(state.scheduleData.schedule_id, payload);
                 if (data.node) {
                     node.id = data.node.id;
-                    hasNewNodes = true;
+                    hasChanges = true;
                 }
             }
         } catch (e) { console.error(e); }
     }
 
-    // 4. Reload schedule to get updated ordinal_ids for new nodes
-    if (hasNewNodes) {
+    // 4. Always reload schedule to get updated ordinal_ids after any changes
+    // This ensures all nodes (including photo, smart_subscribe) get their IDs displayed correctly
+    if (hasChanges) {
         await loadSchedule();
     }
 

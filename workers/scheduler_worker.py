@@ -399,10 +399,14 @@ def execute_scheduled_node(node_id, is_adhoc=False):
             
             account_id = node.schedule.account_id
             display_id = node.get_display_id()  # Format: telegram_id_ordinal (e.g., 8524632170_3)
-            logger.info(f"▶️ Executing node {display_id}: {node.node_type} for account {account_id}")
+            
+            # Detailed logging for Live Activity Log
+            logger.info(f"[{account_id}] 🚀 Starting Node {display_id}: {node.node_type}")
+            logger.info(f"[{account_id}] 📋 Node config: {node.config}")
 
             # --- DISTRIBUTED LOCK CHECK ---
             lock_key = f"lock:account:{account_id}"
+            logger.info(f"[{account_id}] 🔐 Acquiring distributed lock...")
             # TTL 30 mins (1800s) to match heavy tasks 
             is_locked = redis_client.set(lock_key, "locked", nx=True, ex=1800)
             
@@ -419,6 +423,8 @@ def execute_scheduled_node(node_id, is_adhoc=False):
                 from modules.telethon import SessionOrchestrator
                 import asyncio
                 
+                logger.info(f"[{account_id}] 🎭 Initializing Session Orchestrator...")
+                
                 async def run_with_orchestrator():
                     # 1. Check for live session
                     orch = ACTIVE_SESSIONS.get(account_id)
@@ -428,24 +434,28 @@ def execute_scheduled_node(node_id, is_adhoc=False):
                         if account_id in ACTIVE_SESSIONS:
                             del ACTIVE_SESSIONS[account_id] # Cleaning
                         
+                        logger.info(f"[{account_id}] 🆕 Creating NEW session orchestrator...")
                         orch = SessionOrchestrator(account_id)
                         ACTIVE_SESSIONS[account_id] = orch
                         
                         # 🔥 IMPORTANT: Start monitor so it auto-kills session after 10-15 min
                         await orch.start_monitoring()
-                        logger.info(f"[{account_id}] Created NEW SessionOrchestrator (Cached)")
+                        logger.info(f"[{account_id}] ✅ Session orchestrator ready (cached)")
                     else:
                         logger.info(f"[{account_id}] ♻️ Reusing EXISTING active session")
 
                     # 2. Task Wrapper
                     async def task_wrapper(client):
                         # Connection check
+                        logger.info(f"[{account_id}] 🔌 Verifying connection state...")
                         if not client.is_connected():
+                             logger.info(f"[{account_id}] 🔄 Reconnecting client...")
                              await client.connect()
                         
                         if not await client.is_user_authorized():
                              raise Exception("Client not authorized")
-
+                        
+                        logger.info(f"[{account_id}] ✅ Client authorized, executing node...")
                         return await execute_node(
                             client,
                             node.node_type,
@@ -460,7 +470,9 @@ def execute_scheduled_node(node_id, is_adhoc=False):
                 # Run on global background loop
                 try:
                     from utils.bg_loop import BackgroundLoop
+                    logger.info(f"[{account_id}] ⚙️ Submitting task to background loop...")
                     result = BackgroundLoop.submit(run_with_orchestrator())
+                    logger.info(f"[{account_id}] 📦 Node execution completed, processing result...")
                 except Exception as loop_e:
                      logger.exception(f"Orchestrator error: {loop_e}")
                      result = {'success': False, 'error': str(loop_e)}
@@ -474,6 +486,7 @@ def execute_scheduled_node(node_id, is_adhoc=False):
                     node.status = 'completed'
                     node.executed_at = datetime.now()
                     node.schedule.account.last_activity = datetime.now()
+                    logger.info(f"[{account_id}] ✅ Node {display_id} completed successfully")
                     WarmupLog.log(account_id, 'success', f"{node.node_type} completed", action=f'{node.node_type}_complete')
                 else:
                     # Check for FLOOD_WAIT
