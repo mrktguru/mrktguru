@@ -110,6 +110,7 @@ class VisitExecutor(SubscribeExecutor): # Inherit to reuse interaction logic
             if not channels:
                 return {'success': False, 'error': 'No channels provided'}
             
+            visited_count = 0
             for channel_username in channels:
                 # Clean channel username - remove URL prefix, @ symbol, and whitespace
                 channel_username = channel_username.replace('https://t.me/', '').replace('http://t.me/', '').replace('@', '').strip()
@@ -120,16 +121,73 @@ class VisitExecutor(SubscribeExecutor): # Inherit to reuse interaction logic
                 self.log('info', f"Visiting {channel_username}", action='visit_start')
                 await asyncio.sleep(random.uniform(2, 5))
                 
+                # Get entity and save to discovered channels
+                try:
+                    entity = await self.client.get_entity(channel_username)
+                    await self._save_visited_channel(entity)
+                except Exception as e:
+                    logger.warning(f"Could not save visited channel {channel_username}: {e}")
+                
                 await self._interact_with_channel(channel_username, read_count, interaction)
                 
                 self.log('success', f"Visited {channel_username}", action='visit_success')
+                visited_count += 1
             
-            return {'success': True, 'message': f'Visited {len(channels)} channel(s)'}
+            return {'success': True, 'message': f'Visited {visited_count} channel(s)'}
             
         except Exception as e:
             logger.error(f"Visit channels node failed: {e}")
             self.log('error', f"Visit failed: {str(e)}", action='visit_error')
             return {'success': False, 'error': str(e)}
+
+    async def _save_visited_channel(self, entity):
+        """Save visited channel to channel_candidates table"""
+        from telethon.tl.types import Channel, Chat
+        
+        if not isinstance(entity, (Channel, Chat)):
+            return  # Only save channels/groups
+        
+        try:
+            peer_id = entity.id
+            access_hash = getattr(entity, 'access_hash', 0)
+            username = getattr(entity, 'username', None)
+            title = getattr(entity, 'title', 'Unknown')
+            type_str = 'CHANNEL' if isinstance(entity, Channel) else 'MEGAGROUP'
+            
+            # Find existing or create new
+            candidate = ChannelCandidate.query.filter_by(
+                account_id=self.account_id,
+                peer_id=peer_id
+            ).first()
+            
+            if not candidate:
+                candidate = ChannelCandidate(
+                    account_id=self.account_id,
+                    peer_id=peer_id,
+                    access_hash=access_hash,
+                    origin='VISIT_NODE'
+                )
+                db.session.add(candidate)
+                logger.info(f"[{self.account_id}] ✨ New channel discovered via Visit: {title}")
+            
+            # Update fields
+            candidate.username = username
+            candidate.title = title
+            candidate.type = type_str
+            candidate.last_visit_ts = datetime.utcnow()
+            candidate.status = 'VISITED'
+            
+            # Try to get participants count
+            try:
+                full_info = await self.client(GetFullChannelRequest(entity))
+                candidate.participants_count = full_info.full_chat.participants_count
+            except:
+                pass
+            
+            db.session.commit()
+            
+        except Exception as e:
+            logger.error(f"[{self.account_id}] Failed to save visited channel: {e}")
 
 
 class SmartSubscribeExecutor(BaseNodeExecutor):
